@@ -1,0 +1,19 @@
+# npm
+node_modules
+package-lock.json
+npm-shrinkwrap.json
+*.log
+*.gz
+
+dist
+
+# Coveralls
+.nyc_output
+coverage
+
+# Benchmarking
+benchmarks/graphs
+
+# Environment variables
+.env
+.env.dev
