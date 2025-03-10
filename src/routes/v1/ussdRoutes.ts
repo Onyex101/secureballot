@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { ussdLimiter } from '../../middleware/rateLimiter';
+import * as ussdSessionController from '../../controllers/ussd/ussdSessionController';
+import * as ussdVoteController from '../../controllers/ussd/ussdVoteController';
 
 // Controllers would be implemented based on USSD processing needs
 // This is a placeholder for the route structure
@@ -59,21 +61,14 @@ router.post(
       .notEmpty().withMessage(validationMessages.required('Phone number'))
       .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  ussdSessionController.startSession
 );
 
 /**
  * @swagger
  * /api/v1/ussd/vote:
  *   post:
- *     summary: Cast vote via USSD
+ *     summary: Cast a vote via USSD
  *     tags: [USSD]
  *     requestBody:
  *       required: true
@@ -88,7 +83,7 @@ router.post(
  *             properties:
  *               sessionCode:
  *                 type: string
- *                 example: "A1B2C3"
+ *                 example: "123456"
  *               electionId:
  *                 type: string
  *                 format: uuid
@@ -96,16 +91,14 @@ router.post(
  *                 type: string
  *                 format: uuid
  *     responses:
- *       201:
+ *       200:
  *         description: Vote cast successfully
  *       400:
  *         description: Invalid input
  *       401:
- *         description: Invalid session code
+ *         description: Invalid session
  *       403:
- *         description: Already voted or ineligible
- *       404:
- *         description: Election or candidate not found
+ *         description: Already voted
  */
 router.post(
   '/vote',
@@ -123,14 +116,7 @@ router.post(
       .notEmpty().withMessage(validationMessages.required('Candidate ID'))
       .isUUID().withMessage(validationMessages.uuid('Candidate ID'))
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  ussdVoteController.castVote
 );
 
 /**
@@ -158,66 +144,14 @@ router.get(
       .notEmpty().withMessage(validationMessages.required('Session code'))
       .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
-);
-
-/**
- * @swagger
- * /api/v1/ussd/africa-talking:
- *   post:
- *     summary: Webhook for Africa's Talking USSD service
- *     tags: [USSD]
- *     requestBody:
- *       required: true
- *       content:
- *         application/x-www-form-urlencoded:
- *           schema:
- *             type: object
- *             required:
- *               - sessionId
- *               - serviceCode
- *               - phoneNumber
- *               - text
- *             properties:
- *               sessionId:
- *                 type: string
- *               serviceCode:
- *                 type: string
- *               phoneNumber:
- *                 type: string
- *               text:
- *                 type: string
- *     responses:
- *       200:
- *         description: USSD response
- *         content:
- *           text/plain:
- *             schema:
- *               type: string
- */
-router.post(
-  '/africa-talking',
-  ussdLimiter,
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation - would return a USSD menu
-    res.set('Content-Type', 'text/plain');
-    res.send('CON Welcome to INEC e-Voting\n1. Login with VIN\n2. Check election status\n3. Verify voter registration');
-  }
+  ussdSessionController.getSessionStatus
 );
 
 /**
  * @swagger
  * /api/v1/ussd/verify-vote:
  *   post:
- *     summary: Verify a vote via USSD
+ *     summary: Verify a vote using receipt code
  *     tags: [USSD]
  *     requestBody:
  *       required: true
@@ -231,15 +165,17 @@ router.post(
  *             properties:
  *               receiptCode:
  *                 type: string
+ *                 example: "a1b2c3d4e5f6g7h8"
  *               phoneNumber:
  *                 type: string
+ *                 example: "+2348012345678"
  *     responses:
  *       200:
  *         description: Vote verification result
  *       400:
  *         description: Invalid input
  *       404:
- *         description: Receipt not found
+ *         description: Vote not found
  */
 router.post(
   '/verify-vote',
@@ -253,14 +189,7 @@ router.post(
       .notEmpty().withMessage(validationMessages.required('Phone number'))
       .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  ussdVoteController.verifyVote
 );
 
 export default router;

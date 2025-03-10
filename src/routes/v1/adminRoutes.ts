@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, authorize } from '../../middleware/auth';
 import { requireRole } from '../../middleware/accessControl';
 import { UserRole } from '../../middleware/accessControl';
-import { defaultLimiter } from '../../middleware/rateLimiter';
+import { defaultLimiter, adminLimiter } from '../../middleware/rateLimiter';
 import { Request, Response } from 'express';
+
+// Import controllers
+import * as systemAdminController from '../../controllers/admin/systemAdminController';
+import * as systemAuditorController from '../../controllers/admin/systemAuditorController';
+import * as securityOfficerController from '../../controllers/admin/securityOfficerController';
+import * as electoralCommissionerController from '../../controllers/admin/electoralCommissionerController';
+import * as resultVerificationController from '../../controllers/admin/resultVerificationController';
+import * as verificationController from '../../controllers/voter/verificationController';
 
 // Controllers would be implemented based on admin dashboard needs
 // This is a placeholder for the route structure
@@ -18,8 +26,8 @@ router.use(authenticate);
  * @swagger
  * /api/v1/admin/users:
  *   get:
- *     summary: List all system users with pagination and filtering
- *     tags: [System Administrator]
+ *     summary: Get all admin users (System Admin only)
+ *     tags: [Admin Management]
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -31,7 +39,7 @@ router.use(authenticate);
  *         in: query
  *         schema:
  *           type: string
- *           enum: [active, inactive, suspended, all]
+ *           enum: [active, inactive, all]
  *       - name: page
  *         in: query
  *         schema:
@@ -44,52 +52,42 @@ router.use(authenticate);
  *           default: 50
  *     responses:
  *       200:
- *         description: List of users returned
+ *         description: List of admin users returned
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Insufficient permissions
+ *         description: Forbidden - Not a System Admin
  */
 router.get(
   '/users',
-  requireRole(UserRole.SYSTEM_ADMIN),
-  [
+  authorize([UserRole.SYSTEM_ADMIN]),
+  adminLimiter,
+  validate([
+    query('role')
+      .optional(),
+    
     query('status')
       .optional()
-      .isIn(['active', 'inactive', 'suspended', 'all'])
-      .withMessage('Status must be one of: active, inactive, suspended, all'),
+      .isIn(['active', 'inactive', 'all'])
+      .withMessage('Status must be one of: active, inactive, all'),
     
     query('page')
       .optional()
-      .isInt({ min: 1 })
-      .withMessage('Page must be a positive integer'),
+      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     
     query('limit')
       .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage('Limit must be between 1 and 100'),
-  ],
-  validate([
-    query('status'),
-    query('page'),
-    query('limit')
+      .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  systemAdminController.listUsers
 );
 
 /**
  * @swagger
  * /api/v1/admin/users:
  *   post:
- *     summary: Create new admin user
- *     tags: [System Administrator]
+ *     summary: Create a new admin user (System Admin only)
+ *     tags: [Admin Management]
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -99,28 +97,25 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - fullName
  *               - email
+ *               - fullName
  *               - phoneNumber
+ *               - password
  *               - role
  *             properties:
- *               fullName:
- *                 type: string
  *               email:
+ *                 type: string
+ *                 format: email
+ *               fullName:
  *                 type: string
  *               phoneNumber:
  *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
  *               role:
  *                 type: string
- *                 enum: [SystemAdmin, ElectoralCommissioner, SecurityOfficer, SystemAuditor, RegionalOfficer, ElectionManager, PollingOfficer, RegistrationOfficer, ResultOfficer, CandidateOfficer, Observer]
- *               regions:
- *                 type: array
- *                 items:
- *                   type: string
- *               permissions:
- *                 type: array
- *                 items:
- *                   type: string
+ *                 enum: [SystemAdministrator, ElectoralCommissioner, SecurityOfficer, SystemAuditor, RegionalElectoralOfficer, ElectionManager, ResultVerificationOfficer]
  *     responses:
  *       201:
  *         description: Admin user created successfully
@@ -129,61 +124,66 @@ router.get(
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Insufficient permissions
+ *         description: Forbidden - Not a System Admin
+ *       409:
+ *         description: User with this email already exists
  */
 router.post(
   '/users',
-  requireRole(UserRole.SYSTEM_ADMIN),
-  [
-    body('fullName')
-      .notEmpty().withMessage(validationMessages.required('Full name'))
-      .isLength({ min: 3, max: 100 }).withMessage('Full name must be between 3 and 100 characters'),
-    
+  authorize([UserRole.SYSTEM_ADMIN]),
+  adminLimiter,
+  validate([
     body('email')
       .notEmpty().withMessage(validationMessages.required('Email'))
       .isEmail().withMessage(validationMessages.email()),
+    
+    body('fullName')
+      .notEmpty().withMessage(validationMessages.required('Full name')),
     
     body('phoneNumber')
       .notEmpty().withMessage(validationMessages.required('Phone number'))
       .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
     
+    body('password')
+      .notEmpty().withMessage(validationMessages.required('Password'))
+      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    
     body('role')
       .notEmpty().withMessage(validationMessages.required('Role'))
-      .isIn(Object.values(UserRole))
-      .withMessage('Invalid role'),
-  ],
-  validate([
-    body('email'),
-    body('role')
+      .isIn(Object.values(UserRole).filter(role => role !== UserRole.VOTER))
+      .withMessage('Invalid admin role')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  systemAdminController.createUser
 );
 
 /**
  * @swagger
- * /api/v1/admin/elections:
+ * /api/v1/admin/audit-logs:
  *   get:
- *     summary: List all elections with management options
- *     tags: [Electoral Commissioner]
+ *     summary: Get audit logs with filtering and pagination
+ *     tags: [System Auditor]
  *     security:
  *       - BearerAuth: []
  *     parameters:
- *       - name: status
+ *       - name: actionType
  *         in: query
  *         schema:
  *           type: string
- *           enum: [draft, scheduled, active, completed, cancelled]
- *       - name: type
+ *       - name: startDate
  *         in: query
  *         schema:
  *           type: string
+ *           format: date-time
+ *       - name: endDate
+ *         in: query
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - name: userId
+ *         in: query
+ *         schema:
+ *           type: string
+ *           format: uuid
  *       - name: page
  *         in: query
  *         schema:
@@ -193,29 +193,40 @@ router.post(
  *         in: query
  *         schema:
  *           type: integer
- *           default: 20
+ *           default: 50
  *     responses:
  *       200:
- *         description: List of elections returned
+ *         description: Audit logs returned
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Insufficient permissions
  */
 router.get(
-  '/elections',
-  requireRole(UserRole.ELECTORAL_COMMISSIONER),
+  '/audit-logs',
+  requireRole([UserRole.SYSTEM_ADMIN, UserRole.SYSTEM_AUDITOR, UserRole.SECURITY_OFFICER]),
+  defaultLimiter,
   [
-    query('status')
+    query('actionType')
       .optional()
-      .isIn(['draft', 'scheduled', 'active', 'completed', 'cancelled'])
-      .withMessage('Status must be one of: draft, scheduled, active, completed, cancelled'),
-    
+      .isIn(['login', 'logout', 'registration', 'verification', 'password_reset', 'vote_cast', 'profile_update', 'election_view', 'mfa_setup', 'mfa_verify', 'ussd_session'])
+      .withMessage('Invalid action type'),
+    query('startDate')
+      .optional()
+      .isISO8601()
+      .withMessage('Start date must be a valid ISO date'),
+    query('endDate')
+      .optional()
+      .isISO8601()
+      .withMessage('End date must be a valid ISO date'),
+    query('userId')
+      .optional()
+      .isUUID(4)
+      .withMessage('User ID must be a valid UUID'),
     query('page')
       .optional()
       .isInt({ min: 1 })
       .withMessage('Page must be a positive integer'),
-    
     query('limit')
       .optional()
       .isInt({ min: 1, max: 100 })
@@ -226,14 +237,7 @@ router.get(
     query('page'),
     query('limit')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  systemAuditorController.getAuditLogs
 );
 
 /**
@@ -260,7 +264,7 @@ router.get(
  *                 type: string
  *               electionType:
  *                 type: string
- *                 enum: [Presidential, Gubernatorial, Senatorial, HouseOfReps, StateAssembly]
+ *                 enum: [Presidential, Gubernatorial, Senatorial, HouseOfReps, StateAssembly, LocalGovernment]
  *               startDate:
  *                 type: string
  *                 format: date-time
@@ -275,15 +279,18 @@ router.get(
  *       201:
  *         description: Election created successfully
  *       400:
- *         description: Invalid input
+ *         description: Invalid input data
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Insufficient permissions
+ *       409:
+ *         description: Election with overlapping dates already exists
  */
 router.post(
   '/elections',
-  requireRole(UserRole.ELECTORAL_COMMISSIONER),
+  requireRole([UserRole.ELECTORAL_COMMISSIONER, UserRole.ELECTION_MANAGER]),
+  defaultLimiter,
   [
     body('electionName')
       .notEmpty().withMessage(validationMessages.required('Election name'))
@@ -291,7 +298,7 @@ router.post(
     
     body('electionType')
       .notEmpty().withMessage(validationMessages.required('Election type'))
-      .isIn(['Presidential', 'Gubernatorial', 'Senatorial', 'HouseOfReps', 'StateAssembly'])
+      .isIn(['Presidential', 'Gubernatorial', 'Senatorial', 'HouseOfReps', 'StateAssembly', 'LocalGovernment'])
       .withMessage('Invalid election type'),
     
     body('startDate')
@@ -308,22 +315,15 @@ router.post(
     body('startDate'),
     body('endDate')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  electoralCommissionerController.createElection
 );
 
 /**
  * @swagger
- * /api/v1/admin/security/logs:
+ * /api/v1/admin/security-logs:
  *   get:
- *     summary: Get security-related logs
- *     tags: [IT Security Officer]
+ *     summary: Get security logs with filtering and pagination
+ *     tags: [Security Officer]
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -331,8 +331,7 @@ router.post(
  *         in: query
  *         schema:
  *           type: string
- *           enum: [critical, high, medium, low, all]
- *           default: all
+ *           enum: [low, medium, high, critical]
  *       - name: startDate
  *         in: query
  *         schema:
@@ -352,7 +351,7 @@ router.post(
  *         in: query
  *         schema:
  *           type: integer
- *           default: 100
+ *           default: 50
  *     responses:
  *       200:
  *         description: Security logs returned
@@ -362,31 +361,30 @@ router.post(
  *         description: Insufficient permissions
  */
 router.get(
-  '/security/logs',
-  requireRole(UserRole.SECURITY_OFFICER),
+  '/security-logs',
+  requireRole([UserRole.SYSTEM_ADMIN, UserRole.SECURITY_OFFICER]),
+  defaultLimiter,
   [
     query('severity')
       .optional()
-      .isIn(['critical', 'high', 'medium', 'low', 'all'])
-      .withMessage('Severity must be one of: critical, high, medium, low, all'),
-    
+      .isIn(['low', 'medium', 'high', 'critical'])
+      .withMessage('Severity must be one of: low, medium, high, critical'),
     query('startDate')
       .optional()
-      .isISO8601().withMessage('Start date must be a valid ISO date'),
-    
+      .isISO8601()
+      .withMessage('Start date must be a valid ISO date'),
     query('endDate')
       .optional()
-      .isISO8601().withMessage('End date must be a valid ISO date'),
-    
+      .isISO8601()
+      .withMessage('End date must be a valid ISO date'),
     query('page')
       .optional()
       .isInt({ min: 1 })
       .withMessage('Page must be a positive integer'),
-    
     query('limit')
       .optional()
-      .isInt({ min: 1, max: 500 })
-      .withMessage('Limit must be between 1 and 500'),
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
   ],
   validate([
     query('severity'),
@@ -395,14 +393,7 @@ router.get(
     query('page'),
     query('limit')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  securityOfficerController.getSecurityLogs
 );
 
 /**
@@ -428,14 +419,12 @@ router.get(
  *               publishLevel:
  *                 type: string
  *                 enum: [preliminary, final]
- *                 default: final
- *               publicNotes:
- *                 type: string
+ *                 default: preliminary
  *     responses:
  *       200:
  *         description: Results published successfully
  *       400:
- *         description: Invalid input or election in progress
+ *         description: Invalid input data or election not completed
  *       401:
  *         description: Unauthorized
  *       403:
@@ -446,11 +435,11 @@ router.get(
 router.post(
   '/results/publish',
   requireRole([UserRole.ELECTORAL_COMMISSIONER, UserRole.RESULT_VERIFICATION_OFFICER]),
+  defaultLimiter,
   [
     body('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
+      .isUUID(4).withMessage('Election ID must be a valid UUID'),
     body('publishLevel')
       .optional()
       .isIn(['preliminary', 'final'])
@@ -460,14 +449,153 @@ router.post(
     body('electionId'),
     body('publishLevel')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  resultVerificationController.verifyAndPublishResults
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/pending-verifications:
+ *   get:
+ *     summary: Get pending voter verification requests (Voter Registration Officer only)
+ *     tags: [Verification]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: List of pending verification requests returned
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Voter Registration Officer
+ */
+router.get(
+  '/pending-verifications',
+  authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
+  adminLimiter,
+  validate([
+    query('page')
+      .optional()
+      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    
+    query('limit')
+      .optional()
+      .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+  ]),
+  verificationController.getPendingVerifications
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/approve-verification/{id}:
+ *   post:
+ *     summary: Approve a voter verification request (Voter Registration Officer only)
+ *     tags: [Verification]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Verification request approved
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Voter Registration Officer
+ *       404:
+ *         description: Verification request not found
+ */
+router.post(
+  '/approve-verification/:id',
+  authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
+  adminLimiter,
+  validate([
+    param('id')
+      .notEmpty().withMessage(validationMessages.required('Verification ID'))
+      .isUUID().withMessage(validationMessages.uuid('Verification ID')),
+    
+    body('notes')
+      .optional()
+  ]),
+  verificationController.approveVerification
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/reject-verification/{id}:
+ *   post:
+ *     summary: Reject a voter verification request (Voter Registration Officer only)
+ *     tags: [Verification]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Verification request rejected
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Voter Registration Officer
+ *       404:
+ *         description: Verification request not found
+ */
+router.post(
+  '/reject-verification/:id',
+  authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
+  adminLimiter,
+  validate([
+    param('id')
+      .notEmpty().withMessage(validationMessages.required('Verification ID'))
+      .isUUID().withMessage(validationMessages.uuid('Verification ID')),
+    
+    body('reason')
+      .notEmpty().withMessage(validationMessages.required('Rejection reason'))
+  ]),
+  verificationController.rejectVerification
 );
 
 // Add more admin routes as needed...

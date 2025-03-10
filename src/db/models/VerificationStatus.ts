@@ -8,6 +8,7 @@ interface VerificationStatusAttributes {
   verifiedAt: Date | null;
   verificationMethod: string | null;
   verificationNotes: string | null;
+  verificationData: any | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,6 +21,7 @@ interface VerificationStatusCreationAttributes
     | "verifiedAt"
     | "verificationMethod"
     | "verificationNotes"
+    | "verificationData"
     | "createdAt"
     | "updatedAt"
   > {}
@@ -38,6 +40,7 @@ class VerificationStatus
   public verifiedAt!: Date | null;
   public verificationMethod!: string | null;
   public verificationNotes!: string | null;
+  public verificationData!: any | null;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
@@ -93,6 +96,10 @@ class VerificationStatus
         },
         verificationNotes: {
           type: DataTypes.TEXT,
+          allowNull: true,
+        },
+        verificationData: {
+          type: DataTypes.JSON,
           allowNull: true,
         },
         createdAt: {

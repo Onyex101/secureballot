@@ -14,6 +14,9 @@ interface VoterAttributes {
   lastLogin: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  mfaSecret: string | null;
+  mfaEnabled: boolean;
+  mfaBackupCodes: string[] | null;
 }
 
 interface VoterCreationAttributes
@@ -26,6 +29,9 @@ interface VoterCreationAttributes
     | "lastLogin"
     | "createdAt"
     | "updatedAt"
+    | "mfaSecret"
+    | "mfaEnabled"
+    | "mfaBackupCodes"
   > {
   password: string;
 }
@@ -46,6 +52,9 @@ class Voter
   public lastLogin!: Date | null;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  public mfaSecret!: string | null;
+  public mfaEnabled!: boolean;
+  public mfaBackupCodes!: string[] | null;
 
   // Timestamps
   public static readonly createdAt = "createdAt";
@@ -164,6 +173,19 @@ class Voter
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+        },
+        mfaSecret: {
+          type: DataTypes.STRING,
+          allowNull: true,
+        },
+        mfaEnabled: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        mfaBackupCodes: {
+          type: DataTypes.ARRAY(DataTypes.STRING),
+          allowNull: true,
         },
       },
       {

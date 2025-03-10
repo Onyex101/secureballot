@@ -98,6 +98,30 @@ export const ussdLimiter: RateLimitRequestHandler = rateLimit({
   },
 });
 
+// Rate limiter for admin endpoints
+export const adminLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit each IP to 50 admin requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    code: 'TOO_MANY_ADMIN_REQUESTS',
+    message: 'Too many admin requests from this IP, please try again after 15 minutes.',
+  },
+  handler: (req, res, next, options) => {
+    logger.warn({
+      message: 'Admin rate limit exceeded',
+      path: req.path,
+      method: req.method,
+      ip: req.ip,
+      limit: options.max,
+      windowMs: options.windowMs,
+    });
+    
+    res.status(options.statusCode).json(options.message);
+  },
+});
+
 // Create a custom rate limiter with configurable options
 export const createRateLimiter = (
   windowMs: number,

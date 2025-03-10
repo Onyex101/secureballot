@@ -109,6 +109,7 @@ export const validationMessages = {
     `${field} must be one of: ${values.join(", ")}`,
   equals: (field: string, value: any) => `${field} must be ${value}`,
   uuid: (field: string) => `${field} must be a valid UUID`,
+  url: (field: string) => `${field} must be a valid URL`,
   password: () =>
     "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character",
   nin: () =>

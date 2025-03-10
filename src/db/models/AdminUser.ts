@@ -16,6 +16,9 @@ interface AdminUserAttributes {
   createdBy: string | null;
   recoveryToken: string | null;
   recoveryTokenExpiry: Date | null;
+  mfaSecret: string | null;
+  mfaEnabled: boolean;
+  mfaBackupCodes: string[] | null;
 }
 
 interface AdminUserCreationAttributes
@@ -29,6 +32,9 @@ interface AdminUserCreationAttributes
     | "createdBy"
     | "recoveryToken"
     | "recoveryTokenExpiry"
+    | "mfaSecret"
+    | "mfaEnabled"
+    | "mfaBackupCodes"
   > {
   password: string;
 }
@@ -50,6 +56,9 @@ class AdminUser
   public createdBy!: string | null;
   public recoveryToken!: string | null;
   public recoveryTokenExpiry!: Date | null;
+  public mfaSecret!: string | null;
+  public mfaEnabled!: boolean;
+  public mfaBackupCodes!: string[] | null;
 
   // Timestamps
   public static readonly createdAt = "createdAt";
@@ -189,6 +198,19 @@ class AdminUser
         },
         recoveryTokenExpiry: {
           type: DataTypes.DATE,
+          allowNull: true,
+        },
+        mfaSecret: {
+          type: DataTypes.STRING(255),
+          allowNull: true,
+        },
+        mfaEnabled: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        mfaBackupCodes: {
+          type: DataTypes.ARRAY(DataTypes.STRING),
           allowNull: true,
         },
       },

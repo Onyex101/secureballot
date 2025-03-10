@@ -1,11 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt, { Secret, SignOptions } from "jsonwebtoken";
-import bcrypt from "bcrypt";
-import speakeasy from "speakeasy";
-import crypto from "crypto";
-import { Op } from "sequelize";
-import db from "../../db/models";
-import { logger } from "../../config/logger";
+import { authService, auditService } from "../../services";
 import { ApiError } from "../../middleware/errorHandler";
 import { AuditActionType } from "../../db/models/AuditLog";
 
@@ -23,13 +17,8 @@ export const register = async (
     const { nin, vin, phoneNumber, dateOfBirth, password } = req.body;
 
     // Check if voter already exists
-    const existingVoter = await db.Voter.findOne({
-      where: {
-        [Op.or]: [{ nin }, { vin }],
-      },
-    });
-
-    if (existingVoter) {
+    const voterExists = await authService.checkVoterExists(nin, vin);
+    if (voterExists) {
       const error: ApiError = new Error(
         "Voter with this NIN or VIN already exists",
       );
@@ -39,41 +28,32 @@ export const register = async (
       throw error;
     }
 
-    // Create new voter
-    const voter = await db.Voter.create({
+    // Register new voter
+    const voter = await authService.registerVoter(
       nin,
       vin,
       phoneNumber,
-      dateOfBirth,
-      password, // Password will be hashed in the model's beforeCreate hook
-    });
+      new Date(dateOfBirth),
+      password
+    );
 
-    // Create verification status record (unverified by default)
-    await db.VerificationStatus.create({
-      userId: voter.id,
-      state: "pending", // Default state for verification
-      isVerified: false,
-    });
+    // Log the registration
+    await auditService.createAuditLog(
+      voter.id,
+      AuditActionType.REGISTRATION,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { nin, phoneNumber }
+    );
 
-    // Log the registration action
-    await db.AuditLog.create({
-      userId: voter.id,
-      actionType: AuditActionType.REGISTRATION,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"] || "Unknown",
-      actionDetails: {
-        nin: nin.substring(0, 3) + "********", // Mask sensitive data in logs
-        vin: vin.substring(0, 3) + "****************",
-        phoneNumber: phoneNumber.substring(0, 4) + "********",
-      },
-    });
-
-    // Return success response without sensitive data
     res.status(201).json({
-      code: "REGISTRATION_SUCCESS",
-      message: "Voter registered successfully. Verification required.",
+      success: true,
+      message: "Voter registered successfully",
       data: {
         id: voter.id,
+        nin: voter.nin,
+        vin: voter.vin,
+        phoneNumber: voter.phoneNumber,
       },
     });
   } catch (error) {
@@ -82,7 +62,7 @@ export const register = async (
 };
 
 /**
- * Login voter
+ * Login a voter
  * @route POST /api/v1/auth/login
  * @access Public
  */
@@ -92,120 +72,61 @@ export const login = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { nin, vin, password } = req.body;
+    const { identifier, password } = req.body;
 
-    // Find voter by NIN and VIN
-    const voter = await db.Voter.findOne({
-      where: {
-        nin,
-        vin,
-      },
-      include: [
-        {
-          model: db.VerificationStatus,
-          as: "verificationStatus",
+    try {
+      // Authenticate voter
+      const voter = await authService.authenticateVoter(identifier, password);
+
+      // Generate token
+      const token = authService.generateToken(voter.id);
+
+      // Log the login
+      await auditService.createAuditLog(
+        voter.id,
+        AuditActionType.LOGIN,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { identifier }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Login successful",
+        data: {
+          token,
+          voter: {
+            id: voter.id,
+            nin: voter.nin,
+            vin: voter.vin,
+            phoneNumber: voter.phoneNumber,
+          },
+          requiresMfa: voter.requiresMfa,
         },
-      ],
-    });
-
-    if (!voter) {
-      const error: ApiError = new Error("Invalid credentials");
-      error.statusCode = 401;
-      error.code = "INVALID_CREDENTIALS";
-      error.isOperational = true;
-      throw error;
-    }
-
-    // Check if account is active
-    if (!voter.isActive) {
-      const error: ApiError = new Error("Account is inactive or suspended");
-      error.statusCode = 403;
-      error.code = "ACCOUNT_INACTIVE";
-      error.isOperational = true;
-      throw error;
-    }
-
-    // Verify password
-    const isPasswordValid = await voter.validatePassword(password);
-    if (!isPasswordValid) {
-      // Log failed login attempt
-      await db.AuditLog.create({
-        userId: voter.id,
-        actionType: AuditActionType.LOGIN,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"] || "Unknown",
-        actionDetails: { status: "failed", reason: "invalid_password" },
-        isSuspicious: true,
       });
+    } catch (error) {
+      // Log failed login attempt
+      await auditService.createAuditLog(
+        'unknown',
+        'login_failed',
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { identifier, error: (error as Error).message }
+      );
 
-      const error: ApiError = new Error("Invalid credentials");
-      error.statusCode = 401;
-      error.code = "INVALID_CREDENTIALS";
-      error.isOperational = true;
-      throw error;
+      const apiError: ApiError = new Error("Invalid credentials");
+      apiError.statusCode = 401;
+      apiError.code = "INVALID_CREDENTIALS";
+      apiError.isOperational = true;
+      throw apiError;
     }
-
-    // Check if voter is verified
-    const isVerified = voter.verificationStatus?.isVerified || false;
-
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        id: voter.id,
-        role: "Voter",
-        isVerified,
-        permissions: ["view_elections", "cast_vote"],
-      },
-      Buffer.from(process.env.JWT_SECRET || "default-secret-key"),
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN || "1d",
-      } as SignOptions,
-    );
-
-    // Generate refresh token
-    const refreshToken = jwt.sign(
-      { id: voter.id },
-      Buffer.from(process.env.JWT_REFRESH_SECRET || "default-refresh-secret-key"),
-      {
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
-      } as SignOptions,
-    );
-
-    // Update last login
-    voter.lastLogin = new Date();
-    await voter.save();
-
-    // Log successful login
-    await db.AuditLog.create({
-      userId: voter.id,
-      actionType: AuditActionType.LOGIN,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"] || "Unknown",
-      actionDetails: { status: "success" },
-    });
-
-    // Check if MFA is required
-    const requireMfa = process.env.MFA_REQUIRED === "true";
-
-    // Return tokens
-    res.status(200).json({
-      code: "LOGIN_SUCCESS",
-      message: "Login successful",
-      data: {
-        token,
-        refreshToken,
-        mfaRequired: requireMfa,
-        isVerified,
-        userId: voter.id,
-      },
-    });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Verify MFA code
+ * Verify MFA token
  * @route POST /api/v1/auth/verify-mfa
  * @access Public
  */
@@ -215,99 +136,62 @@ export const verifyMfa = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { userId, code } = req.body;
+    const { userId, token } = req.body;
 
-    // Find voter by ID
-    const voter = await db.Voter.findByPk(userId);
+    // In a real implementation, you would retrieve the user's MFA secret
+    // For now, we'll use a placeholder
+    const secret = "PLACEHOLDER_SECRET";
 
-    if (!voter) {
-      const error: ApiError = new Error("User not found");
-      error.statusCode = 404;
-      error.code = "USER_NOT_FOUND";
-      error.isOperational = true;
-      throw error;
-    }
-
-    // Check if account is active
-    if (!voter.isActive) {
-      const error: ApiError = new Error("Account is inactive or suspended");
-      error.statusCode = 403;
-      error.code = "ACCOUNT_INACTIVE";
-      error.isOperational = true;
-      throw error;
-    }
-
-    // In a real implementation, you would verify the MFA code against what was sent
-    // Here, we're just simulating that process
-    const isValid = code === "123456"; // In production, use proper verification
+    // Verify the token
+    const isValid = authService.verifyMfaToken(secret, token);
 
     if (!isValid) {
-      // Log failed MFA attempt
-      await db.AuditLog.create({
-        userId: voter.id,
-        actionType: AuditActionType.MFA_VERIFY,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"] || "Unknown",
-        actionDetails: { status: "failed", reason: "invalid_code" },
-        isSuspicious: true,
-      });
-
-      const error: ApiError = new Error("Invalid MFA code");
+      const error: ApiError = new Error("Invalid MFA token");
       error.statusCode = 401;
-      error.code = "INVALID_MFA_CODE";
+      error.code = "INVALID_MFA_TOKEN";
       error.isOperational = true;
       throw error;
     }
 
-    // Get verification status
-    const verificationStatus = await db.VerificationStatus.findOne({
-      where: { userId: voter.id },
-    });
+    // Generate a new token with extended expiry
+    const newToken = authService.generateToken(userId, 'voter', '24h');
 
-    const isVerified = verificationStatus?.isVerified || false;
-
-    // Generate JWT token with full permissions after MFA
-    const token = jwt.sign(
-      {
-        id: voter.id,
-        role: "Voter",
-        isVerified,
-        permissions: ["view_elections", "cast_vote"],
-        mfaVerified: true,
-      },
-      Buffer.from(process.env.JWT_SECRET || "default-secret-key"),
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN || "1d",
-      } as SignOptions,
+    // Log the MFA verification
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.MFA_VERIFY,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true }
     );
 
-    // Log successful MFA verification
-    await db.AuditLog.create({
-      userId: voter.id,
-      actionType: AuditActionType.MFA_VERIFY,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"] || "Unknown",
-      actionDetails: { status: "success" },
-    });
-
-    // Return the new token
     res.status(200).json({
-      code: "MFA_VERIFICATION_SUCCESS",
+      success: true,
       message: "MFA verification successful",
       data: {
-        token,
-        isVerified,
+        token: newToken,
       },
     });
   } catch (error) {
+    // Log failed MFA attempt
+    if (req.body.userId) {
+      await auditService.createAuditLog(
+        req.body.userId,
+        'mfa_verification_failed',
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { error: (error as Error).message }
+      );
+    }
+
     next(error);
   }
 };
 
 /**
- * Refresh authorization token
+ * Refresh token
  * @route POST /api/v1/auth/refresh-token
- * @access Public
+ * @access Private
  */
 export const refreshToken = async (
   req: Request,
@@ -315,90 +199,35 @@ export const refreshToken = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { refreshToken } = req.body;
+    // The user ID should be available from the authentication middleware
+    const userId = (req as any).user.id;
 
-    if (!refreshToken) {
-      const error: ApiError = new Error("Refresh token is required");
-      error.statusCode = 400;
-      error.code = "REFRESH_TOKEN_REQUIRED";
-      error.isOperational = true;
-      throw error;
-    }
+    // Generate a new token
+    const token = authService.generateToken(userId);
 
-    // Verify refresh token
-    try {
-      const decoded = jwt.verify(
-        refreshToken,
-        Buffer.from(process.env.JWT_REFRESH_SECRET || "default-refresh-secret-key"),
-      ) as {
-        id: string;
-      };
+    // Log the token refresh
+    await auditService.createAuditLog(
+      userId,
+      'token_refresh',
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {}
+    );
 
-      // Find voter by ID
-      const voter = await db.Voter.findByPk(decoded.id, {
-        include: [
-          {
-            model: db.VerificationStatus,
-            as: "verificationStatus",
-          },
-        ],
-      });
-
-      if (!voter) {
-        const error: ApiError = new Error("Invalid refresh token");
-        error.statusCode = 401;
-        error.code = "INVALID_REFRESH_TOKEN";
-        error.isOperational = true;
-        throw error;
-      }
-
-      // Check if account is active
-      if (!voter.isActive) {
-        const error: ApiError = new Error("Account is inactive or suspended");
-        error.statusCode = 403;
-        error.code = "ACCOUNT_INACTIVE";
-        error.isOperational = true;
-        throw error;
-      }
-
-      const isVerified = voter.verificationStatus?.isVerified || false;
-
-      // Generate new access token
-      const newToken = jwt.sign(
-        {
-          id: voter.id,
-          role: "Voter",
-          isVerified,
-          permissions: ["view_elections", "cast_vote"],
-        },
-        Buffer.from(process.env.JWT_SECRET || "default-secret-key"),
-        {
-          expiresIn: process.env.JWT_EXPIRES_IN || "1d",
-        } as SignOptions,
-      );
-
-      // Return the new token
-      res.status(200).json({
-        code: "TOKEN_REFRESH_SUCCESS",
-        message: "Token refreshed successfully",
-        data: {
-          token: newToken,
-        },
-      });
-    } catch (err) {
-      const error: ApiError = new Error("Invalid or expired refresh token");
-      error.statusCode = 401;
-      error.code = "INVALID_REFRESH_TOKEN";
-      error.isOperational = true;
-      throw error;
-    }
+    res.status(200).json({
+      success: true,
+      message: "Token refreshed successfully",
+      data: {
+        token,
+      },
+    });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Logout user
+ * Logout a voter
  * @route POST /api/v1/auth/logout
  * @access Private
  */
@@ -408,26 +237,23 @@ export const logout = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    // In a stateless JWT architecture, we don't actually invalidate tokens
-    // Client should discard the token
-    // But we can log the logout action
+    // The user ID should be available from the authentication middleware
+    const userId = (req as any).user.id;
 
-    // Get user ID from request (set by auth middleware)
-    const userId = (req as any).user?.id;
+    // Logout the user
+    await authService.logoutUser(userId);
 
-    if (userId) {
-      // Log logout action
-      await db.AuditLog.create({
-        userId,
-        actionType: AuditActionType.LOGOUT,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"] || "Unknown",
-        actionDetails: { status: "success" },
-      });
-    }
+    // Log the logout
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.LOGOUT,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {}
+    );
 
     res.status(200).json({
-      code: "LOGOUT_SUCCESS",
+      success: true,
       message: "Logout successful",
     });
   } catch (error) {
@@ -446,70 +272,43 @@ export const forgotPassword = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { nin, vin, phoneNumber } = req.body;
+    const { email } = req.body;
 
-    // Find voter by NIN, VIN, and phone number
-    const voter = await db.Voter.findOne({
-      where: {
-        nin,
-        vin,
-        phoneNumber,
-      },
-    });
+    try {
+      // Generate password reset token
+      const result = await authService.generatePasswordResetToken(email);
 
-    if (!voter) {
-      // Don't reveal that the user doesn't exist for security reasons
+      // In a real implementation, you would send an email with the token
+      // For now, we'll just log it
+      console.log(`Password reset token for ${email}: ${result.token}`);
+
+      // Log the password reset request
+      await auditService.createAuditLog(
+        'unknown', // We don't know the user ID yet
+        AuditActionType.PASSWORD_RESET,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { email }
+      );
+
       res.status(200).json({
-        code: "PASSWORD_RESET_REQUESTED",
-        message:
-          "If your account exists, a password reset code will be sent to your registered phone number",
+        success: true,
+        message: "Password reset instructions sent to your email",
       });
-      return;
+    } catch (error) {
+      // Don't reveal if the email exists or not
+      res.status(200).json({
+        success: true,
+        message: "If your email is registered, you will receive password reset instructions",
+      });
     }
-
-    // Generate a random token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-
-    // In production, hash this token before storing
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
-
-    // Set expiry to 1 hour
-    const expiryDate = new Date();
-    expiryDate.setHours(expiryDate.getHours() + 1);
-
-    // Store token in database
-    voter.recoveryToken = hashedToken;
-    voter.recoveryTokenExpiry = expiryDate;
-    await voter.save();
-
-    // In production, send this token via SMS
-    // Here we're just simulating that process
-    logger.info(`Password reset token for ${voter.id}: ${resetToken}`);
-
-    // Log password reset request
-    await db.AuditLog.create({
-      userId: voter.id,
-      actionType: AuditActionType.PASSWORD_RESET,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"] || "Unknown",
-      actionDetails: { status: "requested" },
-    });
-
-    res.status(200).json({
-      code: "PASSWORD_RESET_REQUESTED",
-      message:
-        "A password reset code has been sent to your registered phone number",
-    });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Reset password with token
+ * Reset password
  * @route POST /api/v1/auth/reset-password
  * @access Public
  */
@@ -521,48 +320,30 @@ export const resetPassword = async (
   try {
     const { token, newPassword } = req.body;
 
-    // Hash the token to compare with the stored hashed token
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    try {
+      // Reset the password
+      await authService.resetPassword(token, newPassword);
 
-    // Find voter with this token and valid expiry
-    const voter = await db.Voter.findOne({
-      where: {
-        recoveryToken: hashedToken,
-        recoveryTokenExpiry: {
-          [Op.gt]: new Date(),
-        },
-      },
-    });
+      // Log the password reset
+      await auditService.createAuditLog(
+        'unknown', // We don't know the user ID yet
+        'password_reset_complete',
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: true }
+      );
 
-    if (!voter) {
-      const error: ApiError = new Error("Invalid or expired token");
-      error.statusCode = 400;
-      error.code = "INVALID_RESET_TOKEN";
-      error.isOperational = true;
-      throw error;
+      res.status(200).json({
+        success: true,
+        message: "Password reset successful",
+      });
+    } catch (error) {
+      const apiError: ApiError = new Error("Invalid or expired token");
+      apiError.statusCode = 400;
+      apiError.code = "INVALID_TOKEN";
+      apiError.isOperational = true;
+      throw apiError;
     }
-
-    // Update password
-    await voter.updatePassword(newPassword);
-
-    // Clear reset token and expiry
-    voter.recoveryToken = null;
-    voter.recoveryTokenExpiry = null;
-    await voter.save();
-
-    // Log password reset
-    await db.AuditLog.create({
-      userId: voter.id,
-      actionType: AuditActionType.PASSWORD_RESET,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"] || "Unknown",
-      actionDetails: { status: "completed" },
-    });
-
-    res.status(200).json({
-      code: "PASSWORD_RESET_SUCCESS",
-      message: "Password has been reset successfully",
-    });
   } catch (error) {
     next(error);
   }

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { validate, validationMessages, sanitize } from '../../middleware/validator';
 import * as authController from '../../controllers/auth/authController';
+import * as mfaController from '../../controllers/auth/mfaController';
+import * as ussdAuthController from '../../controllers/auth/ussdAuthContoller';
 import { authenticate } from '../../middleware/auth';
 import { authLimiter } from '../../middleware/rateLimiter';
 
@@ -49,18 +51,15 @@ const router = Router();
  *                 description: User password
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: Voter registered successfully
  *       400:
  *         description: Invalid input
  *       409:
- *         description: User already exists
+ *         description: Voter already exists
  */
 router.post(
   '/register',
-  [
-    sanitize(),
-    authLimiter
-  ],
+  authLimiter,
   validate([
     body('nin')
       .notEmpty().withMessage(validationMessages.required('NIN'))
@@ -76,13 +75,11 @@ router.post(
     
     body('dateOfBirth')
       .notEmpty().withMessage(validationMessages.required('Date of birth'))
-      .isDate().withMessage(validationMessages.date('Date of birth')),
+      .isISO8601().withMessage('Date of birth must be a valid date'),
     
     body('password')
       .notEmpty().withMessage(validationMessages.required('Password'))
-      .isLength({ min: 8 }).withMessage(validationMessages.min('Password', 8))
-      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password())
+      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
   ]),
   authController.register
 );
@@ -91,7 +88,7 @@ router.post(
  * @swagger
  * /api/v1/auth/login:
  *   post:
- *     summary: Authenticate a user
+ *     summary: Login a user
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -100,38 +97,30 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - nin
- *               - vin
+ *               - identifier
  *               - password
  *             properties:
- *               nin:
+ *               identifier:
  *                 type: string
+ *                 description: NIN, VIN, or phone number
  *                 example: "12345678901"
- *               vin:
- *                 type: string
- *                 example: "1234567890123456789"
  *               password:
  *                 type: string
  *                 format: password
  *     responses:
  *       200:
- *         description: Authentication successful
+ *         description: Login successful
+ *       400:
+ *         description: Invalid input
  *       401:
- *         description: Authentication failed
- *       403:
- *         description: Account locked due to multiple failed attempts
+ *         description: Invalid credentials
  */
 router.post(
   '/login',
   authLimiter,
   validate([
-    body('nin')
-      .notEmpty().withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
-    
-    body('vin')
-      .notEmpty().withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
+    body('identifier')
+      .notEmpty().withMessage(validationMessages.required('Identifier')),
     
     body('password')
       .notEmpty().withMessage(validationMessages.required('Password'))
@@ -141,103 +130,10 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/auth/verify-mfa:
+ * /api/v1/auth/ussd/authenticate:
  *   post:
- *     summary: Complete MFA verification
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *               - code
- *             properties:
- *               userId:
- *                 type: string
- *                 format: uuid
- *                 description: User ID received from login response
- *               code:
- *                 type: string
- *                 description: MFA code sent to phone
- *                 example: "123456"
- *     responses:
- *       200:
- *         description: MFA verification successful
- *       401:
- *         description: Invalid MFA code
- */
-router.post(
-  '/verify-mfa',
-  authLimiter,
-  validate([
-    body('userId')
-      .notEmpty().withMessage(validationMessages.required('User ID'))
-      .isUUID().withMessage(validationMessages.uuid('User ID')),
-    
-    body('code')
-      .notEmpty().withMessage(validationMessages.required('MFA code'))
-      .isLength({ min: 6, max: 6 }).withMessage('MFA code must be 6 characters')
-  ]),
-  authController.verifyMfa
-);
-
-/**
- * @swagger
- * /api/v1/auth/refresh-token:
- *   post:
- *     summary: Refresh authentication token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - refreshToken
- *             properties:
- *               refreshToken:
- *                 type: string
- *     responses:
- *       200:
- *         description: Token refreshed successfully
- *       401:
- *         description: Invalid or expired token
- */
-router.post(
-  '/refresh-token',
-  validate([
-    body('refreshToken')
-      .notEmpty().withMessage(validationMessages.required('Refresh token'))
-  ]),
-  authController.refreshToken
-);
-
-/**
- * @swagger
- * /api/v1/auth/logout:
- *   post:
- *     summary: Log out user and invalidate token
- *     tags: [Authentication]
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: Logout successful
- *       401:
- *         description: Unauthorized
- */
-router.post('/logout', authenticate, authController.logout);
-
-/**
- * @swagger
- * /api/v1/auth/forgot-password:
- *   post:
- *     summary: Request password reset
- *     tags: [Authentication]
+ *     summary: Authenticate a voter via USSD
+ *     tags: [USSD Authentication]
  *     requestBody:
  *       required: true
  *       content:
@@ -260,10 +156,14 @@ router.post('/logout', authenticate, authController.logout);
  *                 example: "+2348012345678"
  *     responses:
  *       200:
- *         description: Password reset request processed
+ *         description: USSD authentication successful
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid credentials
  */
 router.post(
-  '/forgot-password',
+  '/ussd/authenticate',
   authLimiter,
   validate([
     body('nin')
@@ -277,6 +177,331 @@ router.post(
     body('phoneNumber')
       .notEmpty().withMessage(validationMessages.required('Phone number'))
       .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+  ]),
+  ussdAuthController.authenticateViaUssd
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/ussd/verify-session:
+ *   post:
+ *     summary: Verify USSD session and get token
+ *     tags: [USSD Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sessionCode
+ *             properties:
+ *               sessionCode:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: USSD session verified
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid or expired session
+ */
+router.post(
+  '/ussd/verify-session',
+  authLimiter,
+  validate([
+    body('sessionCode')
+      .notEmpty().withMessage(validationMessages.required('Session code'))
+      .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters')
+  ]),
+  ussdAuthController.verifyUssdSession
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/verify-mfa:
+ *   post:
+ *     summary: Verify MFA token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - token
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *               token:
+ *                 type: string
+ *                 description: 6-digit MFA token
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: MFA verification successful
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid MFA token
+ */
+router.post(
+  '/verify-mfa',
+  authLimiter,
+  validate([
+    body('userId')
+      .notEmpty().withMessage(validationMessages.required('User ID'))
+      .isUUID().withMessage(validationMessages.uuid('User ID')),
+    
+    body('token')
+      .notEmpty().withMessage(validationMessages.required('MFA token'))
+      .isLength({ min: 6, max: 6 }).withMessage('MFA token must be 6 digits')
+      .isNumeric().withMessage('MFA token must contain only numbers')
+  ]),
+  authController.verifyMfa
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/setup-mfa:
+ *   post:
+ *     summary: Set up MFA for a user
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: MFA setup information returned
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  '/setup-mfa',
+  authenticate,
+  mfaController.setupMfa
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/enable-mfa:
+ *   post:
+ *     summary: Enable MFA after verification
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: 6-digit MFA token
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: MFA enabled successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized or invalid token
+ */
+router.post(
+  '/enable-mfa',
+  authenticate,
+  validate([
+    body('token')
+      .notEmpty().withMessage(validationMessages.required('MFA token'))
+      .isLength({ min: 6, max: 6 }).withMessage('MFA token must be 6 digits')
+      .isNumeric().withMessage('MFA token must contain only numbers')
+  ]),
+  mfaController.enableMfa
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/disable-mfa:
+ *   post:
+ *     summary: Disable MFA for a user
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: 6-digit MFA token
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: MFA disabled successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized or invalid token
+ */
+router.post(
+  '/disable-mfa',
+  authenticate,
+  validate([
+    body('token')
+      .notEmpty().withMessage(validationMessages.required('MFA token'))
+      .isLength({ min: 6, max: 6 }).withMessage('MFA token must be 6 digits')
+      .isNumeric().withMessage('MFA token must contain only numbers')
+  ]),
+  mfaController.disableMfa
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/generate-backup-codes:
+ *   post:
+ *     summary: Generate backup codes for MFA
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Backup codes generated successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  '/generate-backup-codes',
+  authenticate,
+  mfaController.generateBackupCodes
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/verify-backup-code:
+ *   post:
+ *     summary: Verify a backup code for MFA
+ *     tags: [MFA]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - backupCode
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *               backupCode:
+ *                 type: string
+ *                 example: "ABC123"
+ *     responses:
+ *       200:
+ *         description: Backup code verified successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid backup code
+ */
+router.post(
+  '/verify-backup-code',
+  authLimiter,
+  validate([
+    body('userId')
+      .notEmpty().withMessage(validationMessages.required('User ID'))
+      .isUUID().withMessage(validationMessages.uuid('User ID')),
+    
+    body('backupCode')
+      .notEmpty().withMessage(validationMessages.required('Backup code'))
+  ]),
+  mfaController.verifyBackupCode
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh-token:
+ *   post:
+ *     summary: Refresh authentication token
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  '/refresh-token',
+  authenticate,
+  authController.refreshToken
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/logout:
+ *   post:
+ *     summary: Logout user
+ *     tags: [Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  '/logout',
+  authenticate,
+  authController.logout
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Password reset instructions sent
+ *       400:
+ *         description: Invalid input
+ */
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate([
+    body('email')
+      .notEmpty().withMessage(validationMessages.required('Email'))
+      .isEmail().withMessage(validationMessages.email())
   ]),
   authController.forgotPassword
 );
@@ -299,29 +524,25 @@ router.post(
  *             properties:
  *               token:
  *                 type: string
- *                 description: Password reset token
  *               newPassword:
  *                 type: string
  *                 format: password
- *                 description: New password
  *     responses:
  *       200:
  *         description: Password reset successful
  *       400:
- *         description: Invalid input or expired token
+ *         description: Invalid input or token
  */
 router.post(
   '/reset-password',
   authLimiter,
   validate([
     body('token')
-      .notEmpty().withMessage(validationMessages.required('Reset token')),
+      .notEmpty().withMessage(validationMessages.required('Token')),
     
     body('newPassword')
       .notEmpty().withMessage(validationMessages.required('New password'))
-      .isLength({ min: 8 }).withMessage(validationMessages.min('New password', 8))
-      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password())
+      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
   ]),
   authController.resetPassword
 );

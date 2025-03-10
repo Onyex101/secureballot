@@ -7,6 +7,7 @@ export enum AuditActionType {
   REGISTRATION = "registration",
   VERIFICATION = "verification",
   PASSWORD_RESET = "password_reset",
+  PASSWORD_CHANGE = "password_change",
   VOTE_CAST = "vote_cast",
   PROFILE_UPDATE = "profile_update",
   ELECTION_VIEW = "election_view",

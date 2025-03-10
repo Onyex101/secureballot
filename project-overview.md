@@ -291,6 +291,35 @@ The system includes a comprehensive mobile application with features for all con
 - **Multilingual Support**: Interface in multiple Nigerian languages
 - **Accessibility**: Compliance with mobile accessibility standards
 
+### Mobile API Endpoints
+
+The system provides a comprehensive set of mobile-specific API endpoints:
+
+1. **Authentication**:
+   - Mobile login with extended token validity (30 days)
+   - Device verification for enhanced security
+   - Verified devices receive 90-day tokens
+
+2. **Offline Voting**:
+   - Download offline voting packages with encryption keys
+   - Submit votes when connectivity is restored
+   - Digital signatures for vote integrity
+
+3. **Geolocation Services**:
+   - Find nearby polling units based on coordinates
+   - Distance-based sorting of results
+   - Configurable search radius
+
+4. **Data Synchronization**:
+   - Selective sync for different data types (elections, candidates, polling units, profile)
+   - Bandwidth-efficient delta updates
+   - Background synchronization
+
+5. **Election Information**:
+   - Detailed election data with candidate photos
+   - Eligibility checking
+   - Vote casting with encryption
+
 ### Offline Mode Capabilities
 
 - **Offline Package Download**: Pre-download election data when connectivity is available

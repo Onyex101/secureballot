@@ -9,6 +9,8 @@ interface PollingUnitAttributes {
   ward: string;
   geolocation: any | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   registeredVoters: number;
   assignedOfficer: string | null;
   isActive: boolean;
@@ -22,6 +24,8 @@ interface PollingUnitCreationAttributes
     | "id"
     | "geolocation"
     | "address"
+    | "latitude"
+    | "longitude"
     | "assignedOfficer"
     | "isActive"
     | "createdAt"
@@ -40,6 +44,8 @@ class PollingUnit
   public ward!: string;
   public geolocation!: any | null;
   public address!: string | null;
+  public latitude!: number | null;
+  public longitude!: number | null;
   public registeredVoters!: number;
   public assignedOfficer!: string | null;
   public isActive!: boolean;
@@ -119,6 +125,14 @@ class PollingUnit
         },
         address: {
           type: DataTypes.STRING(255),
+          allowNull: true,
+        },
+        latitude: {
+          type: DataTypes.FLOAT,
+          allowNull: true,
+        },
+        longitude: {
+          type: DataTypes.FLOAT,
           allowNull: true,
         },
         registeredVoters: {

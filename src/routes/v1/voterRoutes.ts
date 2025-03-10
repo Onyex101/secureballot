@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import * as voterController from '../../controllers/voter/voterController';
 import * as voteController from '../../controllers/election/voteController';
+import * as pollingUnitController from '../../controllers/voter/pollingUnitController';
+import * as verificationController from '../../controllers/voter/verificationController';
 import { authenticate } from '../../middleware/auth';
 import { validate, validationMessages } from '../../middleware/validator';
 import { defaultLimiter } from '../../middleware/rateLimiter';
@@ -49,24 +51,18 @@ router.get('/profile', voterController.getProfile);
  *                 example: "+2348012345678"
  *     responses:
  *       200:
- *         description: Profile updated successfully
+ *         description: Profile updated
  *       400:
  *         description: Invalid input
  *       401:
  *         description: Unauthorized
- *       404:
- *         description: Voter not found
  */
 router.put(
   '/profile',
   validate([
     body('phoneNumber')
       .optional()
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-    
-    body('email')
-      .optional()
-      .isEmail().withMessage(validationMessages.email())
+      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
   ]),
   voterController.updateProfile
 );
@@ -140,10 +136,120 @@ router.get('/polling-unit', voterController.getPollingUnit);
 
 /**
  * @swagger
+ * /api/v1/voter/polling-units:
+ *   get:
+ *     summary: Get all polling units with pagination and filtering
+ *     tags: [Polling Units]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: regionId
+ *         in: query
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - name: search
+ *         in: query
+ *         schema:
+ *           type: string
+ *       - name: page
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: List of polling units returned
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/polling-units', pollingUnitController.getPollingUnits);
+
+/**
+ * @swagger
+ * /api/v1/voter/polling-units/{id}:
+ *   get:
+ *     summary: Get polling unit by ID
+ *     tags: [Polling Units]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Polling unit returned
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Polling unit not found
+ */
+router.get(
+  '/polling-units/:id',
+  validate([
+    param('id')
+      .notEmpty().withMessage(validationMessages.required('Polling Unit ID'))
+      .isUUID().withMessage(validationMessages.uuid('Polling Unit ID'))
+  ]),
+  pollingUnitController.getPollingUnitById
+);
+
+/**
+ * @swagger
+ * /api/v1/voter/polling-units/nearby:
+ *   get:
+ *     summary: Get nearby polling units based on coordinates
+ *     tags: [Polling Units]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: latitude
+ *         in: query
+ *         required: true
+ *         schema:
+ *           type: number
+ *           format: float
+ *       - name: longitude
+ *         in: query
+ *         required: true
+ *         schema:
+ *           type: number
+ *           format: float
+ *       - name: radius
+ *         in: query
+ *         schema:
+ *           type: number
+ *           default: 5
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: List of nearby polling units returned
+ *       400:
+ *         description: Missing coordinates
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/polling-units/nearby', pollingUnitController.getNearbyPollingUnits);
+
+/**
+ * @swagger
  * /api/v1/voter/verification-status:
  *   get:
  *     summary: Get voter verification status
- *     tags: [Voter Management]
+ *     tags: [Verification]
  *     security:
  *       - BearerAuth: []
  *     responses:
@@ -154,7 +260,57 @@ router.get('/polling-unit', voterController.getPollingUnit);
  *       404:
  *         description: Verification status not found
  */
-router.get('/verification-status', voterController.getVerificationStatus);
+router.get('/verification-status', verificationController.getVerificationStatus);
+
+/**
+ * @swagger
+ * /api/v1/voter/submit-verification:
+ *   post:
+ *     summary: Submit verification request
+ *     tags: [Verification]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - documentType
+ *               - documentNumber
+ *               - documentImageUrl
+ *             properties:
+ *               documentType:
+ *                 type: string
+ *                 example: "NIN"
+ *               documentNumber:
+ *                 type: string
+ *                 example: "12345678901"
+ *               documentImageUrl:
+ *                 type: string
+ *                 example: "https://example.com/document.jpg"
+ *     responses:
+ *       200:
+ *         description: Verification request submitted
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  '/submit-verification',
+  validate([
+    body('documentType')
+      .notEmpty().withMessage(validationMessages.required('Document type')),
+    body('documentNumber')
+      .notEmpty().withMessage(validationMessages.required('Document number')),
+    body('documentImageUrl')
+      .notEmpty().withMessage(validationMessages.required('Document image URL'))
+      .isURL().withMessage(validationMessages.url('Document image URL'))
+  ]),
+  verificationController.submitVerification
+);
 
 /**
  * @swagger
@@ -176,8 +332,6 @@ router.get('/verification-status', voterController.getVerificationStatus);
  *         description: Eligibility status returned
  *       401:
  *         description: Unauthorized
- *       404:
- *         description: Election not found
  */
 router.get(
   '/eligibility/:electionId',

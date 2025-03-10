@@ -89,6 +89,19 @@ The API uses JWT (JSON Web Token) based authentication:
 | GET | `/elections/:electionId/candidates` | Get candidates for an election | Yes |
 | GET | `/elections/:electionId/candidates/:candidateId` | Get candidate details | Yes |
 | GET | `/elections/:electionId/voting-status` | Check voter's voting status for an election | Yes |
+| GET | `/elections/:electionId/offline-package` | Generate offline voting package | Yes |
+| POST | `/elections/:electionId/submit-offline` | Submit offline votes | Yes |
+| GET | `/elections/:electionId/offline-votes/:receiptCode` | Verify offline vote status | Yes |
+
+#### Election Offline Voting
+
+The election offline voting feature provides:
+- Generation of secure offline voting packages with encryption keys
+- Support for areas with poor connectivity or intermittent network access
+- Secure submission of offline votes when connectivity is restored
+- Verification of offline votes using receipt codes
+- Comprehensive audit logging of all offline voting activities
+- End-to-end encryption to ensure vote integrity and confidentiality
 
 ### Voting Endpoints
 
@@ -118,12 +131,40 @@ The API uses JWT (JSON Web Token) based authentication:
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|--------------|
-| POST | `/mobile/auth/login` | Login via mobile app | No |
-| POST | `/mobile/auth/verify-device` | Verify mobile device | Yes |
-| GET | `/mobile/vote/offline-package` | Download offline voting package | Yes |
-| POST | `/mobile/vote/submit-offline` | Submit votes collected offline | Yes |
-| GET | `/mobile/polling-units/nearby` | Find nearby polling units | Yes |
-| POST | `/mobile/sync` | Sync mobile app data | Yes |
+| POST | `/mobile/auth/login` | Login via mobile app with NIN, VIN, and password | No |
+| POST | `/mobile/auth/verify-device` | Verify mobile device for enhanced security | Yes |
+| GET | `/mobile/vote/offline-package` | Download offline voting package for areas with poor connectivity | Yes |
+| POST | `/mobile/vote/submit-offline/:electionId` | Submit votes collected offline | Yes |
+| GET | `/mobile/polling-units/nearby` | Find nearby polling units based on geolocation | Yes |
+| POST | `/mobile/sync` | Synchronize data between mobile app and server | Yes |
+| GET | `/mobile/elections/:electionId` | Get detailed election information for mobile app | Yes |
+| POST | `/mobile/vote/:electionId` | Cast vote from mobile app | Yes |
+
+#### Mobile Authentication Details
+
+The mobile authentication flow includes:
+- Login with NIN, VIN, and password
+- Device information tracking for security
+- Extended token validity (30 days) for mobile users
+- Device verification with 6-digit code
+- Enhanced security with 90-day token for verified devices
+
+#### Mobile Offline Voting
+
+The offline voting feature enables:
+- Downloading election data, candidates, and encryption keys
+- Secure offline vote storage with encryption
+- Batch submission of votes when connectivity is restored
+- Digital signatures to verify vote integrity
+- Receipt codes for vote verification
+
+#### Mobile Synchronization
+
+The sync functionality supports:
+- Selective data synchronization (elections, candidates, polling units, profile)
+- Bandwidth-efficient delta updates
+- Background synchronization
+- Conflict resolution for offline changes
 
 ### Admin Endpoints
 
@@ -252,5 +293,12 @@ X-RateLimit-Reset: 1605582000
    - All inputs are strictly validated
    - Content types and lengths are enforced
    - Request and response data are sanitized
+
+6. **Mobile Security**:
+   - Device verification for enhanced security
+   - Extended token validity for verified devices
+   - Secure offline storage with encryption
+   - Digital signatures for data integrity
+   - Comprehensive audit logging of mobile activities
 
 These security measures ensure the integrity, confidentiality, and availability of the voting process, while maintaining transparency and verifiability.

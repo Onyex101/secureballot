@@ -3,9 +3,12 @@ import { body, param, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { authenticate } from '../../middleware/auth';
 import { defaultLimiter } from '../../middleware/rateLimiter';
+import * as mobileAuthController from '../../controllers/mobile/mobileAuthController';
+import * as mobileVoteController from '../../controllers/mobile/mobileVoteController';
+import * as mobilePollingUnitController from '../../controllers/mobile/mobilePollingUnitController';
+import * as mobileSyncController from '../../controllers/mobile/mobileSyncController';
 
-// Controllers would be implemented based on mobile app needs
-// This is a placeholder for the route structure
+// This file contains routes specific to the mobile app
 const router = Router();
 
 /**
@@ -65,21 +68,14 @@ router.post(
     body('password')
       .notEmpty().withMessage(validationMessages.required('Password'))
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileAuthController.mobileLogin
 );
 
 /**
  * @swagger
  * /api/v1/mobile/auth/verify-device:
  *   post:
- *     summary: Verify mobile device for enhanced security
+ *     summary: Verify a mobile device
  *     tags: [Mobile Integration]
  *     security:
  *       - BearerAuth: []
@@ -95,8 +91,10 @@ router.post(
  *             properties:
  *               deviceId:
  *                 type: string
+ *                 description: Unique identifier for the device
  *               verificationCode:
  *                 type: string
+ *                 description: 6-digit verification code sent to the user's phone
  *     responses:
  *       200:
  *         description: Device verified successfully
@@ -117,21 +115,14 @@ router.post(
       .notEmpty().withMessage(validationMessages.required('Verification code'))
       .isLength({ min: 6, max: 6 }).withMessage('Verification code must be 6 characters')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileAuthController.verifyDevice
 );
 
 /**
  * @swagger
  * /api/v1/mobile/vote/offline-package:
  *   get:
- *     summary: Download offline voting package for areas with poor connectivity
+ *     summary: Download offline voting package
  *     tags: [Mobile Integration]
  *     security:
  *       - BearerAuth: []
@@ -144,7 +135,7 @@ router.post(
  *           format: uuid
  *     responses:
  *       200:
- *         description: Offline package downloaded successfully
+ *         description: Offline voting package returned
  *       401:
  *         description: Unauthorized
  *       403:
@@ -155,22 +146,12 @@ router.post(
 router.get(
   '/vote/offline-package',
   authenticate,
-  [
+  validate([
     query('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate([
-    param('electionId')
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileVoteController.getOfflinePackage
 );
 
 /**
@@ -181,6 +162,13 @@ router.get(
  *     tags: [Mobile Integration]
  *     security:
  *       - BearerAuth: []
+ *     parameters:
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
  *     requestBody:
  *       required: true
  *       content:
@@ -188,57 +176,50 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - packageId
  *               - encryptedVotes
  *               - signature
  *             properties:
- *               packageId:
- *                 type: string
  *               encryptedVotes:
  *                 type: array
  *                 items:
  *                   type: object
+ *                   required:
+ *                     - candidateId
+ *                     - encryptedVote
+ *                   properties:
+ *                     candidateId:
+ *                       type: string
+ *                       format: uuid
+ *                     encryptedVote:
+ *                       type: string
  *               signature:
  *                 type: string
  *     responses:
  *       200:
  *         description: Offline votes submitted successfully
  *       400:
- *         description: Invalid submission
+ *         description: Invalid input
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Insufficient permissions
  */
 router.post(
-  '/vote/submit-offline',
+  '/vote/submit-offline/:electionId',
   authenticate,
-  defaultLimiter,
-  [
-    body('packageId')
-      .notEmpty().withMessage(validationMessages.required('Package ID')),
+  validate([
+    param('electionId')
+      .notEmpty().withMessage(validationMessages.required('Election ID'))
+      .isUUID().withMessage(validationMessages.uuid('Election ID')),
     
     body('encryptedVotes')
       .notEmpty().withMessage(validationMessages.required('Encrypted votes'))
       .isArray().withMessage('Encrypted votes must be an array'),
     
     body('signature')
-      .notEmpty().withMessage(validationMessages.required('Signature')),
-  ],
-  validate([
-    param('electionId'),
-    body('candidateId'),
-    body('encryptedVote'),
-    body('signature')
+      .notEmpty().withMessage(validationMessages.required('Signature'))
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileVoteController.submitOfflineVotes
 );
 
 /**
@@ -255,19 +236,28 @@ router.post(
  *         required: true
  *         schema:
  *           type: number
+ *           format: float
  *       - name: longitude
  *         in: query
  *         required: true
  *         schema:
  *           type: number
+ *           format: float
  *       - name: radius
  *         in: query
  *         schema:
  *           type: number
- *           default: 5.0
+ *           default: 5
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 10
  *     responses:
  *       200:
- *         description: Nearby polling units returned
+ *         description: List of nearby polling units returned
+ *       400:
+ *         description: Invalid input
  *       401:
  *         description: Unauthorized
  */
@@ -287,21 +277,14 @@ router.get(
       .optional()
       .isFloat({ min: 0.1, max: 50 }).withMessage('Radius must be between 0.1 and 50 km')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobilePollingUnitController.getNearbyPollingUnits
 );
 
 /**
  * @swagger
  * /api/v1/mobile/sync:
  *   post:
- *     summary: Sync mobile app data when connection is available
+ *     summary: Synchronize data between mobile app and server
  *     tags: [Mobile Integration]
  *     security:
  *       - BearerAuth: []
@@ -311,18 +294,19 @@ router.get(
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - type
  *             properties:
- *               lastSyncTimestamp:
+ *               type:
  *                 type: string
- *                 format: date-time
- *               dataTypes:
- *                 type: array
- *                 items:
- *                   type: string
- *                   enum: [profile, elections, notifications, results]
+ *                 enum: [elections, candidates, pollingUnits, profile]
+ *               data:
+ *                 type: object
  *     responses:
  *       200:
- *         description: Data synced successfully
+ *         description: Data synchronized successfully
+ *       400:
+ *         description: Invalid input
  *       401:
  *         description: Unauthorized
  */
@@ -340,17 +324,50 @@ router.post(
       .isObject()
       .withMessage('Invalid data type')
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileSyncController.syncData
 );
 
-// Get election details route
+/**
+ * @swagger
+ * /api/v1/mobile/elections/{electionId}:
+ *   get:
+ *     summary: Get detailed election information for mobile app
+ *     tags: [Mobile Integration]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Detailed election information returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     election:
+ *                       type: object
+ *                     candidates:
+ *                       type: array
+ *                     eligibility:
+ *                       type: object
+ *       400:
+ *         description: Invalid election ID
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Election not found
+ */
 router.get(
   '/elections/:electionId',
   authenticate,
@@ -359,17 +376,76 @@ router.get(
       .notEmpty().withMessage(validationMessages.required('Election ID'))
       .isUUID().withMessage(validationMessages.uuid('Election ID'))
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileSyncController.getElectionDetails
 );
 
-// Cast vote route
+/**
+ * @swagger
+ * /api/v1/mobile/vote/{electionId}:
+ *   post:
+ *     summary: Cast vote from mobile app
+ *     tags: [Mobile Integration]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - candidateId
+ *               - encryptedVote
+ *               - signature
+ *             properties:
+ *               candidateId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID of the candidate being voted for
+ *               encryptedVote:
+ *                 type: string
+ *                 description: Encrypted vote data
+ *               signature:
+ *                 type: string
+ *                 description: Digital signature to verify vote integrity
+ *     responses:
+ *       201:
+ *         description: Vote cast successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     voteId:
+ *                       type: string
+ *                     receiptCode:
+ *                       type: string
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Invalid input or vote casting error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Voter not eligible or has already voted
+ *       404:
+ *         description: Election or candidate not found
+ */
 router.post(
   '/vote/:electionId',
   authenticate,
@@ -388,14 +464,7 @@ router.post(
     body('signature')
       .notEmpty().withMessage(validationMessages.required('Signature'))
   ]),
-  // Controller would be implemented here
-  (req: Request, res: Response) => {
-    // Placeholder implementation
-    res.status(501).json({
-      code: 'NOT_IMPLEMENTED',
-      message: 'This endpoint is not fully implemented yet',
-    });
-  }
+  mobileSyncController.castVote
 );
 
 export default router;

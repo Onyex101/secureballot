@@ -8,6 +8,7 @@ import { ElectionStatus } from '../../db/models/Election';
 import { VoteSource } from '../../db/models/Vote';
 import { logger } from '../../config/logger';
 import { sequelize } from '../../server'; // Import the sequelize instance
+import { voteService, notificationService } from '../../services';
 
 /**
  * Cast a vote in an election
@@ -235,7 +236,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
 };
 
 /**
- * Verify a vote receipt
+ * Verify a vote using receipt code
  * @route GET /api/v1/voter/verify-vote/:receiptCode
  * @access Private
  */
@@ -252,67 +253,47 @@ export const verifyVote = async (req: AuthRequest, res: Response, next: NextFunc
       throw error;
     }
     
-    // Find votes by this user
-    const votes = await db.Vote.findAll({
-      where: { userId },
-      include: [
-        {
-          model: db.Election,
-          as: 'election',
-          attributes: ['electionName'],
-        },
-      ],
-    });
-    
-    // Check each vote to see if it matches the receipt code
-    let verifiedVote = null;
-    
-    for (const vote of votes) {
-      const calculatedReceiptCode = crypto
-        .createHash('sha256')
-        .update(`${userId}-${vote.electionId}-${vote.voteHash}`)
-        .digest('hex')
-        .substring(0, 16);
+    try {
+      // Verify the vote using the vote service
+      const verificationResult = await voteService.verifyVote(receiptCode);
       
-      if (calculatedReceiptCode === receiptCode) {
-        verifiedVote = vote;
-        break;
+      // Log the verification attempt
+      await db.AuditLog.create({
+        userId,
+        action: AuditActionType.VERIFICATION,
+        ipAddress: req.ip || '',
+        userAgent: req.headers['user-agent'] || '',
+        details: {
+          receiptCode,
+          isValid: verificationResult.isValid,
+          timestamp: new Date()
+        }
+      });
+      
+      if (!verificationResult.isValid) {
+        res.status(404).json({
+          success: false,
+          message: 'Invalid receipt code. No vote found with this code.'
+        });
+        return;
       }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Vote verified successfully',
+        data: {
+          isValid: true,
+          timestamp: verificationResult.timestamp,
+          electionName: verificationResult.electionName
+        }
+      });
+    } catch (error) {
+      const apiError: ApiError = new Error('Failed to verify vote');
+      apiError.statusCode = 400;
+      apiError.code = 'VOTE_VERIFICATION_ERROR';
+      apiError.isOperational = true;
+      throw apiError;
     }
-    
-    if (!verifiedVote) {
-      const error: ApiError = new Error('Invalid or expired receipt code');
-      error.statusCode = 404;
-      error.code = 'INVALID_RECEIPT_CODE';
-      error.isOperational = true;
-      throw error;
-    }
-    
-    // Log vote verification
-    await db.AuditLog.create({
-      userId,
-      actionType: AuditActionType.VOTE_CAST,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      actionDetails: {
-        action: 'verify_vote',
-        electionId: verifiedVote.electionId,
-        electionName: verifiedVote.election.electionName,
-        voteTimestamp: verifiedVote.voteTimestamp,
-      },
-    });
-    
-    // Return verification result
-    res.status(200).json({
-      code: 'VOTE_VERIFIED',
-      message: 'Vote verified successfully',
-      data: {
-        election: verifiedVote.election.electionName,
-        timestamp: verifiedVote.voteTimestamp,
-        source: verifiedVote.voteSource,
-        isCounted: verifiedVote.isCounted,
-      },
-    });
   } catch (error) {
     next(error);
   }
@@ -335,81 +316,35 @@ export const getVoteHistory = async (req: AuthRequest, res: Response, next: Next
       throw error;
     }
     
-    // Find all votes by this user
-    const votes = await db.Vote.findAll({
-      where: { userId },
-      attributes: ['id', 'voteTimestamp', 'voteSource', 'isCounted'],
-      include: [
-        {
-          model: db.Election,
-          as: 'election',
-          attributes: ['id', 'electionName', 'electionType'],
-        },
-        {
-          model: db.Candidate,
-          as: 'candidate',
-          attributes: ['fullName', 'partyName'],
-        },
-        {
-          model: db.PollingUnit,
-          as: 'pollingUnit',
-          attributes: ['pollingUnitName', 'state', 'lga', 'ward'],
-        },
-      ],
-      order: [['voteTimestamp', 'DESC']],
-    });
-    
-    // Generate receipt codes for each vote
-    const voteHistory = votes.map(vote => {
-      const receiptCode = crypto
-        .createHash('sha256')
-        .update(`${userId}-${vote.election.id}-${vote.voteHash}`)
-        .digest('hex')
-        .substring(0, 16);
+    try {
+      // Get vote history using the vote service
+      const voteHistory = await voteService.getVoteHistory(userId);
       
-      return {
-        id: vote.id,
-        election: {
-          id: vote.election.id,
-          name: vote.election.electionName,
-          type: vote.election.electionType,
-        },
-        candidate: {
-          name: vote.candidate.fullName,
-          party: vote.candidate.partyName,
-        },
-        pollingUnit: {
-          name: vote.pollingUnit.pollingUnitName,
-          state: vote.pollingUnit.state,
-          lga: vote.pollingUnit.lga,
-          ward: vote.pollingUnit.ward,
-        },
-        timestamp: vote.voteTimestamp,
-        source: vote.voteSource,
-        isCounted: vote.isCounted,
-        receiptCode,
-        verificationUrl: `/api/v1/voter/verify-vote/${receiptCode}`
-      };
-    });
-    
-    // Log vote history access
-    await db.AuditLog.create({
-      userId,
-      actionType: AuditActionType.VOTE_CAST,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      actionDetails: {
-        action: 'view_vote_history',
-        voteCount: votes.length,
-      },
-    });
-    
-    // Return vote history
-    res.status(200).json({
-      code: 'VOTE_HISTORY_RETRIEVED',
-      message: 'Vote history retrieved successfully',
-      data: voteHistory,
-    });
+      // Log the action
+      await db.AuditLog.create({
+        userId,
+        action: AuditActionType.ELECTION_VIEW,
+        ipAddress: req.ip || '',
+        userAgent: req.headers['user-agent'] || '',
+        details: {
+          timestamp: new Date()
+        }
+      });
+      
+      res.status(200).json({
+        success: true,
+        message: 'Vote history retrieved successfully',
+        data: {
+          votes: voteHistory
+        }
+      });
+    } catch (error) {
+      const apiError: ApiError = new Error('Failed to retrieve vote history');
+      apiError.statusCode = 400;
+      apiError.code = 'VOTE_HISTORY_ERROR';
+      apiError.isOperational = true;
+      throw apiError;
+    }
   } catch (error) {
     next(error);
   }
@@ -493,6 +428,76 @@ export const reportVoteIssue = async (req: AuthRequest, res: Response, next: Nex
         estimatedResponseTime: '24 hours',
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Check if voter has already voted in an election
+ * @route GET /api/v1/elections/:electionId/voting-status
+ * @access Private
+ */
+export const checkVotingStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { electionId } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      const error: ApiError = new Error('User ID not found in request');
+      error.statusCode = 401;
+      error.code = 'AUTHENTICATION_REQUIRED';
+      error.isOperational = true;
+      throw error;
+    }
+    
+    try {
+      // Check if election exists
+      const election = await db.Election.findByPk(electionId);
+      
+      if (!election) {
+        const error: ApiError = new Error('Election not found');
+        error.statusCode = 404;
+        error.code = 'RESOURCE_NOT_FOUND';
+        error.isOperational = true;
+        throw error;
+      }
+      
+      // Check if voter has already voted
+      const existingVote = await db.Vote.findOne({
+        where: {
+          userId,
+          electionId
+        }
+      });
+      
+      // Log the action
+      await db.AuditLog.create({
+        userId,
+        action: AuditActionType.ELECTION_VIEW,
+        ipAddress: req.ip || '',
+        userAgent: req.headers['user-agent'] || '',
+        details: {
+          action: 'check_voting_status',
+          electionId,
+          hasVoted: !!existingVote
+        }
+      });
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          hasVoted: !!existingVote,
+          votingTimestamp: existingVote ? existingVote.voteTimestamp : null
+        }
+      });
+    } catch (error) {
+      const apiError: ApiError = new Error('Failed to check voting status');
+      apiError.statusCode = 400;
+      apiError.code = 'VOTING_STATUS_ERROR';
+      apiError.isOperational = true;
+      throw apiError;
+    }
   } catch (error) {
     next(error);
   }
