@@ -1,5 +1,28 @@
 'use strict';
 
+/**
+ * Seeder for SecureBallot application
+ * 
+ * This seeder creates test data for the application in the following order:
+ * 1. Admin users (including super admin)
+ * 2. Admin roles and permissions
+ * 3. Elections
+ * 4. Election stats
+ * 5. Candidates
+ * 6. Polling units
+ * 7. Voters
+ * 8. Voter cards
+ * 9. Verification statuses
+ * 10. Votes
+ * 11. Audit logs
+ * 12. USSD sessions and votes
+ * 13. Observer reports
+ * 14. Admin logs
+ * 
+ * The order is important to maintain referential integrity and prevent foreign key constraint errors.
+ * Relationships between tables are carefully managed to ensure data consistency.
+ */
+
 const bcrypt = require('bcrypt');
 const { faker } = require('@faker-js/faker');
 const NaijaFaker = require('@codegrenade/naija-faker');
@@ -15,11 +38,114 @@ const MAX_VOTERS_PER_STATE = 200000;
 // Nigeria states and their LGAs
 const nigeriaStates = naijaFaker.states();
 
-// Admin types
-const adminTypes = ['SuperAdmin', 'ElectionManager', 'PollingOfficer', 'Observer', 'DataAnalyst'];
+// Admin types (aligned with UserRole enum in src/types/auth.ts)
+const adminTypes = [
+  'SystemAdministrator',
+  'ElectoralCommissioner',
+  'SecurityOfficer',
+  'SystemAuditor',
+  'RegionalElectoralOfficer',
+  'ElectionManager',
+  'ResultVerificationOfficer',
+  'PollingUnitOfficer',
+  'VoterRegistrationOfficer',
+  'CandidateRegistrationOfficer',
+  'Observer'
+];
 
-// Election types
-const electionTypes = ['Presidential', 'Gubernatorial'];
+// Permission mapping based on roles (aligned with Permission enum in src/types/auth.ts)
+const rolePermissionsMap = {
+  'SystemAdministrator': [
+    'manage_users',
+    'manage_roles',
+    'manage_system_settings',
+    'view_audit_logs',
+    'generate_reports',
+    'manage_security_settings',
+    'manage_encryption_keys',
+    'view_security_logs'
+  ],
+  'ElectoralCommissioner': [
+    'create_election',
+    'edit_election',
+    'delete_election',
+    'manage_candidates',
+    'publish_results',
+    'generate_reports',
+    'view_results',
+    'export_results'
+  ],
+  'SecurityOfficer': [
+    'manage_security_settings',
+    'manage_encryption_keys',
+    'view_security_logs',
+    'view_audit_logs'
+  ],
+  'SystemAuditor': [
+    'view_audit_logs',
+    'generate_reports',
+    'view_security_logs'
+  ],
+  'RegionalElectoralOfficer': [
+    'manage_polling_units',
+    'assign_officers',
+    'view_results'
+  ],
+  'ElectionManager': [
+    'edit_election',
+    'manage_candidates',
+    'view_results',
+    'generate_reports'
+  ],
+  'ResultVerificationOfficer': [
+    'view_results',
+    'verify_results',
+    'export_results'
+  ],
+  'PollingUnitOfficer': [
+    'verify_voters'
+  ],
+  'VoterRegistrationOfficer': [
+    'register_voters',
+    'verify_voters',
+    'reset_voter_password'
+  ],
+  'CandidateRegistrationOfficer': [
+    'manage_candidates'
+  ],
+  'Observer': [
+    'view_elections',
+    'view_results'
+  ]
+};
+
+// Election types (aligned with ElectionType enum in src/db/models/Election.ts)
+const electionTypes = [
+  'Presidential',
+  'Gubernatorial',
+  'Senatorial',
+  'HouseOfReps',
+  'StateAssembly',
+  'LocalGovernment'
+];
+
+// Election statuses (aligned with ElectionStatus enum in src/db/models/Election.ts)
+const electionStatuses = {
+  DRAFT: 'draft',
+  SCHEDULED: 'scheduled',
+  ACTIVE: 'active',
+  PAUSED: 'paused',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled'
+};
+
+// Candidate statuses (aligned with CandidateStatus enum in src/db/models/Candidate.ts)
+const candidateStatuses = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  DISQUALIFIED: 'disqualified'
+};
 
 // Observer report types
 const reportTypes = ['PollingUnitOpening', 'VoterTurnout', 'Irregularity', 'PollingUnitClosing', 'VoteCounting'];
@@ -27,8 +153,8 @@ const reportTypes = ['PollingUnitOpening', 'VoterTurnout', 'Irregularity', 'Poll
 // Report statuses
 const reportStatuses = ['pending', 'reviewed', 'resolved', 'rejected'];
 
-// Vote sources
-const voteSources = ['Online', 'USSD', 'PollingUnit'];
+// Vote sources (aligned with VoteSource enum in src/db/models/Vote.ts)
+const voteSources = ['web', 'mobile', 'ussd', 'offline'];
 
 // Presidential candidates
 const presidentialCandidates = [
@@ -166,22 +292,56 @@ module.exports = {
         email: 'admin@secureballot.ng',
         phoneNumber: naijaFaker.phoneNumber(),
         passwordHash: await generatePasswordHash('password123'),
-        adminType: 'SuperAdmin',
+        adminType: 'SystemAdministrator',
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date()
       }]);
       console.log('Super admin created');
       
+      // Create super admin role
+      await queryInterface.bulkInsert('admin_roles', [{
+        id: uuidv4(),
+        adminId: superAdminId,
+        roleName: 'SystemAdministrator',
+        description: 'System Administrator with full access',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }]);
+      
+      // Create super admin permissions
+      const superAdminPermissions = rolePermissionsMap['SystemAdministrator'].map(permission => ({
+        id: uuidv4(),
+        adminId: superAdminId,
+        permissionName: permission,
+        resourceType: 'system',
+        resourceId: null,
+        actions: JSON.stringify(['read', 'write']),
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }));
+      
+      await queryInterface.bulkInsert('admin_permissions', superAdminPermissions);
+      console.log('Super admin role and permissions created');
+      
       // Create other admins
       const adminIds = [];
       const adminRoles = [];
       const adminPermissions = [];
+      const adminsByType = {}; // Store admin IDs by type
       
       for (let i = 0; i < 20; i++) {
         const adminId = uuidv4();
         adminIds.push(adminId);
         const adminType = getRandomItem(adminTypes);
+        
+        // Store admin ID by type for later reference
+        if (!adminsByType[adminType]) {
+          adminsByType[adminType] = [];
+        }
+        adminsByType[adminType].push(adminId);
         
         // Admin user
         adminRoles.push({
@@ -194,17 +354,20 @@ module.exports = {
           updatedAt: new Date()
         });
         
-        // Admin permissions
-        adminPermissions.push({
-          id: uuidv4(),
-          adminId: adminId,
-          permissionName: `${adminType.toLowerCase()}_access`,
-          resourceType: 'system',
-          resourceId: null,
-          actions: JSON.stringify(['read', adminType === 'SuperAdmin' ? 'write' : 'limited_write']),
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
+        // Admin permissions - create one entry per permission for this role
+        const permissions = rolePermissionsMap[adminType] || [];
+        permissions.forEach(permission => {
+          adminPermissions.push({
+            id: uuidv4(),
+            adminId: adminId,
+            permissionName: permission,
+            resourceType: 'system',
+            resourceId: null,
+            actions: JSON.stringify(['read', 'write']),
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
         });
       }
       
@@ -233,45 +396,107 @@ module.exports = {
       const presidentialElectionId = uuidv4();
       const lagosElectionId = uuidv4();
       
+      // Use an ElectoralCommissioner as the creator if available, otherwise use the super admin
+      const electionCreatorId = adminsByType['ElectoralCommissioner'] && adminsByType['ElectoralCommissioner'].length > 0
+        ? getRandomItem(adminsByType['ElectoralCommissioner'])
+        : superAdminId;
+      
       await queryInterface.bulkInsert('elections', [
         {
           id: presidentialElectionId,
           electionName: 'Nigeria Presidential Election 2023',
-          electionType: 'Presidential',
+          electionType: electionTypes[0], // Presidential
           startDate: new Date('2023-02-25T08:00:00Z'),
           endDate: new Date('2023-02-25T18:00:00Z'),
           description: 'General election to elect the President of Nigeria',
           isActive: true,
-          status: 'active',
+          status: electionStatuses.ACTIVE,
           eligibilityRules: JSON.stringify({
             minimumAge: 18,
             mustHaveValidVoterCard: true,
             mustBeRegisteredVoter: true
           }),
-          createdBy: superAdminId,
+          createdBy: electionCreatorId,
           createdAt: new Date(),
           updatedAt: new Date()
         },
         {
           id: lagosElectionId,
           electionName: 'Lagos State Gubernatorial Election 2023',
-          electionType: 'Gubernatorial',
+          electionType: electionTypes[1], // Gubernatorial
           startDate: new Date('2023-03-18T08:00:00Z'),
           endDate: new Date('2023-03-18T18:00:00Z'),
           description: 'Election to elect the Governor of Lagos State',
           isActive: true,
-          status: 'active',
+          status: electionStatuses.ACTIVE,
           eligibilityRules: JSON.stringify({
             minimumAge: 18,
             mustHaveValidVoterCard: true,
             mustBeRegisteredVoter: true,
             stateCriteria: 'Lagos'
           }),
-          createdBy: superAdminId,
+          createdBy: electionCreatorId,
           createdAt: new Date(),
           updatedAt: new Date()
         }
       ]);
+      
+      // Create additional elections using other election types
+      const additionalElections = [];
+      const additionalElectionStats = [];
+      
+      // Use the remaining election types (starting from index 2)
+      for (let i = 2; i < electionTypes.length; i++) {
+        const electionId = uuidv4();
+        const electionType = electionTypes[i];
+        const state = getRandomItem(Object.keys(nigeriaStates));
+        
+        // Create election
+        additionalElections.push({
+          id: electionId,
+          electionName: `${state} ${electionType} Election 2023`,
+          electionType: electionType,
+          startDate: faker.date.between({ from: '2023-02-01', to: '2023-06-30' }),
+          endDate: faker.date.between({ from: '2023-07-01', to: '2023-12-31' }),
+          description: `Election for ${electionType} positions in ${state}`,
+          isActive: faker.datatype.boolean(0.3), // 30% chance of being active
+          status: getRandomItem([
+            electionStatuses.DRAFT,
+            electionStatuses.SCHEDULED,
+            electionStatuses.COMPLETED
+          ]),
+          eligibilityRules: JSON.stringify({
+            minimumAge: 18,
+            mustHaveValidVoterCard: true,
+            mustBeRegisteredVoter: true,
+            stateCriteria: electionType === 'Senatorial' || electionType === 'HouseOfReps' || 
+                          electionType === 'StateAssembly' || electionType === 'LocalGovernment' ? state : null
+          }),
+          createdBy: electionCreatorId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        
+        // Create election stats
+        additionalElectionStats.push({
+          id: uuidv4(),
+          electionId: electionId,
+          totalVotes: 0,
+          validVotes: 0,
+          invalidVotes: 0,
+          turnoutPercentage: 0,
+          lastUpdated: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
+      
+      // Insert additional elections and stats if any were created
+      if (additionalElections.length > 0) {
+        await queryInterface.bulkInsert('elections', additionalElections);
+        await queryInterface.bulkInsert('election_stats', additionalElectionStats);
+        console.log(`Created ${additionalElections.length} additional elections`);
+      }
       
       // Create initial election stats
       await queryInterface.bulkInsert('election_stats', [
@@ -311,7 +536,7 @@ module.exports = {
         photoUrl: `https://example.com/candidates/${candidate.partyCode.toLowerCase()}_candidate.jpg`,
         position: candidate.position,
         manifesto: candidate.manifesto,
-        status: 'approved',
+        status: candidateStatuses.APPROVED,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -328,7 +553,7 @@ module.exports = {
         photoUrl: `https://example.com/candidates/${candidate.partyCode.toLowerCase()}_candidate.jpg`,
         position: candidate.position,
         manifesto: candidate.manifesto,
-        status: 'approved',
+        status: candidateStatuses.APPROVED,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -383,8 +608,10 @@ module.exports = {
               // Random registered voters between 500-2000
               const registeredVoters = faker.number.int({ min: 500, max: 2000 });
               
-              // Random assigned officer from admin users (officer type)
-              const assignedOfficer = getRandomItem(adminIds);
+              // Assign a PollingUnitOfficer if available, otherwise use any admin
+              const assignedOfficer = adminsByType['PollingUnitOfficer'] && adminsByType['PollingUnitOfficer'].length > 0
+                ? getRandomItem(adminsByType['PollingUnitOfficer'])
+                : getRandomItem(adminIds);
               
               pollingUnits.push({
                 id: pollingUnitId,
@@ -735,11 +962,12 @@ module.exports = {
       }
       
       // Create observer reports
-      const observerIds = adminIds.filter((_, index) => adminUsers[index].adminType === 'Observer');
       const observerReports = [];
       
-      // Use random admins if no observers
-      const reporterIds = observerIds.length > 0 ? observerIds : adminIds.slice(0, 5);
+      // Use Observer admins if available, otherwise use random admins
+      const reporterIds = adminsByType['Observer'] && adminsByType['Observer'].length > 0
+        ? adminsByType['Observer']
+        : adminIds.slice(0, 5);
       
       // Create 100 random observer reports
       for (let i = 0; i < 100; i++) {
@@ -759,7 +987,23 @@ module.exports = {
         
         // 60% have been reviewed
         const reviewed = faker.datatype.boolean(0.6);
-        const reviewerId = reviewed ? getRandomItem(adminIds.filter(id => id !== observerId)) : null;
+        
+        // Use ElectoralCommissioner or SystemAuditor for reviews if available
+        const reviewerTypes = ['ElectoralCommissioner', 'SystemAuditor'];
+        let potentialReviewers = [];
+        
+        for (const type of reviewerTypes) {
+          if (adminsByType[type] && adminsByType[type].length > 0) {
+            potentialReviewers = potentialReviewers.concat(adminsByType[type]);
+          }
+        }
+        
+        // If no appropriate reviewers, use any admin except the observer
+        if (potentialReviewers.length === 0) {
+          potentialReviewers = adminIds.filter(id => id !== observerId);
+        }
+        
+        const reviewerId = reviewed ? getRandomItem(potentialReviewers) : null;
         
         observerReports.push({
           id: uuidv4(),

@@ -71,7 +71,10 @@ CREATE TABLE IF NOT EXISTS voters (
   isActive BOOLEAN NOT NULL DEFAULT TRUE,
   lastLogin TIMESTAMP,
   createdAt TIMESTAMP NOT NULL DEFAULT NOW(),
-  updatedAt TIMESTAMP NOT NULL DEFAULT NOW()
+  updatedAt TIMESTAMP NOT NULL DEFAULT NOW(),
+  mfaSecret VARCHAR(255),
+  mfaEnabled BOOLEAN NOT NULL DEFAULT FALSE,
+  mfaBackupCodes TEXT[]
 );
 
 -- Create failed_attempts table
@@ -243,17 +246,18 @@ CREATE TABLE IF NOT EXISTS ussd_votes (
   CONSTRAINT fk_ussd_votes_candidate_id FOREIGN KEY (candidateId) REFERENCES candidates(id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
--- Create audit_logs table
+-- Create audit_logs table (updated to match AuditLog model)
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   userId UUID,
-  action VARCHAR(100) NOT NULL,
-  resourceType VARCHAR(50) NOT NULL,
-  resourceId VARCHAR(255),
-  details JSONB,
-  ipAddress VARCHAR(50),
-  userAgent TEXT,
+  actionType VARCHAR(50) NOT NULL,
+  actionTimestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+  ipAddress VARCHAR(255) NOT NULL,
+  userAgent VARCHAR(255) NOT NULL,
+  actionDetails JSONB,
+  isSuspicious BOOLEAN NOT NULL DEFAULT FALSE,
   createdAt TIMESTAMP NOT NULL DEFAULT NOW(),
+  updatedAt TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT fk_audit_logs_user_id FOREIGN KEY (userId) REFERENCES voters(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -301,4 +305,9 @@ CREATE INDEX idx_voter_cards_location ON voter_cards(state, lga, ward);
 CREATE INDEX idx_admin_users_admin_type ON admin_users(adminType);
 CREATE INDEX idx_admin_users_is_active ON admin_users(isActive);
 CREATE INDEX idx_ussd_sessions_phone_number ON ussd_sessions(phoneNumber);
-CREATE INDEX idx_ussd_sessions_is_active ON ussd_sessions(isActive); 
+CREATE INDEX idx_ussd_sessions_is_active ON ussd_sessions(isActive);
+CREATE INDEX idx_audit_logs_user_id ON audit_logs(userId);
+CREATE INDEX idx_audit_logs_action_type ON audit_logs(actionType);
+CREATE INDEX idx_audit_logs_action_timestamp ON audit_logs(actionTimestamp);
+CREATE INDEX idx_audit_logs_ip_address ON audit_logs(ipAddress);
+CREATE INDEX idx_audit_logs_is_suspicious ON audit_logs(isSuspicious); 
