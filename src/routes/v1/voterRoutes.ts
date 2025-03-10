@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import * as voterController from '../../controllers/voter/voterController';
 import * as voteController from '../../controllers/election/voteController';
 import { authenticate } from '../../middleware/auth';
@@ -59,12 +59,15 @@ router.get('/profile', voterController.getProfile);
  */
 router.put(
   '/profile',
-  [
+  validate([
     body('phoneNumber')
       .optional()
       .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-  ],
-  validate,
+    
+    body('email')
+      .optional()
+      .isEmail().withMessage(validationMessages.email())
+  ]),
   voterController.updateProfile
 );
 
@@ -102,8 +105,9 @@ router.put(
  */
 router.put(
   '/change-password',
+  authenticate,
   defaultLimiter,
-  [
+  validate([
     body('currentPassword')
       .notEmpty().withMessage(validationMessages.required('Current password')),
     
@@ -111,9 +115,8 @@ router.put(
       .notEmpty().withMessage(validationMessages.required('New password'))
       .isLength({ min: 8 }).withMessage(validationMessages.min('New password', 8))
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password()),
-  ],
-  validate,
+      .withMessage(validationMessages.password())
+  ]),
   voterController.changePassword
 );
 
@@ -178,12 +181,11 @@ router.get('/verification-status', voterController.getVerificationStatus);
  */
 router.get(
   '/eligibility/:electionId',
-  [
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
   voterController.checkEligibility
 );
 
@@ -227,12 +229,11 @@ router.get('/vote-history', voteController.getVoteHistory);
  */
 router.get(
   '/verify-vote/:receiptCode',
-  [
+  validate([
     param('receiptCode')
       .notEmpty().withMessage(validationMessages.required('Receipt code'))
-      .isLength({ min: 16, max: 16 }).withMessage('Receipt code must be 16 characters'),
-  ],
-  validate,
+      .isLength({ min: 16, max: 16 }).withMessage('Receipt code must be 16 characters')
+  ]),
   voteController.verifyVote
 );
 
@@ -251,18 +252,16 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - electionId
+ *               - voteId
  *               - issueType
  *               - description
  *             properties:
- *               electionId:
+ *               voteId:
  *                 type: string
  *                 format: uuid
- *               receiptCode:
- *                 type: string
  *               issueType:
  *                 type: string
- *                 enum: [vote_not_recorded, wrong_candidate, technical_issue, verification_issue, other]
+ *                 enum: [technical, fraud, coercion, other]
  *               description:
  *                 type: string
  *     responses:
@@ -275,26 +274,128 @@ router.get(
  */
 router.post(
   '/report-vote-issue',
-  [
-    body('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
-    body('receiptCode')
-      .optional()
-      .isLength({ min: 16, max: 16 }).withMessage('Receipt code must be 16 characters'),
+  validate([
+    body('voteId')
+      .notEmpty().withMessage(validationMessages.required('Vote ID'))
+      .isUUID().withMessage(validationMessages.uuid('Vote ID')),
     
     body('issueType')
       .notEmpty().withMessage(validationMessages.required('Issue type'))
-      .isIn(['vote_not_recorded', 'wrong_candidate', 'technical_issue', 'verification_issue', 'other'])
-      .withMessage('Invalid issue type'),
+      .isIn(['technical', 'fraud', 'coercion', 'other'])
+      .withMessage('Issue type must be one of: technical, fraud, coercion, other'),
     
     body('description')
       .notEmpty().withMessage(validationMessages.required('Description'))
-      .isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
-  ],
-  validate,
+      .isLength({ min: 10, max: 1000 }).withMessage('Description must be between 10 and 1000 characters')
+  ]),
   voteController.reportVoteIssue
 );
+
+/**
+ * @swagger
+ * /api/v1/voter/verify-identity:
+ *   post:
+ *     summary: Verify voter identity
+ *     tags: [Voter Management]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - documentType
+ *               - documentNumber
+ *               - documentImage
+ *             properties:
+ *               documentType:
+ *                 type: string
+ *                 enum: [nationalId, passport, driversLicense]
+ *               documentNumber:
+ *                 type: string
+ *               documentImage:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Identity verified successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/verify-identity', validate([]), () => {});
+
+/**
+ * @swagger
+ * /api/v1/voter/verify-address:
+ *   post:
+ *     summary: Verify voter address
+ *     tags: [Voter Management]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - addressLine1
+ *               - city
+ *               - state
+ *               - postalCode
+ *               - proofDocument
+ *             properties:
+ *               addressLine1:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               postalCode:
+ *                 type: string
+ *               proofDocument:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Address verified successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/verify-address', validate([]), () => {});
+
+/**
+ * @swagger
+ * /api/v1/voter/voting-history:
+ *   get:
+ *     summary: Get voter's voting history
+ *     tags: [Voter Management]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - name: limit
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *     responses:
+ *       200:
+ *         description: Voting history returned
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/voting-history', validate([]), () => {});
 
 export default router;

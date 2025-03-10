@@ -28,12 +28,11 @@ const router = Router();
 router.get(
   '/live/:electionId',
   defaultLimiter,
-  [
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
   resultsController.getLiveResults
 );
 
@@ -69,17 +68,19 @@ router.get(
 router.get(
   '/region/:electionId',
   defaultLimiter,
-  [
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
       .isUUID().withMessage(validationMessages.uuid('Election ID')),
     
     query('regionType')
-      .optional()
+      .notEmpty().withMessage(validationMessages.required('Region type'))
       .isIn(['state', 'lga', 'ward', 'pollingUnit'])
       .withMessage('Region type must be one of: state, lga, ward, pollingUnit'),
-  ],
-  validate,
+    
+    query('regionCode')
+      .notEmpty().withMessage(validationMessages.required('Region code'))
+  ]),
   resultsController.getResultsByRegion
 );
 
@@ -105,12 +106,11 @@ router.get(
 router.get(
   '/statistics/:electionId',
   defaultLimiter,
-  [
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
   resultsController.getElectionStatistics
 );
 

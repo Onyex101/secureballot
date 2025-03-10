@@ -164,10 +164,10 @@ const roleHasPermission = (
 };
 
 /**
- * Middleware to require a minimum role level
- * @param minimumRole The minimum role required to access the resource
+ * Middleware to require a minimum role level or one of the specified roles
+ * @param roles The minimum role required or an array of acceptable roles
  */
-export const requireRole = (minimumRole: UserRole) => {
+export const requireRole = (roles: UserRole | UserRole[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
@@ -178,22 +178,48 @@ export const requireRole = (minimumRole: UserRole) => {
         throw error;
       }
 
-      const userRole = req.user.role as string;
+      // If roles is an array, check if user has any of the specified roles
+      if (Array.isArray(roles)) {
+        const userRole = req.user.role as string;
 
-      if (!userRole) {
-        const error: ApiError = new Error("User has no assigned role");
-        error.statusCode = 403;
-        error.code = "ROLE_REQUIRED";
-        error.isOperational = true;
-        throw error;
-      }
+        if (!userRole) {
+          const error: ApiError = new Error("User has no assigned role");
+          error.statusCode = 403;
+          error.code = "ROLE_REQUIRED";
+          error.isOperational = true;
+          throw error;
+        }
 
-      if (!hasEqualOrHigherRole(userRole, minimumRole)) {
-        const error: ApiError = new Error("Insufficient role privileges");
-        error.statusCode = 403;
-        error.code = "INSUFFICIENT_ROLE";
-        error.isOperational = true;
-        throw error;
+        const hasRequiredRole = roles.some((role) =>
+          hasEqualOrHigherRole(userRole, role),
+        );
+
+        if (!hasRequiredRole) {
+          const error: ApiError = new Error("Insufficient permissions");
+          error.statusCode = 403;
+          error.code = "INSUFFICIENT_PERMISSIONS";
+          error.isOperational = true;
+          throw error;
+        }
+      } else {
+        // Original logic for single role
+        const userRole = req.user.role as string;
+
+        if (!userRole) {
+          const error: ApiError = new Error("User has no assigned role");
+          error.statusCode = 403;
+          error.code = "ROLE_REQUIRED";
+          error.isOperational = true;
+          throw error;
+        }
+
+        if (!hasEqualOrHigherRole(userRole, roles)) {
+          const error: ApiError = new Error("Insufficient permissions");
+          error.statusCode = 403;
+          error.code = "INSUFFICIENT_PERMISSIONS";
+          error.isOperational = true;
+          throw error;
+        }
       }
 
       next();

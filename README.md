@@ -96,7 +96,7 @@ Database migrations help you manage changes to your database schema over time. H
 To create a new migration file:
 
 ```bash
-npx sequelize-cli migration:generate --name add-new-table
+npx sequelize-cli migration:generate --name add-new-table --migrations-path src/db/migrations
 ```
 
 This will create a new migration file in the `src/db/migrations` directory with a timestamp prefix.

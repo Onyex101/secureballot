@@ -16,11 +16,11 @@
     "test:e2e": "jest --testPathPattern=tests/e2e",
     "test:coverage": "jest --coverage",
     "db:create": "ts-node ./src/scripts/create-db.ts",
-    "db:migrate": "sequelize-cli db:migrate",
-    "db:migrate:undo": "sequelize-cli db:migrate:undo",
-    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
-    "db:seed": "sequelize-cli db:seed:all",
-    "db:seed:undo": "sequelize-cli db:seed:undo:all",
+    "db:migrate": "sequelize-cli db:migrate --migrations-path src/db/migrations",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo --migrations-path src/db/migrations",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all --migrations-path src/db/migrations",
+    "db:seed": "sequelize-cli db:seed:all --seeders-path src/db/seeders",
+    "db:seed:undo": "sequelize-cli db:seed:undo:all --seeders-path src/db/seeders",
     "swagger-autogen": "ts-node src/scripts/swagger-autogen.ts",
     "prepare": "husky install"
   },
@@ -64,6 +64,8 @@
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
+    "@codegrenade/naija-faker": "^1.0.5",
+    "@faker-js/faker": "^9.6.0",
     "@types/bcrypt": "^5.0.2",
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",

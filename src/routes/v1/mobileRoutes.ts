@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { authenticate } from '../../middleware/auth';
@@ -53,7 +53,7 @@ const router = Router();
 router.post(
   '/auth/login',
   defaultLimiter,
-  [
+  validate([
     body('nin')
       .notEmpty().withMessage(validationMessages.required('NIN'))
       .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
@@ -63,11 +63,10 @@ router.post(
       .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
     
     body('password')
-      .notEmpty().withMessage(validationMessages.required('Password')),
-  ],
-  validate,
+      .notEmpty().withMessage(validationMessages.required('Password'))
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -109,18 +108,17 @@ router.post(
 router.post(
   '/auth/verify-device',
   authenticate,
-  defaultLimiter,
-  [
+  validate([
     body('deviceId')
-      .notEmpty().withMessage(validationMessages.required('Device ID')),
+      .notEmpty().withMessage(validationMessages.required('Device ID'))
+      .isLength({ min: 36, max: 64 }).withMessage('Device ID must be between 36 and 64 characters'),
     
     body('verificationCode')
       .notEmpty().withMessage(validationMessages.required('Verification code'))
-      .isLength({ min: 6, max: 6 }).withMessage('Verification code must be 6 characters'),
-  ],
-  validate,
+      .isLength({ min: 6, max: 6 }).withMessage('Verification code must be 6 characters')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -162,9 +160,11 @@ router.get(
       .notEmpty().withMessage(validationMessages.required('Election ID'))
       .isUUID().withMessage(validationMessages.uuid('Election ID')),
   ],
-  validate,
+  validate([
+    param('electionId')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -225,9 +225,14 @@ router.post(
     body('signature')
       .notEmpty().withMessage(validationMessages.required('Signature')),
   ],
-  validate,
+  validate([
+    param('electionId'),
+    body('candidateId'),
+    body('encryptedVote'),
+    body('signature')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -269,7 +274,7 @@ router.post(
 router.get(
   '/polling-units/nearby',
   authenticate,
-  [
+  validate([
     query('latitude')
       .notEmpty().withMessage(validationMessages.required('Latitude'))
       .isFloat({ min: -90, max: 90 }).withMessage('Latitude must be between -90 and 90'),
@@ -280,11 +285,10 @@ router.get(
     
     query('radius')
       .optional()
-      .isFloat({ min: 0.1, max: 50 }).withMessage('Radius must be between 0.1 and 50 km'),
-  ],
-  validate,
+      .isFloat({ min: 0.1, max: 50 }).withMessage('Radius must be between 0.1 and 50 km')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -325,23 +329,67 @@ router.get(
 router.post(
   '/sync',
   authenticate,
-  [
-    body('lastSyncTimestamp')
-      .optional()
-      .isISO8601().withMessage('Last sync timestamp must be a valid ISO date'),
+  validate([
+    body('type')
+      .notEmpty().withMessage(validationMessages.required('Type'))
+      .isIn(['elections', 'candidates', 'pollingUnits', 'profile'])
+      .withMessage('Type must be one of: elections, candidates, pollingUnits, profile'),
     
-    body('dataTypes')
+    body('data')
       .optional()
-      .isArray().withMessage('Data types must be an array'),
-    
-    body('dataTypes.*')
-      .optional()
-      .isIn(['profile', 'elections', 'notifications', 'results'])
-      .withMessage('Invalid data type'),
-  ],
-  validate,
+      .isObject()
+      .withMessage('Invalid data type')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
+    // Placeholder implementation
+    res.status(501).json({
+      code: 'NOT_IMPLEMENTED',
+      message: 'This endpoint is not fully implemented yet',
+    });
+  }
+);
+
+// Get election details route
+router.get(
+  '/elections/:electionId',
+  authenticate,
+  validate([
+    param('electionId')
+      .notEmpty().withMessage(validationMessages.required('Election ID'))
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
+  // Controller would be implemented here
+  (req: Request, res: Response) => {
+    // Placeholder implementation
+    res.status(501).json({
+      code: 'NOT_IMPLEMENTED',
+      message: 'This endpoint is not fully implemented yet',
+    });
+  }
+);
+
+// Cast vote route
+router.post(
+  '/vote/:electionId',
+  authenticate,
+  validate([
+    param('electionId')
+      .notEmpty().withMessage(validationMessages.required('Election ID'))
+      .isUUID().withMessage(validationMessages.uuid('Election ID')),
+    
+    body('candidateId')
+      .notEmpty().withMessage(validationMessages.required('Candidate ID'))
+      .isUUID().withMessage(validationMessages.uuid('Candidate ID')),
+    
+    body('encryptedVote')
+      .notEmpty().withMessage(validationMessages.required('Encrypted vote data')),
+    
+    body('signature')
+      .notEmpty().withMessage(validationMessages.required('Signature'))
+  ]),
+  // Controller would be implemented here
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',

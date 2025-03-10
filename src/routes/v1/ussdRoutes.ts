@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { ussdLimiter } from '../../middleware/rateLimiter';
@@ -46,7 +46,7 @@ const router = Router();
 router.post(
   '/start',
   ussdLimiter,
-  [
+  validate([
     body('nin')
       .notEmpty().withMessage(validationMessages.required('NIN'))
       .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
@@ -57,11 +57,10 @@ router.post(
     
     body('phoneNumber')
       .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-  ],
-  validate,
+      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -111,7 +110,7 @@ router.post(
 router.post(
   '/vote',
   ussdLimiter,
-  [
+  validate([
     body('sessionCode')
       .notEmpty().withMessage(validationMessages.required('Session code'))
       .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters'),
@@ -122,11 +121,10 @@ router.post(
     
     body('candidateId')
       .notEmpty().withMessage(validationMessages.required('Candidate ID'))
-      .isUUID().withMessage(validationMessages.uuid('Candidate ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Candidate ID'))
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -155,14 +153,13 @@ router.post(
  */
 router.get(
   '/session-status',
-  [
+  validate([
     body('sessionCode')
       .notEmpty().withMessage(validationMessages.required('Session code'))
-      .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters'),
-  ],
-  validate,
+      .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -209,7 +206,7 @@ router.post(
   '/africa-talking',
   ussdLimiter,
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation - would return a USSD menu
     res.set('Content-Type', 'text/plain');
     res.send('CON Welcome to INEC e-Voting\n1. Login with VIN\n2. Check election status\n3. Verify voter registration');
@@ -247,18 +244,17 @@ router.post(
 router.post(
   '/verify-vote',
   ussdLimiter,
-  [
+  validate([
     body('receiptCode')
       .notEmpty().withMessage(validationMessages.required('Receipt code'))
       .isLength({ min: 16, max: 16 }).withMessage('Receipt code must be 16 characters'),
     
     body('phoneNumber')
       .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-  ],
-  validate,
+      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',

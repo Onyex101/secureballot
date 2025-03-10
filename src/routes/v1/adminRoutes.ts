@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/accessControl';
 import { UserRole } from '../../middleware/accessControl';
 import { defaultLimiter } from '../../middleware/rateLimiter';
+import { Request, Response } from 'express';
 
 // Controllers would be implemented based on admin dashboard needs
 // This is a placeholder for the route structure
@@ -68,9 +69,13 @@ router.get(
       .isInt({ min: 1, max: 100 })
       .withMessage('Limit must be between 1 and 100'),
   ],
-  validate,
+  validate([
+    query('status'),
+    query('page'),
+    query('limit')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -147,9 +152,12 @@ router.post(
       .isIn(Object.values(UserRole))
       .withMessage('Invalid role'),
   ],
-  validate,
+  validate([
+    body('email'),
+    body('role')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -213,9 +221,13 @@ router.get(
       .isInt({ min: 1, max: 100 })
       .withMessage('Limit must be between 1 and 100'),
   ],
-  validate,
+  validate([
+    query('status'),
+    query('page'),
+    query('limit')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -290,9 +302,14 @@ router.post(
       .notEmpty().withMessage(validationMessages.required('End date'))
       .isISO8601().withMessage('End date must be a valid ISO date'),
   ],
-  validate,
+  validate([
+    body('electionName'),
+    body('electionType'),
+    body('startDate'),
+    body('endDate')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -371,9 +388,15 @@ router.get(
       .isInt({ min: 1, max: 500 })
       .withMessage('Limit must be between 1 and 500'),
   ],
-  validate,
+  validate([
+    query('severity'),
+    query('startDate'),
+    query('endDate'),
+    query('page'),
+    query('limit')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',
@@ -433,9 +456,12 @@ router.post(
       .isIn(['preliminary', 'final'])
       .withMessage('Publish level must be either preliminary or final'),
   ],
-  validate,
+  validate([
+    body('electionId'),
+    body('publishLevel')
+  ]),
   // Controller would be implemented here
-  (req, res) => {
+  (req: Request, res: Response) => {
     // Placeholder implementation
     res.status(501).json({
       code: 'NOT_IMPLEMENTED',

@@ -48,11 +48,12 @@ router.use(authenticate);
  */
 router.get(
   '/',
-  [
+  defaultLimiter,
+  validate([
     query('status')
       .optional()
-      .isIn(['active', 'upcoming', 'past', 'all'])
-      .withMessage('Status must be one of: active, upcoming, past, all'),
+      .isIn(['upcoming', 'active', 'completed', 'all'])
+      .withMessage('Status must be one of: upcoming, active, completed, all'),
     
     query('page')
       .optional()
@@ -62,9 +63,8 @@ router.get(
     query('limit')
       .optional()
       .isInt({ min: 1, max: 100 })
-      .withMessage('Limit must be between 1 and 100'),
-  ],
-  validate,
+      .withMessage('Limit must be between 1 and 100')
+  ]),
   electionController.getElections
 );
 
@@ -93,12 +93,12 @@ router.get(
  */
 router.get(
   '/:electionId',
-  [
+  defaultLimiter,
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
   electionController.getElectionById
 );
 
@@ -127,12 +127,12 @@ router.get(
  */
 router.get(
   '/:electionId/candidates',
-  [
+  defaultLimiter,
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
   electionController.getElectionCandidates
 );
 
@@ -167,16 +167,16 @@ router.get(
  */
 router.get(
   '/:electionId/candidates/:candidateId',
-  [
+  defaultLimiter,
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
       .isUUID().withMessage(validationMessages.uuid('Election ID')),
     
     param('candidateId')
       .notEmpty().withMessage(validationMessages.required('Candidate ID'))
-      .isUUID().withMessage(validationMessages.uuid('Candidate ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Candidate ID'))
+  ]),
   electionController.getCandidateById
 );
 
@@ -205,12 +205,12 @@ router.get(
  */
 router.get(
   '/:electionId/voting-status',
-  [
+  defaultLimiter,
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-  ],
-  validate,
+      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+  ]),
   electionController.getVotingStatus
 );
 
@@ -260,7 +260,7 @@ router.get(
 router.post(
   '/:electionId/vote',
   defaultLimiter,
-  [
+  validate([
     param('electionId')
       .notEmpty().withMessage(validationMessages.required('Election ID'))
       .isUUID().withMessage(validationMessages.uuid('Election ID')),
@@ -270,9 +270,8 @@ router.post(
       .isUUID().withMessage(validationMessages.uuid('Candidate ID')),
     
     body('encryptedVote')
-      .notEmpty().withMessage(validationMessages.required('Encrypted vote data')),
-  ],
-  validate,
+      .notEmpty().withMessage(validationMessages.required('Encrypted vote data'))
+  ]),
   voteController.castVote
 );
 

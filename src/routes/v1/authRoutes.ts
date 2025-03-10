@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
+import { validate, validationMessages, sanitize } from '../../middleware/validator';
 import * as authController from '../../controllers/auth/authController';
-import { validate, validationMessages } from '../../middleware/validator';
 import { authenticate } from '../../middleware/auth';
 import { authLimiter } from '../../middleware/rateLimiter';
 
@@ -57,8 +57,11 @@ const router = Router();
  */
 router.post(
   '/register',
-  authLimiter,
   [
+    sanitize(),
+    authLimiter
+  ],
+  validate([
     body('nin')
       .notEmpty().withMessage(validationMessages.required('NIN'))
       .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
@@ -79,9 +82,8 @@ router.post(
       .notEmpty().withMessage(validationMessages.required('Password'))
       .isLength({ min: 8 }).withMessage(validationMessages.min('Password', 8))
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password()),
-  ],
-  validate,
+      .withMessage(validationMessages.password())
+  ]),
   authController.register
 );
 
@@ -122,7 +124,7 @@ router.post(
 router.post(
   '/login',
   authLimiter,
-  [
+  validate([
     body('nin')
       .notEmpty().withMessage(validationMessages.required('NIN'))
       .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
@@ -132,9 +134,8 @@ router.post(
       .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
     
     body('password')
-      .notEmpty().withMessage(validationMessages.required('Password')),
-  ],
-  validate,
+      .notEmpty().withMessage(validationMessages.required('Password'))
+  ]),
   authController.login
 );
 
@@ -171,16 +172,15 @@ router.post(
 router.post(
   '/verify-mfa',
   authLimiter,
-  [
+  validate([
     body('userId')
       .notEmpty().withMessage(validationMessages.required('User ID'))
       .isUUID().withMessage(validationMessages.uuid('User ID')),
     
     body('code')
       .notEmpty().withMessage(validationMessages.required('MFA code'))
-      .isLength({ min: 6, max: 6 }).withMessage('MFA code must be 6 characters'),
-  ],
-  validate,
+      .isLength({ min: 6, max: 6 }).withMessage('MFA code must be 6 characters')
+  ]),
   authController.verifyMfa
 );
 
@@ -209,11 +209,10 @@ router.post(
  */
 router.post(
   '/refresh-token',
-  [
+  validate([
     body('refreshToken')
-      .notEmpty().withMessage(validationMessages.required('Refresh token')),
-  ],
-  validate,
+      .notEmpty().withMessage(validationMessages.required('Refresh token'))
+  ]),
   authController.refreshToken
 );
 
@@ -266,7 +265,7 @@ router.post('/logout', authenticate, authController.logout);
 router.post(
   '/forgot-password',
   authLimiter,
-  [
+  validate([
     body('nin')
       .notEmpty().withMessage(validationMessages.required('NIN'))
       .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
@@ -277,9 +276,8 @@ router.post(
     
     body('phoneNumber')
       .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-  ],
-  validate,
+      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+  ]),
   authController.forgotPassword
 );
 
@@ -315,17 +313,16 @@ router.post(
 router.post(
   '/reset-password',
   authLimiter,
-  [
+  validate([
     body('token')
       .notEmpty().withMessage(validationMessages.required('Reset token')),
     
     body('newPassword')
       .notEmpty().withMessage(validationMessages.required('New password'))
-      .isLength({ min: 8 }).withMessage(validationMessages.min('Password', 8))
+      .isLength({ min: 8 }).withMessage(validationMessages.min('New password', 8))
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password()),
-  ],
-  validate,
+      .withMessage(validationMessages.password())
+  ]),
   authController.resetPassword
 );
 
