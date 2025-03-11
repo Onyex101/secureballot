@@ -35,7 +35,7 @@ const naijaFaker = new NaijaFaker();
 const SALT_ROUNDS = 10;
 const MAX_VOTERS_PER_STATE = 200000;
 
-// Nigeria states and their LGAs
+// Nigeria states
 const nigeriaStates = naijaFaker.states();
 
 // Admin types (aligned with UserRole enum in src/types/auth.ts)
@@ -374,9 +374,9 @@ module.exports = {
       // Create admin users with password hashes
       const adminUserPromises = adminIds.map(async (id, index) => ({
         id: id,
-        fullName: `${faker.person.firstName()} ${faker.person.lastName()}`,
-        email: faker.internet.email().toLowerCase(),
-        phoneNumber: naijaFaker.phone.mobile(),
+        fullName: naijaFaker.name(),
+        email: naijaFaker.email().toLowerCase(),
+        phoneNumber: naijaFaker.phoneNumber(),
         passwordHash: await generatePasswordHash(),
         adminType: adminRoles[index].roleName,
         isActive: true,
@@ -692,12 +692,17 @@ module.exports = {
           });
           
           // Create voters
+          // Generate a batch of Nigerian people data
+          const nigerianPeople = naijaFaker.people(votersForUnit);
+          
           for (let j = 0; j < votersForUnit; j++) {
-            // Create a voter
+            // Create a voter using the generated Nigerian person data
+            const person = nigerianPeople[j];
             const voterId = uuidv4();
-            const nin = naijaFaker.finance.nin();
+            // Generate 11-digit NIN using faker
+            const nin = faker.number.int({ min: 10000000000, max: 99999999999 }).toString();
             const vin = `${faker.string.alphanumeric(3).toUpperCase()}${faker.number.int({ min: 1000000000, max: 9999999999 })}${faker.string.alphanumeric(6).toUpperCase()}`;
-            const phoneNumber = naijaFaker.phone.mobile();
+            const phoneNumber = person.phone || naijaFaker.phoneNumber();
             
             // Random date of birth (18-80 years old)
             const dob = faker.date.birthdate({ min: 18, max: 80, mode: 'age' });
@@ -714,11 +719,11 @@ module.exports = {
               updatedAt: new Date()
             });
             
-            // Create voter card
+            // Create voter card with more realistic Nigerian data
             voterCards.push({
               id: uuidv4(),
               userId: voterId,
-              fullName: `${faker.person.firstName()} ${faker.person.lastName()}`,
+              fullName: person.fullName,
               vin: vin,
               pollingUnitCode: unit.pollingUnitCode,
               state: unit.state,
@@ -730,16 +735,17 @@ module.exports = {
               updatedAt: new Date()
             });
             
-            // Create verification status
+            // Create verification status with more realistic Nigerian data
             verificationStatuses.push({
               id: uuidv4(),
               userId: voterId,
-              isPhoneVerified: true,
-              isEmailVerified: faker.datatype.boolean(0.7),
+              isPhoneVerified: person.phone ? true : faker.datatype.boolean(0.9),
+              isEmailVerified: person.email ? true : faker.datatype.boolean(0.7),
               isIdentityVerified: true,
-              isAddressVerified: faker.datatype.boolean(0.6),
+              isAddressVerified: person.address ? true : faker.datatype.boolean(0.6),
               isBiometricVerified: faker.datatype.boolean(0.8),
               verificationLevel: faker.number.int({ min: 1, max: 5 }),
+              lastVerifiedAt: faker.date.recent({ days: 30 }),
               createdAt: new Date(),
               updatedAt: new Date()
             });
@@ -841,7 +847,6 @@ module.exports = {
       
       // Process Lagos state for gubernatorial election
       const lagosPollingUnits = pollingUnits.filter(unit => unit.state === 'Lagos');
-      const voterIds = voters.map(voter => voter.id);
       const lagosVoterCards = voterCards.filter(card => card.state === 'Lagos');
       const existingLagosVoterIds = lagosVoterCards.map(card => card.userId);
       
