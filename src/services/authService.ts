@@ -5,7 +5,6 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Op } from 'sequelize';
 import Voter from '../db/models/Voter';
-import AuditLog, { AuditActionType } from '../db/models/AuditLog';
 
 /**
  * Check if a voter exists with the given NIN or VIN

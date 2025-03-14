@@ -4,8 +4,8 @@ import { logger } from '../config/logger';
 
 dotenv.config();
 
-const dbName = process.env.DB_NAME || 'nigeria_evoting';
-const dbNameTest = process.env.DB_NAME_TEST || 'nigeria_evoting_test';
+const dbName = process.env.DB_NAME || 'secure_ballot';
+const dbNameTest = process.env.DB_NAME_TEST || 'secure_ballot_test';
 
 const createDatabase = async () => {
   // Connect to default postgres database
@@ -18,21 +18,31 @@ const createDatabase = async () => {
   });
 
   try {
+    // Check if main database exists
+    const mainDbExists = await pool.query(`
+      SELECT 1 FROM pg_database WHERE datname = '${dbName}'
+    `);
+    
     // Create main database if it doesn't exist
-    await pool.query(`
-      SELECT 'CREATE DATABASE ${dbName}'
-      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${dbName}')
-      EXECUTE;
-    `);
-    logger.info(`Database ${dbName} created or already exists`);
+    if (mainDbExists.rowCount === 0) {
+      await pool.query(`CREATE DATABASE ${dbName}`);
+      logger.info(`Database ${dbName} created`);
+    } else {
+      logger.info(`Database ${dbName} already exists`);
+    }
 
-    // Create test database if it doesn't exist
-    await pool.query(`
-      SELECT 'CREATE DATABASE ${dbNameTest}'
-      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${dbNameTest}')
-      EXECUTE;
+    // Check if test database exists
+    const testDbExists = await pool.query(`
+      SELECT 1 FROM pg_database WHERE datname = '${dbNameTest}'
     `);
-    logger.info(`Database ${dbNameTest} created or already exists`);
+    
+    // Create test database if it doesn't exist
+    if (testDbExists.rowCount === 0) {
+      await pool.query(`CREATE DATABASE ${dbNameTest}`);
+      logger.info(`Database ${dbNameTest} created`);
+    } else {
+      logger.info(`Database ${dbNameTest} already exists`);
+    }
 
     // Create PostgreSQL extensions if needed
     const mainDbPool = new Pool({

@@ -1,3 +1,7 @@
+-- Create extensions first
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- Create tables for SecureBallot application
 
 -- Create admin_users table
