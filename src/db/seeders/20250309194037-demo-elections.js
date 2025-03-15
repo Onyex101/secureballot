@@ -25,15 +25,16 @@
 
 const bcrypt = require('bcrypt');
 const { faker } = require('@faker-js/faker');
-const NaijaFaker = require('@codegrenade/naija-faker');
+const naijaFaker = require('@codegrenade/naija-faker');
 const { v4: uuidv4 } = require('uuid');
-
-// Initialize Naija Faker
-const naijaFaker = new NaijaFaker();
 
 // Constants for our seed data
 const SALT_ROUNDS = 10;
-const MAX_VOTERS_PER_STATE = 200000;
+const MAX_VOTERS_PER_STATE = 100000;
+// Batch size for bulk inserts to prevent memory issues
+const BATCH_SIZE = 10000;
+// Use a single password hash for all test users to avoid bcrypt overhead
+const DEFAULT_PASSWORD_HASH = '$2b$10$1XpzUYu8FuvuJj.PoUMvZOFFWGYoR0jbJ6qZmHX5.G9qujpJjEKyy'; // hash for 'password123'
 
 // Nigeria states
 const nigeriaStates = naijaFaker.states();
@@ -212,13 +213,61 @@ const lagosGubernatorialCandidates = [
   }
 ];
 
+// Add this function near the top of the file, after other utility functions
+const formatPhoneNumber = (phoneNumber) => {
+  // Remove any non-digit characters
+  const digitsOnly = phoneNumber.replace(/\D/g, '');
+  
+  // Ensure it starts with +234 (Nigeria's country code)
+  if (digitsOnly.startsWith('234')) {
+    return '+' + digitsOnly.substring(0, 14); // +234 + 10 digits = 14 chars
+  } else if (digitsOnly.startsWith('0')) {
+    // Convert 0 prefix to +234
+    return '+234' + digitsOnly.substring(1, 11); // +234 + 10 digits = 14 chars
+  } else {
+    // Just ensure it's not longer than 15 chars
+    return '+' + digitsOnly.substring(0, 14);
+  }
+};
+
 // Helper function to generate a random password hash
+// Only use this for specific cases where unique passwords are required
 async function generatePasswordHash(password = faker.internet.password()) {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
+// Helper function to insert data in batches to prevent memory issues
+async function batchInsert(queryInterface, tableName, data, batchSize = BATCH_SIZE) {
+  console.log(`Batch inserting ${data.length} records into ${tableName}...`);
+  
+  const batches = [];
+  for (let i = 0; i < data.length; i += batchSize) {
+    batches.push(data.slice(i, i + batchSize));
+  }
+  
+  console.log(`Split into ${batches.length} batches of max ${batchSize} records each`);
+  
+  let insertedCount = 0;
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    try {
+      await queryInterface.bulkInsert(tableName, batch);
+      insertedCount += batch.length;
+      console.log(`Inserted batch ${i + 1}/${batches.length} (${insertedCount}/${data.length} records)`);
+    } catch (error) {
+      console.error(`Error inserting batch ${i + 1} into ${tableName}:`, error.message);
+      throw error;
+    }
+  }
+  
+  return insertedCount;
+}
+
 // Helper function to randomly distribute votes to ensure a specific winner
 function distributeVotesWithWinner(totalVoters, candidateCount, winnerIndex) {
+  // Ensure we don't exceed MAX_VOTERS_PER_STATE
+  totalVoters = Math.min(totalVoters, MAX_VOTERS_PER_STATE);
+  
   const votes = new Array(candidateCount).fill(0);
   // Allocate at least 51% to the winner to ensure victory
   const winnerVotes = Math.ceil(totalVoters * 0.51);
@@ -248,15 +297,24 @@ function getRandomItem(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
 
+// Add this function near the top of the file, after other utility functions
+const generateUniqueNIN = (usedNINs) => {
+  let nin;
+  do {
+    nin = faker.string.numeric(11);
+  } while (usedNINs.has(nin));
+  usedNINs.add(nin);
+  return nin;
+};
 
 // Helper to generate report content based on type
 function generateReportContent(reportType, pollingUnit) {
   switch (reportType) {
     case 'PollingUnitOpening':
-      return `Polling unit ${pollingUnit.pollingUnitName} opened ${faker.datatype.boolean(0.8) ? 'on time' : 'with a delay of about ' + faker.number.int({ min: 15, max: 60 }) + ' minutes'}. ${faker.number.int({ min: 5, max: 20 })} voters were in queue at opening. Election officials are ${faker.datatype.boolean(0.7) ? 'present and efficient' : 'understaffed but managing'}. All materials are ${faker.datatype.boolean(0.9) ? 'complete and functional' : 'mostly available with minor issues'}.`;
+      return `Polling unit ${pollingUnit.polling_unit_name} opened ${faker.datatype.boolean(0.8) ? 'on time' : 'with a delay of about ' + faker.number.int({ min: 15, max: 60 }) + ' minutes'}. ${faker.number.int({ min: 5, max: 20 })} voters were in queue at opening. Election officials are ${faker.datatype.boolean(0.7) ? 'present and efficient' : 'understaffed but managing'}. All materials are ${faker.datatype.boolean(0.9) ? 'complete and functional' : 'mostly available with minor issues'}.`;
     
     case 'VoterTurnout':
-      return `Voter turnout at ${pollingUnit.pollingUnitName} is ${getRandomItem(['excellent', 'good', 'moderate', 'below expectations'])}. Approximately ${faker.number.int({ min: 30, max: 90 })}% of registered voters have voted so far. The atmosphere is ${getRandomItem(['calm and orderly', 'busy but organized', 'slightly tense but under control', 'enthusiastic and positive'])}.`;
+      return `Voter turnout at ${pollingUnit.polling_unit_name} is ${getRandomItem(['excellent', 'good', 'moderate', 'below expectations'])}. Approximately ${faker.number.int({ min: 30, max: 90 })}% of registered voters have voted so far. The atmosphere is ${getRandomItem(['calm and orderly', 'busy but organized', 'slightly tense but under control', 'enthusiastic and positive'])}.`;
     
     case 'Irregularity':
       return `${getRandomItem([
@@ -268,13 +326,18 @@ function generateReportContent(reportType, pollingUnit) {
       ])} The issue was ${getRandomItem(['fully resolved', 'handled appropriately', 'addressed by officials', 'documented and contained'])}.`;
     
     case 'PollingUnitClosing':
-      return `Polling unit ${pollingUnit.pollingUnitName} closed at ${faker.datatype.boolean(0.8) ? '6:00 PM as scheduled' : faker.time.recent()}. Final voter count was ${faker.number.int({ min: 100, max: pollingUnit.registeredVoters })}. Closing procedures were followed ${faker.datatype.boolean(0.7) ? 'correctly and efficiently' : 'with minor delays but properly'}. All materials have been secured. Party agents ${faker.datatype.boolean(0.9) ? 'have signed the relevant forms' : 'are in the process of reviewing the results'}.`;
+      // Replace faker.time.recent() with a formatted time string
+      const randomHour = faker.number.int({ min: 17, max: 19 }); // 5pm to 7pm
+      const randomMinute = faker.number.int({ min: 0, max: 59 });
+      const formattedTime = `${randomHour}:${randomMinute.toString().padStart(2, '0')}`;
+      
+      return `Polling unit ${pollingUnit.polling_unit_name} closed at ${faker.datatype.boolean(0.8) ? '6:00 PM as scheduled' : formattedTime + ' PM'}. Final voter count was ${faker.number.int({ min: 100, max: pollingUnit.registered_voters })}. Closing procedures were followed ${faker.datatype.boolean(0.7) ? 'correctly and efficiently' : 'with minor delays but properly'}. All materials have been secured. Party agents ${faker.datatype.boolean(0.9) ? 'have signed the relevant forms' : 'are in the process of reviewing the results'}.`;
     
     case 'VoteCounting':
-      return `Vote counting at ${pollingUnit.pollingUnitName} ${faker.datatype.boolean(0.7) ? 'proceeded smoothly' : 'had minor delays but was conducted properly'}. All party agents were ${faker.datatype.boolean(0.9) ? 'present and witnessed the counting' : 'mostly present during the count'}. Results were recorded on the appropriate forms and ${faker.datatype.boolean(0.9) ? 'publicly announced to the satisfaction of observers' : 'documented according to regulations'}. No significant irregularities were observed during the counting process.`;
+      return `Vote counting at ${pollingUnit.polling_unit_name} ${faker.datatype.boolean(0.7) ? 'proceeded smoothly' : 'had minor delays but was conducted properly'}. All party agents were ${faker.datatype.boolean(0.9) ? 'present and witnessed the counting' : 'mostly present during the count'}. Results were recorded on the appropriate forms and ${faker.datatype.boolean(0.9) ? 'publicly announced to the satisfaction of observers' : 'documented according to regulations'}. No significant irregularities were observed during the counting process.`;
     
     default:
-      return `Standard observation report for ${pollingUnit.pollingUnitName}. Everything proceeding according to electoral guidelines.`;
+      return `Standard observation report for ${pollingUnit.polling_unit_name}. Everything proceeding according to electoral guidelines.`;
   }
 }
 
@@ -284,43 +347,55 @@ module.exports = {
     try {
       console.log('Starting database seeding...');
       
-      // Create super admin first
-      const superAdminId = uuidv4();
-      await queryInterface.bulkInsert('admin_users', [{
-        id: superAdminId,
-        fullName: 'Super Administrator',
-        email: 'admin@secureballot.ng',
-        phoneNumber: naijaFaker.phoneNumber(),
-        passwordHash: await generatePasswordHash('password123'),
-        adminType: 'SystemAdministrator',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }]);
-      console.log('Super admin created');
+      // Check if super admin already exists
+      const [existingAdmin] = await queryInterface.sequelize.query(
+        `SELECT id FROM admin_users WHERE email = 'admin@secureballot.ng'`
+      );
+      
+      let superAdminId;
+      
+      if (existingAdmin && existingAdmin.length > 0) {
+        console.log('Super admin already exists, skipping creation');
+        superAdminId = existingAdmin[0].id;
+      } else {
+        // Create super admin
+        superAdminId = uuidv4();
+        console.log('Creating new super admin');
+        await queryInterface.bulkInsert('admin_users', [{
+          id: superAdminId,
+          full_name: 'Super Administrator',
+          email: 'admin@secureballot.ng',
+          phone_number: formatPhoneNumber(naijaFaker.phoneNumber()),
+          password_hash: await generatePasswordHash('password123'),
+          admin_type: 'SystemAdministrator',
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        }]);
+      }
       
       // Create super admin role
       await queryInterface.bulkInsert('admin_roles', [{
         id: uuidv4(),
-        adminId: superAdminId,
-        roleName: 'SystemAdministrator',
+        admin_id: superAdminId,
+        role_name: 'SystemAdministrator',
         description: 'System Administrator with full access',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
       }]);
       
       // Create super admin permissions
       const superAdminPermissions = rolePermissionsMap['SystemAdministrator'].map(permission => ({
         id: uuidv4(),
-        adminId: superAdminId,
-        permissionName: permission,
-        resourceType: 'system',
-        resourceId: null,
+        admin_id: superAdminId,
+        permission_name: permission,
+        resource_type: 'system',
+        resource_id: null,
         actions: JSON.stringify(['read', 'write']),
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
       }));
       
       await queryInterface.bulkInsert('admin_permissions', superAdminPermissions);
@@ -346,12 +421,12 @@ module.exports = {
         // Admin user
         adminRoles.push({
           id: uuidv4(),
-          adminId: adminId,
-          roleName: adminType,
+          admin_id: adminId,
+          role_name: adminType,
           description: `Role for ${adminType}`,
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
         });
         
         // Admin permissions - create one entry per permission for this role
@@ -359,33 +434,31 @@ module.exports = {
         permissions.forEach(permission => {
           adminPermissions.push({
             id: uuidv4(),
-            adminId: adminId,
-            permissionName: permission,
-            resourceType: 'system',
-            resourceId: null,
+            admin_id: adminId,
+            permission_name: permission,
+            resource_type: 'system',
+            resource_id: null,
             actions: JSON.stringify(['read', 'write']),
-            isActive: true,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date()
           });
         });
       }
       
-      // Create admin users with password hashes
-      const adminUserPromises = adminIds.map(async (id, index) => ({
+      // Create admin users with pre-computed password hash for better performance
+      const adminUsers = adminIds.map((id, index) => ({
         id: id,
-        fullName: naijaFaker.name(),
+        full_name: naijaFaker.name(),
         email: naijaFaker.email().toLowerCase(),
-        phoneNumber: naijaFaker.phoneNumber(),
-        passwordHash: await generatePasswordHash(),
-        adminType: adminRoles[index].roleName,
-        isActive: true,
-        createdBy: superAdminId,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        phone_number: formatPhoneNumber(naijaFaker.phoneNumber()),
+        password_hash: DEFAULT_PASSWORD_HASH, // Use pre-computed hash instead of generating
+        admin_type: adminRoles[index].role_name,
+        is_active: true,
+        created_by: superAdminId,
+        created_at: new Date(),
+        updated_at: new Date()
       }));
-      
-      const adminUsers = await Promise.all(adminUserPromises);
       
       await queryInterface.bulkInsert('admin_users', adminUsers);
       await queryInterface.bulkInsert('admin_roles', adminRoles);
@@ -404,40 +477,40 @@ module.exports = {
       await queryInterface.bulkInsert('elections', [
         {
           id: presidentialElectionId,
-          electionName: 'Nigeria Presidential Election 2023',
-          electionType: electionTypes[0], // Presidential
-          startDate: new Date('2023-02-25T08:00:00Z'),
-          endDate: new Date('2023-02-25T18:00:00Z'),
+          election_name: 'Nigeria Presidential Election 2023',
+          election_type: electionTypes[0], // Presidential
+          start_date: new Date('2023-02-25T08:00:00Z'),
+          end_date: new Date('2023-02-25T18:00:00Z'),
           description: 'General election to elect the President of Nigeria',
-          isActive: true,
+          is_active: true,
           status: electionStatuses.ACTIVE,
-          eligibilityRules: JSON.stringify({
-            minimumAge: 18,
-            mustHaveValidVoterCard: true,
-            mustBeRegisteredVoter: true
+          eligibility_rules: JSON.stringify({
+            minimum_age: 18,
+            must_have_valid_voter_card: true,
+            must_be_registered_voter: true
           }),
-          createdBy: electionCreatorId,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          created_by: electionCreatorId,
+          created_at: new Date(),
+          updated_at: new Date()
         },
         {
           id: lagosElectionId,
-          electionName: 'Lagos State Gubernatorial Election 2023',
-          electionType: electionTypes[1], // Gubernatorial
-          startDate: new Date('2023-03-18T08:00:00Z'),
-          endDate: new Date('2023-03-18T18:00:00Z'),
+          election_name: 'Lagos State Gubernatorial Election 2023',
+          election_type: electionTypes[1], // Gubernatorial
+          start_date: new Date('2023-03-18T08:00:00Z'),
+          end_date: new Date('2023-03-18T18:00:00Z'),
           description: 'Election to elect the Governor of Lagos State',
-          isActive: true,
+          is_active: true,
           status: electionStatuses.ACTIVE,
-          eligibilityRules: JSON.stringify({
-            minimumAge: 18,
-            mustHaveValidVoterCard: true,
-            mustBeRegisteredVoter: true,
-            stateCriteria: 'Lagos'
+          eligibility_rules: JSON.stringify({
+            minimum_age: 18,
+            must_have_valid_voter_card: true,
+            must_be_registered_voter: true,
+            state_criteria: 'Lagos'
           }),
-          createdBy: electionCreatorId,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          created_by: electionCreatorId,
+          created_at: new Date(),
+          updated_at: new Date()
         }
       ]);
       
@@ -454,40 +527,40 @@ module.exports = {
         // Create election
         additionalElections.push({
           id: electionId,
-          electionName: `${state} ${electionType} Election 2023`,
-          electionType: electionType,
-          startDate: faker.date.between({ from: '2023-02-01', to: '2023-06-30' }),
-          endDate: faker.date.between({ from: '2023-07-01', to: '2023-12-31' }),
+          election_name: `${state} ${electionType} Election 2023`,
+          election_type: electionType,
+          start_date: faker.date.between({ from: '2023-02-01', to: '2023-06-30' }),
+          end_date: faker.date.between({ from: '2023-07-01', to: '2023-12-31' }),
           description: `Election for ${electionType} positions in ${state}`,
-          isActive: faker.datatype.boolean(0.3), // 30% chance of being active
+          is_active: faker.datatype.boolean(0.3), // 30% chance of being active
           status: getRandomItem([
             electionStatuses.DRAFT,
             electionStatuses.SCHEDULED,
             electionStatuses.COMPLETED
           ]),
-          eligibilityRules: JSON.stringify({
-            minimumAge: 18,
-            mustHaveValidVoterCard: true,
-            mustBeRegisteredVoter: true,
-            stateCriteria: electionType === 'Senatorial' || electionType === 'HouseOfReps' || 
+          eligibility_rules: JSON.stringify({
+            minimum_age: 18,
+            must_have_valid_voter_card: true,
+            must_be_registered_voter: true,
+            state_criteria: electionType === 'Senatorial' || electionType === 'HouseOfReps' || 
                           electionType === 'StateAssembly' || electionType === 'LocalGovernment' ? state : null
           }),
-          createdBy: electionCreatorId,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          created_by: electionCreatorId,
+          created_at: new Date(),
+          updated_at: new Date()
         });
         
         // Create election stats
         additionalElectionStats.push({
           id: uuidv4(),
-          electionId: electionId,
-          totalVotes: 0,
-          validVotes: 0,
-          invalidVotes: 0,
-          turnoutPercentage: 0,
-          lastUpdated: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
+          election_id: electionId,
+          total_votes: 0,
+          valid_votes: 0,
+          invalid_votes: 0,
+          turnout_percentage: 0,
+          last_updated: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
         });
       }
       
@@ -502,25 +575,25 @@ module.exports = {
       await queryInterface.bulkInsert('election_stats', [
         {
           id: uuidv4(),
-          electionId: presidentialElectionId,
-          totalVotes: 0,
-          validVotes: 0,
-          invalidVotes: 0,
-          turnoutPercentage: 0,
-          lastUpdated: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
+          election_id: presidentialElectionId,
+          total_votes: 0,
+          valid_votes: 0,
+          invalid_votes: 0,
+          turnout_percentage: 0,
+          last_updated: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
         },
         {
           id: uuidv4(),
-          electionId: lagosElectionId,
-          totalVotes: 0,
-          validVotes: 0,
-          invalidVotes: 0,
-          turnoutPercentage: 0,
-          lastUpdated: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
+          election_id: lagosElectionId,
+          total_votes: 0,
+          valid_votes: 0,
+          invalid_votes: 0,
+          turnout_percentage: 0,
+          last_updated: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
         }
       ]);
       console.log('Elections created');
@@ -528,35 +601,35 @@ module.exports = {
       // Create presidential candidates
       const presidentCandidateRecords = presidentialCandidates.map(candidate => ({
         id: uuidv4(),
-        electionId: presidentialElectionId,
-        fullName: candidate.fullName,
-        partyCode: candidate.partyCode,
-        partyName: candidate.partyName,
+        election_id: presidentialElectionId,
+        full_name: candidate.fullName,
+        party_code: candidate.partyCode,
+        party_name: candidate.partyName,
         bio: candidate.bio,
-        photoUrl: `https://example.com/candidates/${candidate.partyCode.toLowerCase()}_candidate.jpg`,
+        photo_url: `https://example.com/candidates/${candidate.partyCode.toLowerCase()}_candidate.jpg`,
         position: candidate.position,
         manifesto: candidate.manifesto,
         status: candidateStatuses.APPROVED,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
       }));
       
       // Create gubernatorial candidates
       const governorCandidateRecords = lagosGubernatorialCandidates.map(candidate => ({
         id: uuidv4(),
-        electionId: lagosElectionId,
-        fullName: candidate.fullName,
-        partyCode: candidate.partyCode,
-        partyName: candidate.partyName,
+        election_id: lagosElectionId,
+        full_name: candidate.fullName,
+        party_code: candidate.partyCode,
+        party_name: candidate.partyName,
         bio: candidate.bio,
-        photoUrl: `https://example.com/candidates/${candidate.partyCode.toLowerCase()}_candidate.jpg`,
+        photo_url: `https://example.com/candidates/${candidate.partyCode.toLowerCase()}_candidate.jpg`,
         position: candidate.position,
         manifesto: candidate.manifesto,
         status: candidateStatuses.APPROVED,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
       }));
       
       await queryInterface.bulkInsert('candidates', [...presidentCandidateRecords, ...governorCandidateRecords]);
@@ -565,22 +638,23 @@ module.exports = {
       // Get candidate IDs for later use
       const presidentialCandidateIds = presidentCandidateRecords.map(candidate => ({
         id: candidate.id,
-        fullName: candidate.fullName,
-        partyCode: candidate.partyCode
+        full_name: candidate.full_name,
+        party_code: candidate.party_code
       }));
       
       const lagosGubernCandidateIds = governorCandidateRecords.map(candidate => ({
         id: candidate.id,
-        fullName: candidate.fullName,
-        partyCode: candidate.partyCode
+        full_name: candidate.full_name,
+        party_code: candidate.party_code
       }));
       
       // Find Peter Obi's and GRV's candidate indices
-      const obiIndex = presidentialCandidateIds.findIndex(c => c.fullName === 'Peter Gregory Obi');
-      const grvIndex = lagosGubernCandidateIds.findIndex(c => c.fullName === 'Gbadebo Rhodes-Vivour');
+      const obiIndex = presidentialCandidateIds.findIndex(c => c.full_name === 'Peter Gregory Obi');
+      const grvIndex = lagosGubernCandidateIds.findIndex(c => c.full_name === 'Gbadebo Rhodes-Vivour');
       
       // Create polling units across Nigeria
       const pollingUnits = [];
+      const usedPollingUnitCodes = new Set(); // Track used codes
       
       for (const state of nigeriaStates) {
         // Get LGAs for the state
@@ -602,7 +676,16 @@ module.exports = {
             
             for (let i = 1; i <= numPollingUnits; i++) {
               const pollingUnitId = uuidv4();
-              const pollingUnitCode = `PU${state.substring(0, 3).toUpperCase()}${lga.substring(0, 3).toUpperCase()}${ward.toString().padStart(2, '0')}${i.toString().padStart(3, '0')}`;
+              // Add timestamp to ensure uniqueness
+              const timestamp = Date.now().toString().slice(-6);
+              const pollingUnitCode = `PU${state.substring(0, 3).toUpperCase()}${lga.substring(0, 3).toUpperCase()}${ward.toString().padStart(2, '0')}${i.toString().padStart(3, '0')}${timestamp}`;
+              
+              // Ensure code is unique
+              if (usedPollingUnitCodes.has(pollingUnitCode)) {
+                continue; // Skip this one and try again
+              }
+              usedPollingUnitCodes.add(pollingUnitCode);
+              
               const pollingUnitName = `${lga} ${wardName} Polling Unit ${i}`;
               
               // Random registered voters between 500-2000
@@ -615,8 +698,8 @@ module.exports = {
               
               pollingUnits.push({
                 id: pollingUnitId,
-                pollingUnitCode: pollingUnitCode,
-                pollingUnitName: pollingUnitName,
+                polling_unit_code: pollingUnitCode,
+                polling_unit_name: pollingUnitName,
                 state: state,
                 lga: lga,
                 ward: wardName,
@@ -625,18 +708,23 @@ module.exports = {
                   longitude: faker.location.longitude({ max: 15, min: 3 })
                 }),
                 address: naijaFaker.address(),
-                registeredVoters: registeredVoters,
-                assignedOfficer: assignedOfficer,
-                isActive: true,
-                createdAt: new Date(),
-                updatedAt: new Date()
+                registered_voters: registeredVoters,
+                assigned_officer: assignedOfficer,
+                is_active: true,
+                created_at: new Date(),
+                updated_at: new Date()
               });
             }
           }
         }
       }
       
-      await queryInterface.bulkInsert('polling_units', pollingUnits);
+      // Use batch insert for polling units if the array is large
+      if (pollingUnits.length > BATCH_SIZE) {
+        await batchInsert(queryInterface, 'polling_units', pollingUnits);
+      } else {
+        await queryInterface.bulkInsert('polling_units', pollingUnits);
+      }
       console.log(`Created ${pollingUnits.length} polling units`);
       
       // Group polling units by state
@@ -657,52 +745,101 @@ module.exports = {
       const ussdSessions = [];
       const ussdVotes = [];
       
+      // Store voter IDs for later use when creating votes
+      const createdVoterIds = [];
+      
+      // Create a Set to track used NINs
+      const usedNINs = new Set();
+
+      // Check if there are existing voters in the database
+      const existingVoters = await queryInterface.sequelize.query(
+        'SELECT nin FROM voters',
+        { type: queryInterface.sequelize.QueryTypes.SELECT }
+      );
+
+      // Add existing NINs to the Set
+      existingVoters.forEach(voter => {
+        usedNINs.add(voter.nin);
+      });
+      
       // Process each state for presidential election
       for (const [state, units] of Object.entries(stateUnits)) {
         // Calculate total voters for this state
         // Ensure we don't exceed MAX_VOTERS_PER_STATE
-        const totalRegisteredVoters = units.reduce((sum, unit) => sum + unit.registeredVoters, 0);
+        const totalRegisteredVoters = units.reduce((sum, unit) => sum + unit.registered_voters, 0);
+        
+        // Strictly enforce MAX_VOTERS_PER_STATE limit
         const targetVoters = Math.min(totalRegisteredVoters, MAX_VOTERS_PER_STATE);
+        
+        console.log(`State: ${state}, Total registered voters: ${totalRegisteredVoters}, Target voters: ${targetVoters}`);
         
         // Calculate voters per polling unit proportionally
         const voterDistribution = units.map(unit => {
-          const proportion = unit.registeredVoters / totalRegisteredVoters;
+          const proportion = unit.registered_voters / totalRegisteredVoters;
           return Math.floor(proportion * targetVoters);
         });
         
+        // Ensure the total doesn't exceed MAX_VOTERS_PER_STATE by adjusting the last unit if needed
+        let totalDistributedVoters = voterDistribution.reduce((a, b) => a + b, 0);
+        if (totalDistributedVoters > MAX_VOTERS_PER_STATE) {
+          // Adjust the last unit to ensure we don't exceed the limit
+          const excess = totalDistributedVoters - MAX_VOTERS_PER_STATE;
+          voterDistribution[voterDistribution.length - 1] -= excess;
+          totalDistributedVoters = MAX_VOTERS_PER_STATE;
+        }
+        
         // Distribute votes to ensure Peter Obi wins
         const stateVotes = distributeVotesWithWinner(
-          voterDistribution.reduce((a, b) => a + b, 0),
+          totalDistributedVoters,
           presidentialCandidateIds.length,
           obiIndex
         );
         
-        console.log(`State: ${state}, Total voters: ${voterDistribution.reduce((a, b) => a + b, 0)}, Votes: ${stateVotes}`);
+        // Double-check that total votes don't exceed MAX_VOTERS_PER_STATE
+        const totalStateVotes = stateVotes.reduce((a, b) => a + b, 0);
+        console.log(`State: ${state}, Total voters: ${totalDistributedVoters}, Total votes: ${totalStateVotes}, Votes distribution: ${stateVotes}`);
+        
+        // Ensure we don't create more voters than MAX_VOTERS_PER_STATE
+        const maxVotersToCreate = Math.min(totalDistributedVoters, MAX_VOTERS_PER_STATE);
         
         // Create voters and votes for each polling unit
-        for (let i = 0; i < units.length; i++) {
+        let totalVotersCreated = 0;
+        for (let i = 0; i < units.length && totalVotersCreated < maxVotersToCreate; i++) {
           const unit = units[i];
-          const votersForUnit = voterDistribution[i];
+          // Adjust voters for this unit to respect the overall limit
+          const votersForUnit = Math.min(voterDistribution[i], maxVotersToCreate - totalVotersCreated);
           
           if (votersForUnit <= 0) continue;
           
+          totalVotersCreated += votersForUnit;
+          
           // Distribute candidate votes proportionally for this unit
           const unitVotes = stateVotes.map(votes => {
-            return Math.floor(votes * (votersForUnit / voterDistribution.reduce((a, b) => a + b, 0)));
+            return Math.floor(votes * (votersForUnit / totalStateVotes));
           });
           
           // Create voters
           // Generate a batch of Nigerian people data
           const nigerianPeople = naijaFaker.people(votersForUnit);
           
+          // Store unit voter IDs and their assigned candidate index for later vote creation
+          const unitVoterData = [];
+          
           for (let j = 0; j < votersForUnit; j++) {
             // Create a voter using the generated Nigerian person data
             const person = nigerianPeople[j];
             const voterId = uuidv4();
+            // Store voter ID for later use
+            createdVoterIds.push({
+              voterId,
+              unit,
+              candidateVotes: [...unitVotes] // Clone the array to avoid reference issues
+            });
+            
             // Generate 11-digit NIN using faker
-            const nin = faker.number.int({ min: 10000000000, max: 99999999999 }).toString();
+            const nin = generateUniqueNIN(usedNINs);
             const vin = `${faker.string.alphanumeric(3).toUpperCase()}${faker.number.int({ min: 1000000000, max: 9999999999 })}${faker.string.alphanumeric(6).toUpperCase()}`;
-            const phoneNumber = person.phone || naijaFaker.phoneNumber();
+            const phoneNumber = formatPhoneNumber(person.phone || naijaFaker.phoneNumber());
             
             // Random date of birth (18-80 years old)
             const dob = faker.date.birthdate({ min: 18, max: 80, mode: 'age' });
@@ -711,184 +848,300 @@ module.exports = {
               id: voterId,
               nin: nin,
               vin: vin,
-              phoneNumber: phoneNumber,
-              dateOfBirth: dob,
-              passwordHash: await generatePasswordHash(),
-              isActive: true,
-              createdAt: new Date(),
-              updatedAt: new Date()
+              phone_number: phoneNumber,
+              date_of_birth: dob,
+              password_hash: DEFAULT_PASSWORD_HASH, // Use pre-computed hash
+              is_active: true,
+              created_at: new Date(),
+              updated_at: new Date()
             });
             
             // Create voter card with more realistic Nigerian data
             voterCards.push({
               id: uuidv4(),
-              userId: voterId,
-              fullName: person.fullName,
+              user_id: voterId,
+              full_name: person.fullName,
               vin: vin,
-              pollingUnitCode: unit.pollingUnitCode,
+              polling_unit_code: unit.polling_unit_code,
               state: unit.state,
               lga: unit.lga,
               ward: unit.ward,
-              issuedDate: faker.date.recent({ days: 365 }),
-              isValid: true,
-              createdAt: new Date(),
-              updatedAt: new Date()
+              issued_date: faker.date.recent({ days: 365 }),
+              is_valid: true,
+              created_at: new Date(),
+              updated_at: new Date()
             });
             
             // Create verification status with more realistic Nigerian data
             verificationStatuses.push({
               id: uuidv4(),
-              userId: voterId,
-              isPhoneVerified: person.phone ? true : faker.datatype.boolean(0.9),
-              isEmailVerified: person.email ? true : faker.datatype.boolean(0.7),
-              isIdentityVerified: true,
-              isAddressVerified: person.address ? true : faker.datatype.boolean(0.6),
-              isBiometricVerified: faker.datatype.boolean(0.8),
-              verificationLevel: faker.number.int({ min: 1, max: 5 }),
-              lastVerifiedAt: faker.date.recent({ days: 30 }),
-              createdAt: new Date(),
-              updatedAt: new Date()
+              user_id: voterId,
+              is_phone_verified: person.phone ? true : faker.datatype.boolean(0.9),
+              is_email_verified: person.email ? true : faker.datatype.boolean(0.7),
+              is_identity_verified: true,
+              is_address_verified: person.address ? true : faker.datatype.boolean(0.6),
+              is_biometric_verified: faker.datatype.boolean(0.8),
+              verification_level: faker.number.int({ min: 1, max: 5 }),
+              last_verified_at: faker.date.recent({ days: 30 }),
+              created_at: new Date(),
+              updated_at: new Date()
             });
-            
-            // Determine if this voter should vote for a specific candidate
-            let candidateIndex = -1;
-            for (let k = 0; k < presidentialCandidateIds.length; k++) {
-              if (unitVotes[k] > 0) {
-                candidateIndex = k;
-                unitVotes[k]--;
-                break;
-              }
-            }
-            
-            // If no specific candidate assigned, skip creating a vote
-            if (candidateIndex === -1) continue;
-            
-            // Create vote
-            const voteTimestamp = faker.date.between({ from: '2023-02-25T08:00:00Z', to: '2023-02-25T18:00:00Z' });
-            const voteSource = getRandomItem(voteSources);
-            
-            votes.push({
-              id: uuidv4(),
-              userId: voterId,
-              electionId: presidentialElectionId,
-              candidateId: presidentialCandidateIds[candidateIndex].id,
-              pollingUnitId: unit.id,
-              encryptedVoteData: Buffer.from(JSON.stringify({
-                voterId,
-                candidateId: presidentialCandidateIds[candidateIndex].id,
-                timestamp: new Date().toISOString()
-              })),
-              voteHash: faker.string.uuid(),
-              voteTimestamp: voteTimestamp,
-              voteSource: voteSource,
-              isCounted: true,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            });
-            
-            // Create audit logs for this user
-            auditLogs.push({
-              id: uuidv4(),
-              userId: voterId,
-              action: 'VOTE_CAST',
-              resourceType: 'election',
-              resourceId: presidentialElectionId,
-              details: JSON.stringify({
-                electionName: 'Nigeria Presidential Election 2023',
-                pollingUnit: unit.pollingUnitCode,
-                timestamp: new Date().toISOString()
-              }),
-              ipAddress: faker.internet.ip(),
-              userAgent: faker.internet.userAgent(),
-              createdAt: new Date()
-            });
-            
-            // Create USSD session for some users
-            if (faker.datatype.boolean(0.3)) {
-              const sessionId = faker.string.alphanumeric(20);
-              
-              ussdSessions.push({
-                id: uuidv4(),
-                sessionId: sessionId,
-                userId: voterId,
-                phoneNumber: phoneNumber,
-                sessionData: JSON.stringify({
-                  electionId: presidentialElectionId,
-                  lastStep: 'vote_confirmation'
-                }),
-                currentState: 'completed',
-                startTime: new Date(),
-                lastAccessTime: new Date(),
-                isActive: false,
-                createdAt: new Date(),
-                updatedAt: new Date()
-              });
-              
-              // Create USSD vote for this session
-              if (faker.datatype.boolean(0.5)) {
-                ussdVotes.push({
-                  id: uuidv4(),
-                  sessionId: sessionId,
-                  userId: voterId,
-                  electionId: presidentialElectionId,
-                  candidateId: presidentialCandidateIds[candidateIndex].id,
-                  voteTimestamp: voteTimestamp,
-                  confirmationCode: faker.string.alphanumeric(6).toUpperCase(),
-                  isProcessed: true,
-                  processedAt: voteTimestamp,
-                  createdAt: new Date(),
-                  updatedAt: new Date()
-                });
-              }
-            }
+          }
+          
+          // Insert voters in batches if arrays get too large
+          if (voters.length >= BATCH_SIZE) {
+            await batchInsert(queryInterface, 'voters', voters);
+            voters.length = 0; // Clear array after batch insert
+          }
+          
+          if (voterCards.length >= BATCH_SIZE) {
+            await batchInsert(queryInterface, 'voter_cards', voterCards);
+            voterCards.length = 0;
+          }
+          
+          if (verificationStatuses.length >= BATCH_SIZE) {
+            await batchInsert(queryInterface, 'verification_statuses', verificationStatuses);
+            verificationStatuses.length = 0;
           }
         }
       }
       
+      // Insert any remaining voters, voter cards, and verification statuses
+      if (voters.length > 0) {
+        await batchInsert(queryInterface, 'voters', voters);
+        voters.length = 0;
+      }
+      
+      if (voterCards.length > 0) {
+        await batchInsert(queryInterface, 'voter_cards', voterCards);
+        voterCards.length = 0;
+      }
+      
+      if (verificationStatuses.length > 0) {
+        await batchInsert(queryInterface, 'verification_statuses', verificationStatuses);
+        verificationStatuses.length = 0;
+      }
+      
+      console.log('All voters inserted. Now creating votes...');
+      
+      // Now create votes using the stored voter IDs
+      for (const voterData of createdVoterIds) {
+        const { voterId, unit, candidateVotes } = voterData;
+        
+        // Determine if this voter should vote for a specific candidate
+        let candidateIndex = -1;
+        for (let k = 0; k < presidentialCandidateIds.length; k++) {
+          if (candidateVotes[k] > 0) {
+            candidateIndex = k;
+            candidateVotes[k]--;
+            break;
+          }
+        }
+        
+        // If no specific candidate assigned, skip creating a vote
+        if (candidateIndex === -1) continue;
+        
+        // Create vote
+        const voteTimestamp = faker.date.between({ from: '2023-02-25T08:00:00Z', to: '2023-02-25T18:00:00Z' });
+        const voteSource = getRandomItem(voteSources);
+        
+        votes.push({
+          id: uuidv4(),
+          user_id: voterId,
+          election_id: presidentialElectionId,
+          candidate_id: presidentialCandidateIds[candidateIndex].id,
+          polling_unit_id: unit.id,
+          encrypted_vote_data: Buffer.from(JSON.stringify({
+            voterId,
+            candidateId: presidentialCandidateIds[candidateIndex].id,
+            timestamp: new Date().toISOString()
+          })),
+          vote_hash: faker.string.uuid(),
+          vote_timestamp: voteTimestamp,
+          vote_source: voteSource,
+          is_counted: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+        
+        // Create audit logs for this user
+        auditLogs.push({
+          id: uuidv4(),
+          user_id: voterId,
+          action_type: 'VOTE_CAST',
+          action_timestamp: new Date(),
+          action_details: JSON.stringify({
+            resourceType: 'election',
+            resourceId: presidentialElectionId,
+            electionName: 'Nigeria Presidential Election 2023',
+            polling_unit: unit.polling_unit_code,
+            timestamp: new Date().toISOString()
+          }),
+          ip_address: faker.internet.ip(),
+          user_agent: faker.internet.userAgent(),
+          is_suspicious: false,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+        
+        // Create USSD session for some users
+        if (faker.datatype.boolean(0.3)) {
+          // Store the actual session_id from the ussd_sessions table, not just a random string
+          const sessionId = faker.string.alphanumeric(20);
+          
+          ussdSessions.push({
+            id: uuidv4(),
+            session_id: sessionId,
+            user_id: voterId,
+            phone_number: formatPhoneNumber(faker.phone.number()),
+            session_data: JSON.stringify({
+              electionId: presidentialElectionId,
+              lastStep: 'vote_confirmation'
+            }),
+            current_state: 'completed',
+            start_time: new Date(),
+            last_access_time: new Date(),
+            is_active: false,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          
+          // We'll create USSD votes separately after all sessions are inserted
+          // This ensures that all session_ids exist in the database
+        }
+        
+        // Modify the batch insert logic to ensure all ussd_sessions are inserted BEFORE any ussd_votes
+        // This is critical to maintain referential integrity
+        if (votes.length >= BATCH_SIZE) {
+          await batchInsert(queryInterface, 'votes', votes);
+          votes.length = 0;
+        }
+        
+        if (auditLogs.length >= BATCH_SIZE) {
+          await batchInsert(queryInterface, 'audit_logs', auditLogs);
+          auditLogs.length = 0;
+        }
+      }
+      
+      // Completely separate the USSD votes creation from the session creation
+      // This ensures that we only create votes for sessions that actually exist
+      // Insert all USSD sessions first
+      if (ussdSessions.length > 0) {
+        await batchInsert(queryInterface, 'ussd_sessions', ussdSessions);
+        console.log(`Inserted ${ussdSessions.length} USSD sessions`);
+      }
+      
+      // Now query the database to get all valid session IDs
+      const [validSessions] = await queryInterface.sequelize.query(
+        `SELECT session_id, user_id FROM ussd_sessions`
+      );
+      
+      console.log(`Found ${validSessions.length} valid USSD sessions`);
+      
+      // Create USSD votes only for valid sessions
+      const ussdVotesForValidSessions = [];
+      for (let i = 0; i < Math.min(validSessions.length, 1000); i++) {
+        // Only create votes for some sessions (not all)
+        if (faker.datatype.boolean(0.7)) {
+          const session = validSessions[i];
+          const sessionId = session.session_id;
+          const userId = session.user_id;
+          
+          // Randomly select a presidential candidate
+          const candidateIndex = faker.number.int({ min: 0, max: presidentialCandidateIds.length - 1 });
+          const voteTimestamp = faker.date.between({ from: '2023-02-25T08:00:00Z', to: '2023-02-25T18:00:00Z' });
+          
+          ussdVotesForValidSessions.push({
+            id: uuidv4(),
+            session_id: sessionId,
+            user_id: userId,
+            election_id: presidentialElectionId,
+            candidate_id: presidentialCandidateIds[candidateIndex].id,
+            vote_timestamp: voteTimestamp,
+            confirmation_code: faker.string.alphanumeric(6).toUpperCase(),
+            is_processed: true,
+            processed_at: voteTimestamp,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+        }
+      }
+      
+      // Insert the USSD votes for valid sessions
+      if (ussdVotesForValidSessions.length > 0) {
+        await batchInsert(queryInterface, 'ussd_votes', ussdVotesForValidSessions);
+        console.log(`Inserted ${ussdVotesForValidSessions.length} USSD votes`);
+      }
+      
+      // Clear the arrays to free memory
+      ussdSessions.length = 0;
+      
       // Process Lagos state for gubernatorial election
       const lagosPollingUnits = pollingUnits.filter(unit => unit.state === 'Lagos');
       const lagosVoterCards = voterCards.filter(card => card.state === 'Lagos');
-      const existingLagosVoterIds = lagosVoterCards.map(card => card.userId);
+      const existingLagosVoterIds = lagosVoterCards.map(card => card.user_id);
       
       // Calculate total registered voters in Lagos
-      const totalLagosRegisteredVoters = lagosPollingUnits.reduce((sum, unit) => sum + unit.registeredVoters, 0);
+      const totalLagosRegisteredVoters = lagosPollingUnits.reduce((sum, unit) => sum + unit.registered_voters, 0);
+      
+      // Strictly enforce MAX_VOTERS_PER_STATE limit for Lagos
       const targetLagosVoters = Math.min(totalLagosRegisteredVoters, MAX_VOTERS_PER_STATE);
+      
+      console.log(`Lagos Gubernatorial Election - Total registered voters: ${totalLagosRegisteredVoters}, Target voters: ${targetLagosVoters}`);
       
       // Calculate voters per polling unit proportionally
       const lagosVoterDistribution = lagosPollingUnits.map(unit => {
-        const proportion = unit.registeredVoters / totalLagosRegisteredVoters;
+        const proportion = unit.registered_voters / totalLagosRegisteredVoters;
         return Math.floor(proportion * targetLagosVoters);
       });
       
+      // Ensure the total doesn't exceed MAX_VOTERS_PER_STATE by adjusting the last unit if needed
+      let totalLagosDistributedVoters = lagosVoterDistribution.reduce((a, b) => a + b, 0);
+      if (totalLagosDistributedVoters > MAX_VOTERS_PER_STATE) {
+        // Adjust the last unit to ensure we don't exceed the limit
+        const excess = totalLagosDistributedVoters - MAX_VOTERS_PER_STATE;
+        lagosVoterDistribution[lagosVoterDistribution.length - 1] -= excess;
+        totalLagosDistributedVoters = MAX_VOTERS_PER_STATE;
+      }
+      
       // Distribute votes to ensure Gbadebo Rhodes-Vivour wins
       const lagosVotes = distributeVotesWithWinner(
-        lagosVoterDistribution.reduce((a, b) => a + b, 0),
+        totalLagosDistributedVoters,
         lagosGubernCandidateIds.length,
         grvIndex
       );
       
-      console.log(`Lagos Gubernatorial Election - Total voters: ${lagosVoterDistribution.reduce((a, b) => a + b, 0)}, Votes distribution: ${lagosVotes}`);
+      // Double-check that total votes don't exceed MAX_VOTERS_PER_STATE
+      const totalLagosVotes = lagosVotes.reduce((a, b) => a + b, 0);
+      console.log(`Lagos Gubernatorial Election - Total voters: ${totalLagosDistributedVoters}, Total votes: ${totalLagosVotes}, Votes distribution: ${lagosVotes}`);
+      
+      // Ensure we don't create more votes than MAX_VOTERS_PER_STATE
+      const maxLagosVotersToCreate = Math.min(totalLagosDistributedVoters, MAX_VOTERS_PER_STATE);
       
       // Create votes for Lagos gubernatorial election
       const lagosGubernVotes = [];
       const lagosVotersUsed = new Set();
       
       // Process each polling unit in Lagos
-      for (let i = 0; i < lagosPollingUnits.length; i++) {
+      let totalLagosVotersCreated = 0;
+      for (let i = 0; i < lagosPollingUnits.length && totalLagosVotersCreated < maxLagosVotersToCreate; i++) {
         const unit = lagosPollingUnits[i];
-        const votersForUnit = lagosVoterDistribution[i];
+        // Adjust voters for this unit to respect the overall limit
+        const votersForUnit = Math.min(lagosVoterDistribution[i], maxLagosVotersToCreate - totalLagosVotersCreated);
         
         if (votersForUnit <= 0) continue;
         
+        totalLagosVotersCreated += votersForUnit;
+        
         // Distribute candidate votes proportionally for this unit
         const unitVotes = lagosVotes.map(votes => {
-          return Math.floor(votes * (votersForUnit / lagosVoterDistribution.reduce((a, b) => a + b, 0)));
+          return Math.floor(votes * (votersForUnit / totalLagosVotes));
         });
         
         // Get voters for this polling unit
         const pollingUnitVoters = existingLagosVoterIds.filter(id => {
-          const card = lagosVoterCards.find(card => card.userId === id);
-          return card.pollingUnitCode === unit.pollingUnitCode;
+          const card = lagosVoterCards.find(card => card.user_id === id);
+          return card.polling_unit_code === unit.polling_unit_code;
         });
         
         let voterPointer = 0;
@@ -930,38 +1183,41 @@ module.exports = {
           
           lagosGubernVotes.push({
             id: uuidv4(),
-            userId: voterId,
-            electionId: lagosElectionId,
-            candidateId: lagosGubernCandidateIds[candidateIndex].id,
-            pollingUnitId: unit.id,
-            encryptedVoteData: Buffer.from(JSON.stringify({
+            user_id: voterId,
+            election_id: lagosElectionId,
+            candidate_id: lagosGubernCandidateIds[candidateIndex].id,
+            polling_unit_id: unit.id,
+            encrypted_vote_data: Buffer.from(JSON.stringify({
               voterId,
               candidateId: lagosGubernCandidateIds[candidateIndex].id,
               timestamp: new Date().toISOString()
             })),
-            voteHash: faker.string.uuid(),
-            voteTimestamp: voteTimestamp,
-            voteSource: getRandomItem(voteSources),
-            isCounted: true,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            vote_hash: faker.string.uuid(),
+            vote_timestamp: voteTimestamp,
+            vote_source: getRandomItem(voteSources),
+            is_counted: true,
+            created_at: new Date(),
+            updated_at: new Date()
           });
           
           // Create audit logs for this vote
           auditLogs.push({
             id: uuidv4(),
-            userId: voterId,
-            action: 'VOTE_CAST',
-            resourceType: 'election',
-            resourceId: lagosElectionId,
-            details: JSON.stringify({
+            user_id: voterId,
+            action_type: 'VOTE_CAST',
+            action_timestamp: new Date(),
+            action_details: JSON.stringify({
+              resourceType: 'election',
+              resourceId: lagosElectionId,
               electionName: 'Lagos State Gubernatorial Election 2023',
-              pollingUnit: unit.pollingUnitCode,
+              polling_unit: unit.polling_unit_code,
               timestamp: new Date().toISOString()
             }),
-            ipAddress: faker.internet.ip(),
-            userAgent: faker.internet.userAgent(),
-            createdAt: new Date()
+            ip_address: faker.internet.ip(),
+            user_agent: faker.internet.userAgent(),
+            is_suspicious: false,
+            created_at: new Date(),
+            updated_at: new Date()
           });
         }
       }
@@ -1012,21 +1268,21 @@ module.exports = {
         
         observerReports.push({
           id: uuidv4(),
-          observerId: observerId,
-          electionId: electionId,
-          pollingUnitId: pollingUnit.id,
-          reportType: reportType,
-          reportContent: generateReportContent(reportType, pollingUnit),
+          observer_id: observerId,
+          election_id: electionId,
+          polling_unit_id: pollingUnit.id,
+          report_type: reportType,
+          report_content: generateReportContent(reportType, pollingUnit),
           attachments: JSON.stringify([
             { type: 'image', url: 'https://example.com/reports/image1.jpg' },
             { type: 'document', url: 'https://example.com/reports/doc1.pdf' }
           ]),
           status: reviewed ? getRandomItem(reportStatuses.filter(s => s !== 'pending')) : 'pending',
-          reviewedBy: reviewerId,
-          reviewNotes: reviewed ? `Review completed on ${faker.date.recent({ days: 7 }).toLocaleDateString()}` : null,
-          reviewedAt: reviewed ? faker.date.recent({ days: 7 }) : null,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          reviewed_by: reviewerId,
+          review_notes: reviewed ? `Review completed on ${faker.date.recent({ days: 7 }).toLocaleDateString()}` : null,
+          reviewed_at: reviewed ? faker.date.recent({ days: 7 }) : null,
+          created_at: new Date(),
+          updated_at: new Date()
         });
       }
       
@@ -1049,96 +1305,85 @@ module.exports = {
         
         adminLogs.push({
           id: uuidv4(),
-          adminId: adminId,
+          admin_id: adminId,
           action: action,
-          resourceType: resourceType,
-          resourceId: uuidv4(),
+          resource_type: resourceType,
+          resource_id: uuidv4(),
           details: JSON.stringify({
             timestamp: new Date().toISOString(),
             description: `Admin performed ${action} on ${resourceType}`,
             result: getRandomItem(['success', 'success', 'success', 'partial success', 'warning'])
           }),
-          ipAddress: faker.internet.ip(),
-          userAgent: faker.internet.userAgent(),
-          createdAt: new Date()
+          ip_address: faker.internet.ip(),
+          user_agent: faker.internet.userAgent(),
+          created_at: new Date()
         });
       }
       
-      // Bulk insert all data
-      console.log('Inserting voters data...');
-      await queryInterface.bulkInsert('voters', voters);
-      console.log(`Inserted ${voters.length} voters`);
+      // Insert any remaining data
+      if (votes.length > 0) {
+        await batchInsert(queryInterface, 'votes', votes);
+        votes.length = 0;
+      }
       
-      await queryInterface.bulkInsert('voter_cards', voterCards);
-      console.log(`Inserted ${voterCards.length} voter cards`);
+      if (lagosGubernVotes.length > 0) {
+        await batchInsert(queryInterface, 'votes', lagosGubernVotes);
+      }
       
-      await queryInterface.bulkInsert('verification_statuses', verificationStatuses);
-      console.log(`Inserted ${verificationStatuses.length} verification statuses`);
+      if (auditLogs.length > 0) {
+        await batchInsert(queryInterface, 'audit_logs', auditLogs);
+      }
       
-      console.log('Inserting votes data...');
-      await queryInterface.bulkInsert('votes', votes);
-      console.log(`Inserted ${votes.length} votes for presidential election`);
+      if (observerReports.length > 0) {
+        await batchInsert(queryInterface, 'observer_reports', observerReports);
+      }
       
-      await queryInterface.bulkInsert('votes', lagosGubernVotes);
-      console.log(`Inserted ${lagosGubernVotes.length} votes for Lagos gubernatorial election`);
-      
-      await queryInterface.bulkInsert('audit_logs', auditLogs);
-      console.log(`Inserted ${auditLogs.length} audit logs`);
-      
-      await queryInterface.bulkInsert('ussd_sessions', ussdSessions);
-      console.log(`Inserted ${ussdSessions.length} USSD sessions`);
-      
-      await queryInterface.bulkInsert('ussd_votes', ussdVotes);
-      console.log(`Inserted ${ussdVotes.length} USSD votes`);
-      
-      await queryInterface.bulkInsert('observer_reports', observerReports);
-      console.log(`Inserted ${observerReports.length} observer reports`);
-      
-      await queryInterface.bulkInsert('admin_logs', adminLogs);
-      console.log(`Inserted ${adminLogs.length} admin logs`);
+      if (adminLogs.length > 0) {
+        await batchInsert(queryInterface, 'admin_logs', adminLogs);
+      }
       
       // Update election statistics
       // Presidential election stats
       const presidentialVotesCount = votes.length;
-      const presidentialValidVotes = votes.filter(vote => vote.isCounted).length;
+      const presidentialValidVotes = votes.filter(vote => vote.is_counted).length;
       const presidentialInvalidVotes = presidentialVotesCount - presidentialValidVotes;
       
       // Calculate turnout for presidential election
-      const presidentialRegisteredVoters = pollingUnits.reduce((sum, unit) => sum + unit.registeredVoters, 0);
+      const presidentialRegisteredVoters = pollingUnits.reduce((sum, unit) => sum + unit.registered_voters, 0);
       const presidentialTurnout = (presidentialVotesCount / presidentialRegisteredVoters * 100).toFixed(2);
       
       // Lagos election stats
       const lagosVotesCount = lagosGubernVotes.length;
-      const lagosValidVotes = lagosGubernVotes.filter(vote => vote.isCounted).length;
+      const lagosValidVotes = lagosGubernVotes.filter(vote => vote.is_counted).length;
       const lagosInvalidVotes = lagosVotesCount - lagosValidVotes;
       
       // Calculate turnout for Lagos election
-      const lagosRegisteredVoters = lagosPollingUnits.reduce((sum, unit) => sum + unit.registeredVoters, 0);
+      const lagosRegisteredVoters = lagosPollingUnits.reduce((sum, unit) => sum + unit.registered_voters, 0);
       const lagosTurnout = (lagosVotesCount / lagosRegisteredVoters * 100).toFixed(2);
       
       // Update election stats
       await queryInterface.bulkUpdate('election_stats', 
         {
-          totalVotes: presidentialVotesCount,
-          validVotes: presidentialValidVotes,
-          invalidVotes: presidentialInvalidVotes,
-          turnoutPercentage: parseFloat(presidentialTurnout),
-          lastUpdated: new Date(),
-          updatedAt: new Date()
+          total_votes: presidentialVotesCount,
+          valid_votes: presidentialValidVotes,
+          invalid_votes: presidentialInvalidVotes,
+          turnout_percentage: parseFloat(presidentialTurnout),
+          last_updated: new Date(),
+          updated_at: new Date()
         },
-        { electionId: presidentialElectionId }
+        { election_id: presidentialElectionId }
       );
       
       await queryInterface.bulkUpdate('election_stats',
         {
-          totalVotes: lagosVotesCount,
-          validVotes: lagosValidVotes,
-          invalidVotes: lagosInvalidVotes,
-          turnoutPercentage: parseFloat(lagosTurnout),
-          lastUpdated: new Date(),
-          updatedAt: new Date()
+          total_votes: lagosVotesCount,
+          valid_votes: lagosValidVotes,
+          invalid_votes: lagosInvalidVotes,
+          turnout_percentage: parseFloat(lagosTurnout),
+          last_updated: new Date(),
+          updated_at: new Date()
         },
-        { electionId: lagosElectionId }
+        { election_id: lagosElectionId }
       );
       
       console.log('Updated election statistics');
@@ -1147,32 +1392,32 @@ module.exports = {
       console.log('Presidential Election Results:');
       const presidentialResults = {};
       for (const vote of votes) {
-        if (!presidentialResults[vote.candidateId]) {
-          presidentialResults[vote.candidateId] = 0;
+        if (!presidentialResults[vote.candidate_id]) {
+          presidentialResults[vote.candidate_id] = 0;
         }
-        presidentialResults[vote.candidateId]++;
+        presidentialResults[vote.candidate_id]++;
       }
       
       for (const candidate of presidentialCandidateIds) {
         const candidateVotes = presidentialResults[candidate.id] || 0;
         const percentage = ((candidateVotes / presidentialVotesCount) * 100).toFixed(2);
-        console.log(`${candidate.fullName} (${candidate.partyCode}): ${candidateVotes} votes (${percentage}%)`);
+        console.log(`${candidate.full_name} (${candidate.party_code}): ${candidateVotes} votes (${percentage}%)`);
       }
       
       // Log candidate results for Lagos gubernatorial election
       console.log('Lagos Gubernatorial Election Results:');
       const lagosResults = {};
       for (const vote of lagosGubernVotes) {
-        if (!lagosResults[vote.candidateId]) {
-          lagosResults[vote.candidateId] = 0;
+        if (!lagosResults[vote.candidate_id]) {
+          lagosResults[vote.candidate_id] = 0;
         }
-        lagosResults[vote.candidateId]++;
+        lagosResults[vote.candidate_id]++;
       }
       
       for (const candidate of lagosGubernCandidateIds) {
         const candidateVotes = lagosResults[candidate.id] || 0;
         const percentage = ((candidateVotes / lagosVotesCount) * 100).toFixed(2);
-        console.log(`${candidate.fullName} (${candidate.partyCode}): ${candidateVotes} votes (${percentage}%)`);
+        console.log(`${candidate.full_name} (${candidate.party_code}): ${candidateVotes} votes (${percentage}%)`);
       }
       
       console.log('Database seeding completed successfully');
@@ -1185,23 +1430,33 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     // Clear data in reverse order to avoid foreign key constraints
-    await queryInterface.bulkDelete('admin_logs', null, {});
-    await queryInterface.bulkDelete('observer_reports', null, {});
-    await queryInterface.bulkDelete('ussd_votes', null, {});
-    await queryInterface.bulkDelete('ussd_sessions', null, {});
-    await queryInterface.bulkDelete('audit_logs', null, {});
-    await queryInterface.bulkDelete('votes', null, {});
-    await queryInterface.bulkDelete('election_stats', null, {});
-    await queryInterface.bulkDelete('verification_statuses', null, {});
-    await queryInterface.bulkDelete('voter_cards', null, {});
-    await queryInterface.bulkDelete('voters', null, {});
-    await queryInterface.bulkDelete('candidates', null, {});
-    await queryInterface.bulkDelete('elections', null, {});
-    await queryInterface.bulkDelete('polling_units', null, {});
-    await queryInterface.bulkDelete('admin_permissions', null, {});
-    await queryInterface.bulkDelete('admin_roles', null, {});
-    await queryInterface.bulkDelete('admin_users', null, {});
+    // Use transaction to ensure all operations succeed or fail together
+    const transaction = await queryInterface.sequelize.transaction();
     
-    console.log('All seeded data removed');
+    try {
+      await queryInterface.bulkDelete('admin_logs', null, { transaction });
+      await queryInterface.bulkDelete('observer_reports', null, { transaction });
+      await queryInterface.bulkDelete('ussd_votes', null, { transaction });
+      await queryInterface.bulkDelete('ussd_sessions', null, { transaction });
+      await queryInterface.bulkDelete('audit_logs', null, { transaction });
+      await queryInterface.bulkDelete('votes', null, { transaction });
+      await queryInterface.bulkDelete('election_stats', null, { transaction });
+      await queryInterface.bulkDelete('verification_statuses', null, { transaction });
+      await queryInterface.bulkDelete('voter_cards', null, { transaction });
+      await queryInterface.bulkDelete('voters', null, { transaction });
+      await queryInterface.bulkDelete('candidates', null, { transaction });
+      await queryInterface.bulkDelete('elections', null, { transaction });
+      await queryInterface.bulkDelete('polling_units', null, { transaction });
+      await queryInterface.bulkDelete('admin_permissions', null, { transaction });
+      await queryInterface.bulkDelete('admin_roles', null, { transaction });
+      await queryInterface.bulkDelete('admin_users', null, { transaction });
+      
+      await transaction.commit();
+      console.log('All seeded data removed');
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error removing seeded data:', error);
+      throw error;
+    }
   }
 };

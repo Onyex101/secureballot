@@ -1,6 +1,6 @@
 import { Model, DataTypes, Sequelize, Optional } from "sequelize";
 import bcrypt from "bcrypt";
-import { UserRole } from "../../middleware/accessControl";
+import { UserRole } from "../../types/auth";
 
 interface AdminUserAttributes {
   id: string;
@@ -50,8 +50,8 @@ class AdminUser
   public passwordHash!: string;
   public adminType!: UserRole;
   public isActive!: boolean;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
   public lastLogin!: Date | null;
   public createdBy!: string | null;
   public recoveryToken!: string | null;
@@ -64,35 +64,21 @@ class AdminUser
   public static readonly createdAt = "createdAt";
   public static readonly updatedAt = "updatedAt";
 
-  // Method to validate password
+  // Virtual fields
+  public password?: string;
+
+  // Password validation and hashing
+  public static async hashPassword(password: string): Promise<string> {
+    const saltRounds = 10;
+    return bcrypt.hash(password, saltRounds);
+  }
+
   public async validatePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.passwordHash);
   }
 
-  // Method to update password
-  public async updatePassword(password: string): Promise<void> {
-    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12", 10);
-    this.passwordHash = await bcrypt.hash(password, saltRounds);
-    await this.save();
-  }
-
   // Model associations
   public static associate(models: any): void {
-    AdminUser.hasMany(models.Election, {
-      foreignKey: "createdBy",
-      as: "createdElections",
-    });
-
-    AdminUser.hasMany(models.AdminUser, {
-      foreignKey: "createdBy",
-      as: "createdUsers",
-    });
-
-    AdminUser.belongsTo(models.AdminUser, {
-      foreignKey: "createdBy",
-      as: "creator",
-    });
-
     AdminUser.hasMany(models.AdminRole, {
       foreignKey: "adminId",
       as: "roles",
@@ -115,7 +101,27 @@ class AdminUser
 
     AdminUser.hasMany(models.ObserverReport, {
       foreignKey: "observerId",
-      as: "reports",
+      as: "observerReports",
+    });
+
+    AdminUser.hasMany(models.ObserverReport, {
+      foreignKey: "reviewedBy",
+      as: "reviewedReports",
+    });
+
+    AdminUser.hasMany(models.Election, {
+      foreignKey: "createdBy",
+      as: "createdElections",
+    });
+
+    AdminUser.belongsTo(models.AdminUser, {
+      foreignKey: "createdBy",
+      as: "creator",
+    });
+
+    AdminUser.hasMany(models.AdminUser, {
+      foreignKey: "createdBy",
+      as: "createdUsers",
     });
   }
 
@@ -130,6 +136,7 @@ class AdminUser
         fullName: {
           type: DataTypes.STRING(100),
           allowNull: false,
+          field: "full_name",
           validate: {
             notEmpty: true,
           },
@@ -146,6 +153,7 @@ class AdminUser
         phoneNumber: {
           type: DataTypes.STRING(15),
           allowNull: false,
+          field: "phone_number",
           unique: true,
           validate: {
             is: /^\+?[0-9]{10,15}$/,
@@ -155,10 +163,12 @@ class AdminUser
         passwordHash: {
           type: DataTypes.STRING(255),
           allowNull: false,
+          field: "password_hash",
         },
         adminType: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: "admin_type",
           validate: {
             isIn: [Object.values(UserRole)],
           },
@@ -166,99 +176,80 @@ class AdminUser
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
+          field: "is_active",
           defaultValue: true,
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "created_at",
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "updated_at",
           defaultValue: DataTypes.NOW,
         },
         lastLogin: {
           type: DataTypes.DATE,
           allowNull: true,
+          field: "last_login",
         },
         createdBy: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: "created_by",
           references: {
             model: "admin_users",
             key: "id",
           },
-          onDelete: "SET NULL",
-          onUpdate: "CASCADE",
         },
         recoveryToken: {
           type: DataTypes.STRING(255),
           allowNull: true,
+          field: "recovery_token",
         },
         recoveryTokenExpiry: {
           type: DataTypes.DATE,
           allowNull: true,
+          field: "recovery_token_expiry",
         },
         mfaSecret: {
           type: DataTypes.STRING(255),
           allowNull: true,
+          field: "mfa_secret",
         },
         mfaEnabled: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
+          field: "mfa_enabled",
           defaultValue: false,
         },
         mfaBackupCodes: {
           type: DataTypes.ARRAY(DataTypes.STRING),
           allowNull: true,
+          field: "mfa_backup_codes",
         },
       },
       {
         sequelize,
         modelName: "AdminUser",
         tableName: "admin_users",
-        underscored: false,
         timestamps: true,
-        indexes: [
-          { unique: true, fields: ["email"] },
-          { unique: true, fields: ["phoneNumber"] },
-          { fields: ["adminType"] },
-          { fields: ["isActive"] },
-        ],
         hooks: {
-          beforeCreate: async (
-            adminUser: AdminUser & { password?: string },
-          ) => {
-            if (adminUser.password) {
-              const saltRounds = parseInt(
-                process.env.BCRYPT_SALT_ROUNDS || "12",
-                10,
-              );
-              adminUser.passwordHash = await bcrypt.hash(
-                adminUser.password,
-                saltRounds,
-              );
-              delete adminUser.password; // Remove plain text password
+          beforeCreate: async (user: AdminUser) => {
+            if (user.password) {
+              user.passwordHash = await AdminUser.hashPassword(user.password);
             }
           },
-          beforeUpdate: async (
-            adminUser: AdminUser & { password?: string },
-          ) => {
-            if (adminUser.password) {
-              const saltRounds = parseInt(
-                process.env.BCRYPT_SALT_ROUNDS || "12",
-                10,
-              );
-              adminUser.passwordHash = await bcrypt.hash(
-                adminUser.password,
-                saltRounds,
-              );
-              delete adminUser.password; // Remove plain text password
+          beforeUpdate: async (user: AdminUser) => {
+            if (user.password) {
+              user.passwordHash = await AdminUser.hashPassword(user.password);
             }
           },
         },
-      },
+      }
     );
   }
 }

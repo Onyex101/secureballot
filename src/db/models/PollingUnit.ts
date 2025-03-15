@@ -59,18 +59,18 @@ class PollingUnit
   // Model associations
   public static associate(models: any): void {
     PollingUnit.hasMany(models.VoterCard, {
-      sourceKey: "pollingUnitCode",
-      foreignKey: "pollingUnitCode",
+      sourceKey: "polling_unit_code",
+      foreignKey: "polling_unit_code",
       as: "voterCards",
     });
 
     PollingUnit.hasMany(models.Vote, {
-      foreignKey: "pollingUnitId",
+      foreignKey: "polling_unit_id",
       as: "votes",
     });
 
     PollingUnit.belongsTo(models.AdminUser, {
-      foreignKey: "assignedOfficer",
+      foreignKey: "assigned_officer",
       as: "officer",
     });
   }
@@ -87,6 +87,7 @@ class PollingUnit
           type: DataTypes.STRING(50),
           allowNull: false,
           unique: true,
+          field: "polling_unit_code",
           validate: {
             notEmpty: true,
           },
@@ -94,6 +95,7 @@ class PollingUnit
         pollingUnitName: {
           type: DataTypes.STRING(100),
           allowNull: false,
+          field: "polling_unit_name",
           validate: {
             notEmpty: true,
           },
@@ -138,6 +140,7 @@ class PollingUnit
         registeredVoters: {
           type: DataTypes.INTEGER,
           allowNull: false,
+          field: "registered_voters",
           defaultValue: 0,
           validate: {
             min: 0,
@@ -146,6 +149,7 @@ class PollingUnit
         assignedOfficer: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: "assigned_officer",
           references: {
             model: "admin_users",
             key: "id",
@@ -156,16 +160,19 @@ class PollingUnit
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
+          field: "is_active",
           defaultValue: true,
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "created_at",
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "updated_at",
           defaultValue: DataTypes.NOW,
         },
       },
@@ -173,13 +180,13 @@ class PollingUnit
         sequelize,
         modelName: "PollingUnit",
         tableName: "polling_units",
-        underscored: false,
+        underscored: true,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ["pollingUnitCode"] },
+          { unique: true, fields: ["polling_unit_code"] },
           { fields: ["state", "lga", "ward"] },
-          { fields: ["assignedOfficer"] },
-          { fields: ["isActive"] },
+          { fields: ["assigned_officer"] },
+          { fields: ["is_active"] },
         ],
       },
     );
