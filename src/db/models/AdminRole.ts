@@ -45,12 +45,12 @@ class AdminRole
   // Model associations
   public static associate(models: any): void {
     AdminRole.belongsTo(models.AdminUser, {
-      foreignKey: "adminId",
+      foreignKey: "admin_id",
       as: "admin",
     });
 
     AdminRole.belongsTo(models.AdminUser, {
-      foreignKey: "assignedBy",
+      foreignKey: "assigned_by",
       as: "assigner",
     });
   }
@@ -66,6 +66,7 @@ class AdminRole
         adminId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: "admin_id",
           references: {
             model: "admin_users",
             key: "id",
@@ -76,6 +77,7 @@ class AdminRole
         roleName: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: "role_name",
           validate: {
             notEmpty: true,
           },
@@ -83,15 +85,18 @@ class AdminRole
         roleScope: {
           type: DataTypes.JSONB,
           allowNull: true,
+          field: "role_scope",
         },
         assignedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "assigned_at",
           defaultValue: DataTypes.NOW,
         },
         assignedBy: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: "assigned_by",
           references: {
             model: "admin_users",
             key: "id",
@@ -102,16 +107,19 @@ class AdminRole
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
+          field: "is_active",
           defaultValue: true,
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "created_at",
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "updated_at",
           defaultValue: DataTypes.NOW,
         },
       },
@@ -119,13 +127,13 @@ class AdminRole
         sequelize,
         modelName: "AdminRole",
         tableName: "admin_roles",
-        underscored: false,
+        underscored: true,
         timestamps: true,
         indexes: [
-          { fields: ["adminId"] },
-          { fields: ["roleName"] },
-          { fields: ["assignedBy"] },
-          { fields: ["isActive"] },
+          { fields: ["admin_id"] },
+          { fields: ["role_name"] },
+          { fields: ["assigned_by"] },
+          { fields: ["is_active"] },
         ],
       },
     );

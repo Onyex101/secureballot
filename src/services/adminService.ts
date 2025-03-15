@@ -2,7 +2,7 @@ import AdminUser from '../db/models/AdminUser';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 import { Op } from 'sequelize';
-import { UserRole } from '../middleware/accessControl';
+import { UserRole } from '../types';
 
 /**
  * Get users with filtering and pagination

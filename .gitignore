@@ -6,6 +6,7 @@ npm-shrinkwrap.json
 *.gz
 
 dist
+logs
 
 # Coveralls
 .nyc_output

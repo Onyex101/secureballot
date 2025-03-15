@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { adminService, auditService } from '../../services';
-import { UserRole } from '../../middleware/accessControl';
+import { UserRole } from '../../types';
 
 /**
  * List all system users with pagination and filtering

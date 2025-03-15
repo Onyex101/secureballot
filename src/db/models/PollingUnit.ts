@@ -59,7 +59,7 @@ class PollingUnit
   // Model associations
   public static associate(models: any): void {
     PollingUnit.hasMany(models.VoterCard, {
-      sourceKey: "polling_unit_code",
+      sourceKey: "pollingUnitCode",
       foreignKey: "polling_unit_code",
       as: "voterCards",
     });

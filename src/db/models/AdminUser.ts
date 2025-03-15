@@ -80,47 +80,42 @@ class AdminUser
   // Model associations
   public static associate(models: any): void {
     AdminUser.hasMany(models.AdminRole, {
-      foreignKey: "adminId",
+      foreignKey: "admin_id",
       as: "roles",
     });
 
     AdminUser.hasMany(models.AdminPermission, {
-      foreignKey: "adminId",
+      foreignKey: "admin_id",
       as: "permissions",
     });
 
-    AdminUser.hasMany(models.AdminLog, {
-      foreignKey: "adminId",
-      as: "logs",
-    });
-
     AdminUser.hasMany(models.PollingUnit, {
-      foreignKey: "assignedOfficer",
+      foreignKey: "assigned_officer",
       as: "assignedPollingUnits",
     });
 
     AdminUser.hasMany(models.ObserverReport, {
-      foreignKey: "observerId",
+      foreignKey: "observer_id",
       as: "observerReports",
     });
 
     AdminUser.hasMany(models.ObserverReport, {
-      foreignKey: "reviewedBy",
+      foreignKey: "reviewed_by",
       as: "reviewedReports",
     });
 
     AdminUser.hasMany(models.Election, {
-      foreignKey: "createdBy",
+      foreignKey: "created_by",
       as: "createdElections",
     });
 
     AdminUser.belongsTo(models.AdminUser, {
-      foreignKey: "createdBy",
+      foreignKey: "created_by",
       as: "creator",
     });
 
     AdminUser.hasMany(models.AdminUser, {
-      foreignKey: "createdBy",
+      foreignKey: "created_by",
       as: "createdUsers",
     });
   }

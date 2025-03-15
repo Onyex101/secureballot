@@ -59,12 +59,12 @@ class AdminPermission
   // Model associations
   public static associate(models: any): void {
     AdminPermission.belongsTo(models.AdminUser, {
-      foreignKey: "adminId",
+      foreignKey: "admin_id",
       as: "admin",
     });
 
     AdminPermission.belongsTo(models.AdminUser, {
-      foreignKey: "grantedBy",
+      foreignKey: "granted_by",
       as: "grantor",
     });
   }
@@ -80,6 +80,7 @@ class AdminPermission
         adminId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: "admin_id",
           references: {
             model: "admin_users",
             key: "id",
@@ -90,6 +91,7 @@ class AdminPermission
         permissionName: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: "permission_name",
           validate: {
             notEmpty: true,
           },
@@ -97,14 +99,17 @@ class AdminPermission
         resourceType: {
           type: DataTypes.STRING(50),
           allowNull: true,
+          field: "resource_type",
         },
         resourceId: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: "resource_id",
         },
         accessLevel: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: "access_level",
           defaultValue: AccessLevel.READ,
           validate: {
             isIn: [Object.values(AccessLevel)],
@@ -113,11 +118,13 @@ class AdminPermission
         grantedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "granted_at",
           defaultValue: DataTypes.NOW,
         },
         grantedBy: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: "granted_by",
           references: {
             model: "admin_users",
             key: "id",
@@ -128,15 +135,18 @@ class AdminPermission
         expiresAt: {
           type: DataTypes.DATE,
           allowNull: true,
+          field: "expires_at",
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "created_at",
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: "updated_at",
           defaultValue: DataTypes.NOW,
         },
       },
@@ -144,14 +154,14 @@ class AdminPermission
         sequelize,
         modelName: "AdminPermission",
         tableName: "admin_permissions",
-        underscored: false,
+        underscored: true,
         timestamps: true,
         indexes: [
-          { fields: ["adminId"] },
-          { fields: ["permissionName"] },
-          { fields: ["resourceType", "resourceId"] },
-          { fields: ["grantedBy"] },
-          { fields: ["expiresAt"] },
+          { fields: ["admin_id"] },
+          { fields: ["permission_name"] },
+          { fields: ["resource_type", "resource_id"] },
+          { fields: ["granted_by"] },
+          { fields: ["expires_at"] },
         ],
       },
     );

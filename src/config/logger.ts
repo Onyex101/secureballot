@@ -21,7 +21,6 @@ const consoleFormat = printf(({ level, message, timestamp, ...meta }) => {
 const logger = createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: combine(timestamp({ format: "YYYY-MM-DD HH:mm:ss" }), json()),
-  defaultMeta: { service: "nigeria-evoting-api" },
   transports: [
     // Write logs to console in development
     new transports.Console({

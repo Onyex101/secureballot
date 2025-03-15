@@ -3,7 +3,7 @@ import { body, param, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { authenticate, authorize } from '../../middleware/auth';
 import { requireRole } from '../../middleware/accessControl';
-import { UserRole } from '../../middleware/accessControl';
+import { UserRole } from '../../types';
 import { defaultLimiter, adminLimiter } from '../../middleware/rateLimiter';
 import { Request, Response } from 'express';
 
