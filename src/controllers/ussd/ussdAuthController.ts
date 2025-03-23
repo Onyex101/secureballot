@@ -11,14 +11,14 @@ import { AuditActionType } from '../../db/models/AuditLog';
 export const authenticateViaUssd = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nin, vin, phoneNumber } = req.body;
-    
+
     try {
       // Authenticate voter
       const voter = await authService.authenticateVoterForUssd(nin, vin, phoneNumber);
-      
+
       // Generate a session code
       const sessionCode = await ussdService.createUssdSession(voter.id, phoneNumber);
-      
+
       // Log the authentication
       await auditService.createAuditLog(
         voter.id,
@@ -27,21 +27,23 @@ export const authenticateViaUssd = async (req: Request, res: Response): Promise<
         req.headers['user-agent'] || '',
         {
           phoneNumber,
-          sessionCode
-        }
+          sessionCode,
+        },
       );
-      
+
       // Send session code via SMS
       // In a real implementation, this would use an SMS gateway
-      console.log(`[SMS] To: ${phoneNumber}, Message: Your USSD voting session code is: ${sessionCode}`);
-      
+      console.log(
+        `[SMS] To: ${phoneNumber}, Message: Your USSD voting session code is: ${sessionCode}`,
+      );
+
       res.status(200).json({
         success: true,
         message: 'USSD authentication successful',
         data: {
           sessionCode,
-          expiresIn: 600 // 10 minutes in seconds
-        }
+          expiresIn: 600, // 10 minutes in seconds
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Authentication failed');
@@ -55,14 +57,14 @@ export const authenticateViaUssd = async (req: Request, res: Response): Promise<
       res.status((error as ApiError).statusCode || 400).json({
         success: false,
         message: (error as Error).message,
-        code: (error as ApiError).code
+        code: (error as ApiError).code,
       });
     } else {
       console.error('USSD Authentication Error:', error);
       res.status(500).json({
         success: false,
         message: 'An unexpected error occurred',
-        code: 'INTERNAL_SERVER_ERROR'
+        code: 'INTERNAL_SERVER_ERROR',
       });
     }
   }
@@ -76,11 +78,11 @@ export const authenticateViaUssd = async (req: Request, res: Response): Promise<
 export const verifyUssdSession = async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionCode, phoneNumber } = req.body;
-    
+
     try {
       // Verify the session
       const session = await ussdService.verifyUssdSession(sessionCode, phoneNumber);
-      
+
       if (!session) {
         const error: ApiError = new Error('Invalid or expired session');
         error.statusCode = 401;
@@ -88,7 +90,7 @@ export const verifyUssdSession = async (req: Request, res: Response): Promise<vo
         error.isOperational = true;
         throw error;
       }
-      
+
       // Log the verification
       await auditService.createAuditLog(
         session.userId,
@@ -97,17 +99,17 @@ export const verifyUssdSession = async (req: Request, res: Response): Promise<vo
         req.headers['user-agent'] || '',
         {
           phoneNumber,
-          sessionCode
-        }
+          sessionCode,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'USSD session verified',
         data: {
           userId: session.userId,
-          isValid: true
-        }
+          isValid: true,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Session verification failed');
@@ -121,15 +123,15 @@ export const verifyUssdSession = async (req: Request, res: Response): Promise<vo
       res.status((error as ApiError).statusCode || 400).json({
         success: false,
         message: (error as Error).message,
-        code: (error as ApiError).code
+        code: (error as ApiError).code,
       });
     } else {
       console.error('USSD Session Verification Error:', error);
       res.status(500).json({
         success: false,
         message: 'An unexpected error occurred',
-        code: 'INTERNAL_SERVER_ERROR'
+        code: 'INTERNAL_SERVER_ERROR',
       });
     }
   }
-}; 
+};

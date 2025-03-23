@@ -1,12 +1,12 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 // Attempt type enum
 export enum AttemptType {
-  LOGIN = "login",
-  PASSWORD_RESET = "password_reset",
-  MFA = "mfa",
-  USSD_AUTH = "ussd_auth",
-  MOBILE_LOGIN = "mobile_login",
+  LOGIN = 'login',
+  PASSWORD_RESET = 'password_reset',
+  MFA = 'mfa',
+  USSD_AUTH = 'ussd_auth',
+  MOBILE_LOGIN = 'mobile_login',
 }
 
 interface FailedAttemptAttributes {
@@ -19,10 +19,7 @@ interface FailedAttemptAttributes {
 }
 
 interface FailedAttemptCreationAttributes
-  extends Optional<
-    FailedAttemptAttributes,
-    "id" | "ipAddress" | "userAgent" | "attemptTime"
-  > {}
+  extends Optional<FailedAttemptAttributes, 'id' | 'ipAddress' | 'userAgent' | 'attemptTime'> {}
 
 class FailedAttempt
   extends Model<FailedAttemptAttributes, FailedAttemptCreationAttributes>
@@ -38,8 +35,8 @@ class FailedAttempt
   // Model associations
   public static associate(models: any): void {
     FailedAttempt.belongsTo(models.Voter, {
-      foreignKey: "userId",
-      as: "voter",
+      foreignKey: 'user_id',
+      as: 'voter',
     });
   }
 
@@ -54,14 +51,16 @@ class FailedAttempt
         userId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'user_id',
           references: {
-            model: "voters",
-            key: "id",
+            model: 'voters',
+            key: 'id',
           },
         },
         attemptType: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: 'attempt_type',
           validate: {
             isIn: [Object.values(AttemptType)],
           },
@@ -69,25 +68,28 @@ class FailedAttempt
         ipAddress: {
           type: DataTypes.STRING(50),
           allowNull: true,
+          field: 'ip_address',
         },
         userAgent: {
           type: DataTypes.TEXT,
           allowNull: true,
+          field: 'user_agent',
         },
         attemptTime: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'attempt_time',
         },
       },
       {
         sequelize,
-        modelName: "FailedAttempt",
-        tableName: "failed_attempts",
+        modelName: 'FailedAttempt',
+        tableName: 'failed_attempts',
         timestamps: false,
-      }
+      },
     );
   }
 }
 
-export default FailedAttempt; 
+export default FailedAttempt;

@@ -16,7 +16,7 @@ export const isValidEmail = (email: string): boolean => {
 export const isValidNigerianPhoneNumber = (phoneNumber: string): boolean => {
   // Remove all non-digit characters
   const cleaned = phoneNumber.replace(/\D/g, '');
-  
+
   // Check if it's a valid Nigerian number
   // +234 format (13 digits) or 0 format (11 digits)
   return (
@@ -31,7 +31,7 @@ export const isValidNigerianPhoneNumber = (phoneNumber: string): boolean => {
 export const isValidNIN = (nin: string): boolean => {
   // Remove all non-digit characters
   const cleaned = nin.replace(/\D/g, '');
-  
+
   // NIN should be 11 digits
   return cleaned.length === 11;
 };
@@ -42,7 +42,7 @@ export const isValidNIN = (nin: string): boolean => {
 export const isValidVIN = (vin: string): boolean => {
   // Remove all non-alphanumeric characters
   const cleaned = vin.replace(/[^a-zA-Z0-9]/g, '');
-  
+
   // VIN should be 19 characters
   return cleaned.length === 19;
 };
@@ -75,12 +75,12 @@ export const isValidDate = (date: any): boolean => {
   if (date instanceof Date) {
     return !isNaN(date.getTime());
   }
-  
+
   if (typeof date === 'string') {
     const parsedDate = new Date(date);
     return !isNaN(parsedDate.getTime());
   }
-  
+
   return false;
 };
 
@@ -91,11 +91,11 @@ export const isValidNumber = (value: any): boolean => {
   if (typeof value === 'number') {
     return !isNaN(value);
   }
-  
+
   if (typeof value === 'string') {
     return !isNaN(Number(value));
   }
-  
+
   return false;
 };
 
@@ -106,19 +106,19 @@ export const isEmpty = (value: any): boolean => {
   if (value === null || value === undefined) {
     return true;
   }
-  
+
   if (typeof value === 'string') {
     return value.trim() === '';
   }
-  
+
   if (Array.isArray(value)) {
     return value.length === 0;
   }
-  
+
   if (typeof value === 'object') {
     return Object.keys(value).length === 0;
   }
-  
+
   return false;
 };
 

@@ -9,7 +9,7 @@ export const getPollingUnits = async (
   regionId?: string,
   search?: string,
   page: number = 1,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<{
   pollingUnits: PollingUnit[];
   pagination: {
@@ -21,41 +21,41 @@ export const getPollingUnits = async (
 }> => {
   // Build filter conditions
   const whereConditions: any = {};
-  
+
   if (regionId) {
     whereConditions.regionId = regionId;
   }
-  
+
   if (search) {
     whereConditions[Op.or] = [
       { name: { [Op.like]: `%${search}%` } },
       { code: { [Op.like]: `%${search}%` } },
-      { address: { [Op.like]: `%${search}%` } }
+      { address: { [Op.like]: `%${search}%` } },
     ];
   }
-  
+
   // Calculate pagination
   const offset = (page - 1) * limit;
-  
+
   // Fetch polling units with pagination
   const { count, rows: pollingUnits } = await PollingUnit.findAndCountAll({
     where: whereConditions,
     limit,
     offset,
-    order: [['name', 'ASC']]
+    order: [['name', 'ASC']],
   });
-  
+
   // Calculate pagination metadata
   const totalPages = Math.ceil(count / limit);
-  
+
   return {
     pollingUnits,
     pagination: {
       total: count,
       page,
       limit,
-      totalPages
-    }
+      totalPages,
+    },
   };
 };
 
@@ -64,11 +64,11 @@ export const getPollingUnits = async (
  */
 export const getPollingUnitById = async (id: string): Promise<PollingUnit> => {
   const pollingUnit = await PollingUnit.findByPk(id);
-  
+
   if (!pollingUnit) {
     throw new Error('Polling unit not found');
   }
-  
+
   return pollingUnit;
 };
 
@@ -77,7 +77,7 @@ export const getPollingUnitById = async (id: string): Promise<PollingUnit> => {
  */
 export const getPollingUnitByCode = async (code: string): Promise<PollingUnit | null> => {
   return await PollingUnit.findOne({
-    where: { pollingUnitCode: code }
+    where: { pollingUnitCode: code },
   });
 };
 
@@ -90,17 +90,17 @@ export const createPollingUnit = async (
   address: string,
   regionId: string,
   latitude?: number,
-  longitude?: number
+  longitude?: number,
 ): Promise<PollingUnit> => {
   // Check if polling unit with same code already exists
   const existingUnit = await PollingUnit.findOne({
-    where: { pollingUnitCode: code }
+    where: { pollingUnitCode: code },
   });
-  
+
   if (existingUnit) {
     throw new Error('Polling unit with this code already exists');
   }
-  
+
   // Create new polling unit
   const pollingUnit = await PollingUnit.create({
     id: uuidv4(),
@@ -112,9 +112,9 @@ export const createPollingUnit = async (
     ward: regionId.split('-')[2] || '',
     latitude,
     longitude,
-    registeredVoters: 0
+    registeredVoters: 0,
   });
-  
+
   return pollingUnit;
 };
 
@@ -128,17 +128,17 @@ export const updatePollingUnit = async (
     address?: string;
     latitude?: number;
     longitude?: number;
-  }
+  },
 ): Promise<PollingUnit> => {
   const pollingUnit = await PollingUnit.findByPk(id);
-  
+
   if (!pollingUnit) {
     throw new Error('Polling unit not found');
   }
-  
+
   // Update fields
   await pollingUnit.update(updates);
-  
+
   return pollingUnit;
 };
 
@@ -149,35 +149,33 @@ export const getNearbyPollingUnits = async (
   latitude: number,
   longitude: number,
   radiusKm: number = 5,
-  limit: number = 10
+  limit: number = 10,
 ): Promise<PollingUnit[]> => {
   // This is a simplified implementation
   // In a real application, you would use a spatial database or a more sophisticated algorithm
-  
+
   // Convert radius from km to degrees (approximate)
   const radiusDegrees = radiusKm / 111;
-  
+
   const pollingUnits = await PollingUnit.findAll({
     where: {
       latitude: {
-        [Op.between]: [latitude - radiusDegrees, latitude + radiusDegrees]
+        [Op.between]: [latitude - radiusDegrees, latitude + radiusDegrees],
       },
       longitude: {
-        [Op.between]: [longitude - radiusDegrees, longitude + radiusDegrees]
-      }
+        [Op.between]: [longitude - radiusDegrees, longitude + radiusDegrees],
+      },
     },
-    limit
+    limit,
   });
-  
+
   // Sort by distance (simplified calculation)
   return pollingUnits.sort((a, b) => {
     const distA = Math.sqrt(
-      Math.pow((a.latitude || 0) - latitude, 2) + 
-      Math.pow((a.longitude || 0) - longitude, 2)
+      Math.pow((a.latitude || 0) - latitude, 2) + Math.pow((a.longitude || 0) - longitude, 2),
     );
     const distB = Math.sqrt(
-      Math.pow((b.latitude || 0) - latitude, 2) + 
-      Math.pow((b.longitude || 0) - longitude, 2)
+      Math.pow((b.latitude || 0) - latitude, 2) + Math.pow((b.longitude || 0) - longitude, 2),
     );
     return distA - distB;
   });
@@ -201,8 +199,8 @@ export const getVoterPollingUnit = async (voterId: string) => {
       ward: 'Ward 1',
       latitude: 6.5244,
       longitude: 3.3792,
-      registeredVoters: 1500
-    }
+      registeredVoters: 1500,
+    },
   };
 };
 
@@ -236,14 +234,14 @@ export const getActiveElectionsByRegion = async (regionId: string): Promise<any[
       electionName: 'Presidential Election 2023',
       electionType: 'Presidential',
       startDate: new Date('2023-02-25'),
-      endDate: new Date('2023-02-25')
+      endDate: new Date('2023-02-25'),
     },
     {
       id: 'election-2',
       electionName: 'Gubernatorial Election 2023',
       electionType: 'Gubernatorial',
       startDate: new Date('2023-03-11'),
-      endDate: new Date('2023-03-11')
-    }
+      endDate: new Date('2023-03-11'),
+    },
   ];
-}; 
+};

@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+// Check if SSL is explicitly required
+const useSSL = process.env.DB_USE_SSL === 'true';
+
 module.exports = {
   development: {
     username: process.env.DB_USER || "postgres",
@@ -27,17 +30,19 @@ module.exports = {
     port: parseInt(process.env.DB_PORT || "5432", 10),
     dialect: process.env.DB_DIALECT || "postgres",
     logging: false,
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
     pool: {
       max: 20,
       min: 5,
       acquire: 60000,
       idle: 10000,
     },
+    ...(useSSL && {
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      },
+    }),
   },
 }; 

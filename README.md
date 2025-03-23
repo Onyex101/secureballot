@@ -11,6 +11,7 @@ A secure, scalable electronic voting system API designed for Nigerian elections 
 - [Database Setup](#database-setup)
 - [Configuration](#configuration)
 - [Running the Application](#running-the-application)
+- [Docker Setup](#docker-setup)
 - [API Documentation](#api-documentation)
 - [Testing](#testing)
 - [Project Structure](#project-structure)
@@ -41,6 +42,10 @@ Before you begin, ensure you have the following installed:
 - [PostgreSQL](https://www.postgresql.org/) v14.x or higher
 - [TypeScript](https://www.typescriptlang.org/) v5.x or higher
 - [Git](https://git-scm.com/)
+
+For Docker deployment:
+- [Docker](https://www.docker.com/) v20.x or higher
+- [Docker Compose](https://docs.docker.com/compose/) v2.x or higher
 
 ## Installation
 
@@ -254,6 +259,101 @@ npm run build
 npm start
 ```
 
+## Docker Setup
+
+SecureBallot can be run using Docker, which simplifies deployment and ensures consistency across different environments.
+
+### Prerequisites
+
+- [Docker](https://www.docker.com/) (v20.x or higher)
+- [Docker Compose](https://docs.docker.com/compose/) (v2.x or higher)
+
+### Running with Docker Compose
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/Onyex101/secureballot.git
+cd secureballot
+```
+
+2. Start the application and database:
+
+```bash
+docker-compose up -d
+```
+
+This will:
+- Build the application container using the provided Dockerfile
+- Start a PostgreSQL database container
+- Set up the necessary network between containers
+- Create persistent volumes for logs and database data
+
+3. Access the application at `http://localhost:5000`
+
+### Running Database Migrations
+
+To run database migrations in the Docker environment:
+
+```bash
+# Using the standard migration command (may require SSL)
+docker-compose exec app npm run db:migrate
+
+# For environments without SSL support (recommended for Docker)
+docker-compose exec app npm run db:migrate:nossl
+```
+
+The `db:migrate:nossl` script explicitly disables SSL when connecting to the database, which is ideal for Docker environments where SSL is typically not required for database connections.
+
+### Seeding the Database
+
+To seed the database with sample data:
+
+```bash
+# Using the standard seed command (may require SSL)
+docker-compose exec app npm run db:seed
+
+# For environments without SSL support (recommended for Docker)
+docker-compose exec app npm run db:seed:nossl
+
+# For a smaller dataset without SSL (faster, recommended for development)
+docker-compose exec app npm run db:seed:small:nossl
+```
+
+If you encounter SSL connection errors when running seeds, use the commands with `:nossl` suffix which disable SSL for the database connection. The `db:seed:small:nossl` command is particularly useful for quick development setups as it creates a minimal dataset.
+
+### Viewing Application Logs
+
+To view the application logs:
+
+```bash
+docker-compose logs -f app
+```
+
+### Stopping the Application
+
+To stop the running containers:
+
+```bash
+docker-compose down
+```
+
+To stop the containers and remove all data (including the database volume):
+
+```bash
+docker-compose down -v
+```
+
+### Docker Configuration
+
+The Docker setup consists of the following files:
+
+- `Dockerfile`: Defines how the application image is built
+- `docker-compose.yml`: Defines the services, networks, and volumes
+- `.dockerignore`: Specifies which files should be excluded from the Docker build
+
+The default setup is configured for production use. To use in development mode, adjust the environment variables in the `docker-compose.yml` file.
+
 ## API Documentation
 
 The API documentation is automatically generated using Swagger/OpenAPI.
@@ -297,8 +397,6 @@ npm run test:coverage
 secureballot/
 ├── src/                      # Source directory
 │   ├── config/               # Configuration files
-│   ├── controllers/          # API route controllers
-│   ├── db/                   # Database-related files
 │   │   ├── models/           # Sequelize models
 │   │   ├── migrations/       # Database migrations
 │   │   └── seeders/          # Seed data for development
@@ -314,6 +412,9 @@ secureballot/
 ├── tests/                    # Test files
 ├── dist/                     # Compiled JavaScript output
 ├── .env.example              # Example environment variables
+├── Dockerfile                # Docker container definition
+├── docker-compose.yml        # Docker Compose configuration
+├── .dockerignore             # Docker build exclusions
 ├── package.json              # npm package configuration
 ├── tsconfig.json             # TypeScript configuration
 └── README.md                 # Project documentation
@@ -342,19 +443,25 @@ pm2 start dist/server.js --name "secureballot"
 
 6. Set up a reverse proxy (nginx/Apache) to forward requests to the application port
 
-### Docker Deployment (Alternative)
+### Docker Deployment
 
-1. Build the Docker image:
+The simplest way to deploy SecureBallot is using Docker:
 
-```bash
-docker build -t secureballot .
-```
-
-2. Run the container:
+1. Clone the repository on your server
+2. Create a production `.env` file with appropriate settings
+3. Run the application using Docker Compose:
 
 ```bash
-docker run -p 5000:5000 --env-file .env secureballot
+docker-compose up -d
 ```
+
+4. Set up a reverse proxy (nginx/Apache) to forward requests to port 5000
+
+For production environments, you might want to customize the `docker-compose.yml` file to:
+- Add environment-specific variables
+- Set up additional security measures
+- Configure monitoring and logging solutions
+- Set up a production-ready database with appropriate resources
 
 ## Security Considerations
 

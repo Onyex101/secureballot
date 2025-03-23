@@ -1,4 +1,4 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 interface AdminRoleAttributes {
   id: string;
@@ -15,13 +15,7 @@ interface AdminRoleAttributes {
 interface AdminRoleCreationAttributes
   extends Optional<
     AdminRoleAttributes,
-    | "id"
-    | "roleScope"
-    | "assignedAt"
-    | "assignedBy"
-    | "isActive"
-    | "createdAt"
-    | "updatedAt"
+    'id' | 'roleScope' | 'assignedAt' | 'assignedBy' | 'isActive' | 'createdAt' | 'updatedAt'
   > {}
 
 class AdminRole
@@ -39,19 +33,19 @@ class AdminRole
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     AdminRole.belongsTo(models.AdminUser, {
-      foreignKey: "admin_id",
-      as: "admin",
+      foreignKey: 'admin_id',
+      as: 'admin',
     });
 
     AdminRole.belongsTo(models.AdminUser, {
-      foreignKey: "assigned_by",
-      as: "assigner",
+      foreignKey: 'assigned_by',
+      as: 'assigner',
     });
   }
 
@@ -66,18 +60,18 @@ class AdminRole
         adminId: {
           type: DataTypes.UUID,
           allowNull: false,
-          field: "admin_id",
+          field: 'admin_id',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
         },
         roleName: {
           type: DataTypes.STRING(50),
           allowNull: false,
-          field: "role_name",
+          field: 'role_name',
           validate: {
             notEmpty: true,
           },
@@ -85,55 +79,55 @@ class AdminRole
         roleScope: {
           type: DataTypes.JSONB,
           allowNull: true,
-          field: "role_scope",
+          field: 'role_scope',
         },
         assignedAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "assigned_at",
+          field: 'assigned_at',
           defaultValue: DataTypes.NOW,
         },
         assignedBy: {
           type: DataTypes.UUID,
           allowNull: true,
-          field: "assigned_by",
+          field: 'assigned_by',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
-          onDelete: "SET NULL",
-          onUpdate: "CASCADE",
+          onDelete: 'SET NULL',
+          onUpdate: 'CASCADE',
         },
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
-          field: "is_active",
+          field: 'is_active',
           defaultValue: true,
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "created_at",
+          field: 'created_at',
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "updated_at",
+          field: 'updated_at',
           defaultValue: DataTypes.NOW,
         },
       },
       {
         sequelize,
-        modelName: "AdminRole",
-        tableName: "admin_roles",
+        modelName: 'AdminRole',
+        tableName: 'admin_roles',
         underscored: true,
         timestamps: true,
         indexes: [
-          { fields: ["admin_id"] },
-          { fields: ["role_name"] },
-          { fields: ["assigned_by"] },
-          { fields: ["is_active"] },
+          { fields: ['admin_id'] },
+          { fields: ['role_name'] },
+          { fields: ['assigned_by'] },
+          { fields: ['is_active'] },
         ],
       },
     );

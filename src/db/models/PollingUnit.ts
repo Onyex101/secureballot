@@ -1,4 +1,4 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 interface PollingUnitAttributes {
   id: string;
@@ -21,15 +21,15 @@ interface PollingUnitAttributes {
 interface PollingUnitCreationAttributes
   extends Optional<
     PollingUnitAttributes,
-    | "id"
-    | "geolocation"
-    | "address"
-    | "latitude"
-    | "longitude"
-    | "assignedOfficer"
-    | "isActive"
-    | "createdAt"
-    | "updatedAt"
+    | 'id'
+    | 'geolocation'
+    | 'address'
+    | 'latitude'
+    | 'longitude'
+    | 'assignedOfficer'
+    | 'isActive'
+    | 'createdAt'
+    | 'updatedAt'
   > {}
 
 class PollingUnit
@@ -53,25 +53,25 @@ class PollingUnit
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     PollingUnit.hasMany(models.VoterCard, {
-      sourceKey: "pollingUnitCode",
-      foreignKey: "polling_unit_code",
-      as: "voterCards",
+      sourceKey: 'pollingUnitCode',
+      foreignKey: 'polling_unit_code',
+      as: 'voterCards',
     });
 
     PollingUnit.hasMany(models.Vote, {
-      foreignKey: "polling_unit_id",
-      as: "votes",
+      foreignKey: 'polling_unit_id',
+      as: 'votes',
     });
 
     PollingUnit.belongsTo(models.AdminUser, {
-      foreignKey: "assigned_officer",
-      as: "officer",
+      foreignKey: 'assigned_officer',
+      as: 'officer',
     });
   }
 
@@ -87,7 +87,7 @@ class PollingUnit
           type: DataTypes.STRING(50),
           allowNull: false,
           unique: true,
-          field: "polling_unit_code",
+          field: 'polling_unit_code',
           validate: {
             notEmpty: true,
           },
@@ -95,7 +95,7 @@ class PollingUnit
         pollingUnitName: {
           type: DataTypes.STRING(100),
           allowNull: false,
-          field: "polling_unit_name",
+          field: 'polling_unit_name',
           validate: {
             notEmpty: true,
           },
@@ -140,7 +140,7 @@ class PollingUnit
         registeredVoters: {
           type: DataTypes.INTEGER,
           allowNull: false,
-          field: "registered_voters",
+          field: 'registered_voters',
           defaultValue: 0,
           validate: {
             min: 0,
@@ -149,44 +149,44 @@ class PollingUnit
         assignedOfficer: {
           type: DataTypes.UUID,
           allowNull: true,
-          field: "assigned_officer",
+          field: 'assigned_officer',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
-          onDelete: "SET NULL",
-          onUpdate: "CASCADE",
+          onDelete: 'SET NULL',
+          onUpdate: 'CASCADE',
         },
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
-          field: "is_active",
+          field: 'is_active',
           defaultValue: true,
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "created_at",
+          field: 'created_at',
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "updated_at",
+          field: 'updated_at',
           defaultValue: DataTypes.NOW,
         },
       },
       {
         sequelize,
-        modelName: "PollingUnit",
-        tableName: "polling_units",
+        modelName: 'PollingUnit',
+        tableName: 'polling_units',
         underscored: true,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ["polling_unit_code"] },
-          { fields: ["state", "lga", "ward"] },
-          { fields: ["assigned_officer"] },
-          { fields: ["is_active"] },
+          { unique: true, fields: ['polling_unit_code'] },
+          { fields: ['state', 'lga', 'ward'] },
+          { fields: ['assigned_officer'] },
+          { fields: ['is_active'] },
         ],
       },
     );

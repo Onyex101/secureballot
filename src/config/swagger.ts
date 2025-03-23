@@ -9,7 +9,7 @@ const swaggerDefinition = {
   info: {
     title: process.env.SWAGGER_TITLE || 'Nigeria E-Voting API',
     description:
-      process.env.SWAGGER_DESCRIPTION || 
+      process.env.SWAGGER_DESCRIPTION ||
       'A secure API for the Nigerian hybrid encryption-based voting system with USSD integration',
     version: process.env.SWAGGER_VERSION || '1.0.0',
     contact: {
@@ -100,6 +100,7 @@ const swaggerDefinition = {
       description: 'API endpoints for security monitoring',
     },
   ],
+  swaggerURL: '/api-docs.json',
 };
 
 // Options for the swagger docs

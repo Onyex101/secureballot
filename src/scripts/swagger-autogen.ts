@@ -29,7 +29,7 @@ const generateSwaggerSpec = async () => {
 // Run the function if this script is executed directly
 if (require.main === module) {
   generateSwaggerSpec()
-    .then((success) => {
+    .then(success => {
       if (success) {
         logger.info('Swagger generation completed successfully');
         process.exit(0);
@@ -38,7 +38,7 @@ if (require.main === module) {
         process.exit(1);
       }
     })
-    .catch((error) => {
+    .catch(error => {
       logger.error('Swagger generation script failed:', error);
       process.exit(1);
     });

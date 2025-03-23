@@ -6,11 +6,15 @@ import { ApiError } from '../../middleware/errorHandler';
 /**
  * Get polling units by coordinates
  */
-export const getPollingUnitsByCoordinates = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getPollingUnitsByCoordinates = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { latitude, longitude, radius = 5 } = req.query;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -18,7 +22,7 @@ export const getPollingUnitsByCoordinates = async (req: AuthRequest, res: Respon
       error.isOperational = true;
       throw error;
     }
-    
+
     if (!latitude || !longitude) {
       const error: ApiError = new Error('Latitude and longitude are required');
       error.statusCode = 400;
@@ -26,29 +30,29 @@ export const getPollingUnitsByCoordinates = async (req: AuthRequest, res: Respon
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Get nearby polling units
       const pollingUnits = await pollingUnitService.getNearbyPollingUnits(
         Number(latitude),
         Number(longitude),
-        Number(radius)
+        Number(radius),
       );
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'location_polling_units_search',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           latitude,
           longitude,
           radius,
-          resultsCount: pollingUnits.length
-        }
+          resultsCount: pollingUnits.length,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         data: {
@@ -62,14 +66,14 @@ export const getPollingUnitsByCoordinates = async (req: AuthRequest, res: Respon
             ward: unit.ward,
             latitude: unit.latitude,
             longitude: unit.longitude,
-            distance: unit.distance
+            distance: unit.distance,
           })),
           searchParams: {
             latitude: Number(latitude),
             longitude: Number(longitude),
-            radius: Number(radius)
-          }
-        }
+            radius: Number(radius),
+          },
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to find polling units by coordinates');
@@ -86,10 +90,14 @@ export const getPollingUnitsByCoordinates = async (req: AuthRequest, res: Respon
 /**
  * Get user's assigned polling unit
  */
-export const getUserPollingUnit = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getUserPollingUnit = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -97,20 +105,20 @@ export const getUserPollingUnit = async (req: AuthRequest, res: Response, next: 
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Get user's polling unit
       const voterDetails = await pollingUnitService.getVoterPollingUnit(userId);
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'user_polling_unit_view',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
         data: {
@@ -125,9 +133,9 @@ export const getUserPollingUnit = async (req: AuthRequest, res: Response, next: 
             latitude: voterDetails.pollingUnit.latitude,
             longitude: voterDetails.pollingUnit.longitude,
             openingTime: '08:00',
-            closingTime: '18:00'
-          }
-        }
+            closingTime: '18:00',
+          },
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to get user polling unit');

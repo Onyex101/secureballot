@@ -14,7 +14,7 @@ const errorHandler = (
   req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  next: NextFunction
+  next: NextFunction,
 ) => {
   let statusCode = err.statusCode || 500;
   let errorCode = err.code || 'INTERNAL_SERVER_ERROR';
@@ -50,7 +50,7 @@ const errorHandler = (
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     message = 'Validation error';
-    details = err.errors.map((e) => ({
+    details = err.errors.map(e => ({
       field: e.path,
       message: e.message,
       value: e.value,
@@ -75,9 +75,7 @@ const errorHandler = (
     code: errorCode,
     message,
     details: Object.keys(details).length ? details : undefined,
-    ...(process.env.NODE_ENV === 'development' && !isOperational
-      ? { stack: err.stack }
-      : {}),
+    ...(process.env.NODE_ENV === 'development' && !isOperational ? { stack: err.stack } : {}),
   });
 };
 

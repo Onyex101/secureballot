@@ -37,10 +37,12 @@ router.get(
   defaultLimiter,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  resultsController.getLiveResults
+  resultsController.getLiveResults,
 );
 
 /**
@@ -71,10 +73,12 @@ router.get(
   defaultLimiter,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  statisticsController.getElectionStatistics
+  statisticsController.getElectionStatistics,
 );
 
 /**
@@ -110,10 +114,12 @@ router.get(
   defaultLimiter,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  statisticsController.getElectionResults
+  statisticsController.getElectionResults,
 );
 
 /**
@@ -130,11 +136,7 @@ router.get(
  *       400:
  *         description: Error retrieving statistics
  */
-router.get(
-  '/live',
-  defaultLimiter,
-  statisticsController.getRealTimeVotingStats
-);
+router.get('/live', defaultLimiter, statisticsController.getRealTimeVotingStats);
 
 /**
  * @swagger
@@ -167,14 +169,14 @@ router.get(
   defaultLimiter,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
-    query('regionId')
-      .optional()
-      .isUUID().withMessage(validationMessages.uuid('Region ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
+    query('regionId').optional().isUUID().withMessage(validationMessages.uuid('Region ID')),
   ]),
-  resultsController.getResultsByRegion
+  resultsController.getResultsByRegion,
 );
 
 export default router;

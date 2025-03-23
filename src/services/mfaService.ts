@@ -9,7 +9,7 @@ import AdminUser from '../db/models/AdminUser';
  */
 export const generateMfaSecret = async (
   userId: string,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
 ): Promise<{
   secret: string;
   otpAuthUrl: string;
@@ -18,41 +18,41 @@ export const generateMfaSecret = async (
   // Generate a new secret
   const secret = speakeasy.generateSecret({
     name: `INEC E-Voting${isAdmin ? ' Admin' : ''}`,
-    issuer: 'INEC'
+    issuer: 'INEC',
   });
-  
+
   // Store the secret in the user's record
   if (isAdmin) {
     const admin = await AdminUser.findByPk(userId);
     if (!admin) {
       throw new Error('Admin user not found');
     }
-    
+
     // Update admin with MFA secret
     await admin.update({
       mfaSecret: secret.base32,
-      mfaEnabled: false // Not enabled until verified
+      mfaEnabled: false, // Not enabled until verified
     });
   } else {
     const voter = await Voter.findByPk(userId);
     if (!voter) {
       throw new Error('Voter not found');
     }
-    
+
     // Update voter with MFA secret
     await voter.update({
       mfaSecret: secret.base32,
-      mfaEnabled: false // Not enabled until verified
+      mfaEnabled: false, // Not enabled until verified
     });
   }
-  
+
   // Generate QR code
   const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url || '');
-  
+
   return {
     secret: secret.base32,
     otpAuthUrl: secret.otpauth_url || '',
-    qrCodeUrl
+    qrCodeUrl,
   };
 };
 
@@ -62,11 +62,11 @@ export const generateMfaSecret = async (
 export const verifyMfaToken = async (
   userId: string,
   token: string,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
 ): Promise<boolean> => {
   // Get the user's MFA secret
   let mfaSecret: string | null = null;
-  
+
   if (isAdmin) {
     const admin = await AdminUser.findByPk(userId);
     if (!admin) {
@@ -80,19 +80,19 @@ export const verifyMfaToken = async (
     }
     mfaSecret = voter.mfaSecret;
   }
-  
+
   if (!mfaSecret) {
     throw new Error('MFA not set up for this user');
   }
-  
+
   // Verify the token
   const verified = speakeasy.totp.verify({
     secret: mfaSecret,
     encoding: 'base32',
     token,
-    window: 1 // Allow 1 step before and after current time
+    window: 1, // Allow 1 step before and after current time
   });
-  
+
   // If this is the first verification, enable MFA
   if (verified) {
     if (isAdmin) {
@@ -107,7 +107,7 @@ export const verifyMfaToken = async (
       }
     }
   }
-  
+
   return verified;
 };
 
@@ -117,38 +117,38 @@ export const verifyMfaToken = async (
 export const disableMfa = async (
   userId: string,
   token: string,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
 ): Promise<boolean> => {
   // Verify the token first
   const verified = await verifyMfaToken(userId, token, isAdmin);
-  
+
   if (!verified) {
     throw new Error('Invalid MFA token');
   }
-  
+
   // Disable MFA
   if (isAdmin) {
     const admin = await AdminUser.findByPk(userId);
     if (!admin) {
       throw new Error('Admin user not found');
     }
-    
+
     await admin.update({
       mfaSecret: null,
-      mfaEnabled: false
+      mfaEnabled: false,
     });
   } else {
     const voter = await Voter.findByPk(userId);
     if (!voter) {
       throw new Error('Voter not found');
     }
-    
+
     await voter.update({
       mfaSecret: null,
-      mfaEnabled: false
+      mfaEnabled: false,
     });
   }
-  
+
   return true;
 };
 
@@ -157,39 +157,37 @@ export const disableMfa = async (
  */
 export const generateBackupCodes = async (
   userId: string,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
 ): Promise<string[]> => {
   // Generate 10 random backup codes
-  const backupCodes = Array.from({ length: 10 }, () => 
-    Math.random().toString(36).substring(2, 8).toUpperCase()
+  const backupCodes = Array.from({ length: 10 }, () =>
+    Math.random().toString(36).substring(2, 8).toUpperCase(),
   );
-  
+
   // Hash the backup codes before storing
-  const hashedCodes = backupCodes.map(code => 
-    speakeasy.generateSecret({ length: 20 }).base32
-  );
-  
+  const hashedCodes = backupCodes.map(code => speakeasy.generateSecret({ length: 20 }).base32);
+
   // Store the hashed codes
   if (isAdmin) {
     const admin = await AdminUser.findByPk(userId);
     if (!admin) {
       throw new Error('Admin user not found');
     }
-    
+
     await admin.update({
-      mfaBackupCodes: hashedCodes
+      mfaBackupCodes: hashedCodes,
     });
   } else {
     const voter = await Voter.findByPk(userId);
     if (!voter) {
       throw new Error('Voter not found');
     }
-    
+
     await voter.update({
-      mfaBackupCodes: hashedCodes
+      mfaBackupCodes: hashedCodes,
     });
   }
-  
+
   // Return the plain text codes to the user
   return backupCodes;
 };
@@ -200,10 +198,10 @@ export const generateBackupCodes = async (
 export const verifyBackupCode = async (
   userId: string,
   backupCode: string,
-  isAdmin: boolean = false
+  isAdmin: boolean = false,
 ): Promise<boolean> => {
   let backupCodes: string[] = [];
-  
+
   // Get the user's backup codes
   if (isAdmin) {
     const admin = await AdminUser.findByPk(userId);
@@ -218,17 +216,17 @@ export const verifyBackupCode = async (
     }
     backupCodes = voter.mfaBackupCodes;
   }
-  
+
   // Check if the provided code matches any of the backup codes
   const codeIndex = backupCodes.findIndex(code => code === backupCode);
-  
+
   if (codeIndex === -1) {
     return false;
   }
-  
+
   // Remove the used backup code
   backupCodes.splice(codeIndex, 1);
-  
+
   // Update the user's backup codes
   if (isAdmin) {
     const admin = await AdminUser.findByPk(userId);
@@ -241,6 +239,6 @@ export const verifyBackupCode = async (
       await voter.update({ mfaBackupCodes: backupCodes });
     }
   }
-  
+
   return true;
-}; 
+};

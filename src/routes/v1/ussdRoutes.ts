@@ -50,18 +50,24 @@ router.post(
   ussdLimiter,
   validate([
     body('nin')
-      .notEmpty().withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('NIN'))
+      .isLength({ min: 11, max: 11 })
+      .withMessage(validationMessages.nin()),
+
     body('vin')
-      .notEmpty().withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('VIN'))
+      .isLength({ min: 19, max: 19 })
+      .withMessage(validationMessages.vin()),
+
     body('phoneNumber')
-      .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+      .notEmpty()
+      .withMessage(validationMessages.required('Phone number'))
+      .matches(/^\+?[0-9]{10,15}$/)
+      .withMessage(validationMessages.phoneNumber()),
   ]),
-  ussdSessionController.startSession
+  ussdSessionController.startSession,
 );
 
 /**
@@ -105,18 +111,24 @@ router.post(
   ussdLimiter,
   validate([
     body('sessionCode')
-      .notEmpty().withMessage(validationMessages.required('Session code'))
-      .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Session code'))
+      .isLength({ min: 6, max: 10 })
+      .withMessage('Session code must be 6-10 characters'),
+
     body('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
     body('candidateId')
-      .notEmpty().withMessage(validationMessages.required('Candidate ID'))
-      .isUUID().withMessage(validationMessages.uuid('Candidate ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Candidate ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Candidate ID')),
   ]),
-  ussdVoteController.castVote
+  ussdVoteController.castVote,
 );
 
 /**
@@ -141,10 +153,12 @@ router.get(
   '/session-status',
   validate([
     body('sessionCode')
-      .notEmpty().withMessage(validationMessages.required('Session code'))
-      .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('Session code'))
+      .isLength({ min: 6, max: 10 })
+      .withMessage('Session code must be 6-10 characters'),
   ]),
-  ussdSessionController.getSessionStatus
+  ussdSessionController.getSessionStatus,
 );
 
 /**
@@ -182,14 +196,18 @@ router.post(
   ussdLimiter,
   validate([
     body('receiptCode')
-      .notEmpty().withMessage(validationMessages.required('Receipt code'))
-      .isLength({ min: 16, max: 16 }).withMessage('Receipt code must be 16 characters'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Receipt code'))
+      .isLength({ min: 16, max: 16 })
+      .withMessage('Receipt code must be 16 characters'),
+
     body('phoneNumber')
-      .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+      .notEmpty()
+      .withMessage(validationMessages.required('Phone number'))
+      .matches(/^\+?[0-9]{10,15}$/)
+      .withMessage(validationMessages.phoneNumber()),
   ]),
-  ussdVoteController.verifyVote
+  ussdVoteController.verifyVote,
 );
 
 export default router;

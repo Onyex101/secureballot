@@ -1,6 +1,6 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
-import bcrypt from "bcrypt";
-import { UserRole } from "../../types/auth";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
+import bcrypt from 'bcrypt';
+import { UserRole } from '../../types/auth';
 
 interface AdminUserAttributes {
   id: string;
@@ -24,17 +24,17 @@ interface AdminUserAttributes {
 interface AdminUserCreationAttributes
   extends Optional<
     AdminUserAttributes,
-    | "id"
-    | "isActive"
-    | "createdAt"
-    | "updatedAt"
-    | "lastLogin"
-    | "createdBy"
-    | "recoveryToken"
-    | "recoveryTokenExpiry"
-    | "mfaSecret"
-    | "mfaEnabled"
-    | "mfaBackupCodes"
+    | 'id'
+    | 'isActive'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'lastLogin'
+    | 'createdBy'
+    | 'recoveryToken'
+    | 'recoveryTokenExpiry'
+    | 'mfaSecret'
+    | 'mfaEnabled'
+    | 'mfaBackupCodes'
   > {
   password: string;
 }
@@ -61,8 +61,8 @@ class AdminUser
   public mfaBackupCodes!: string[] | null;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Virtual fields
   public password?: string;
@@ -80,43 +80,43 @@ class AdminUser
   // Model associations
   public static associate(models: any): void {
     AdminUser.hasMany(models.AdminRole, {
-      foreignKey: "admin_id",
-      as: "roles",
+      foreignKey: 'admin_id',
+      as: 'roles',
     });
 
     AdminUser.hasMany(models.AdminPermission, {
-      foreignKey: "admin_id",
-      as: "permissions",
+      foreignKey: 'admin_id',
+      as: 'permissions',
     });
 
     AdminUser.hasMany(models.PollingUnit, {
-      foreignKey: "assigned_officer",
-      as: "assignedPollingUnits",
+      foreignKey: 'assigned_officer',
+      as: 'assignedPollingUnits',
     });
 
     AdminUser.hasMany(models.ObserverReport, {
-      foreignKey: "observer_id",
-      as: "observerReports",
+      foreignKey: 'observer_id',
+      as: 'observerReports',
     });
 
     AdminUser.hasMany(models.ObserverReport, {
-      foreignKey: "reviewed_by",
-      as: "reviewedReports",
+      foreignKey: 'reviewed_by',
+      as: 'reviewedReports',
     });
 
     AdminUser.hasMany(models.Election, {
-      foreignKey: "created_by",
-      as: "createdElections",
+      foreignKey: 'created_by',
+      as: 'createdElections',
     });
 
     AdminUser.belongsTo(models.AdminUser, {
-      foreignKey: "created_by",
-      as: "creator",
+      foreignKey: 'created_by',
+      as: 'creator',
     });
 
     AdminUser.hasMany(models.AdminUser, {
-      foreignKey: "created_by",
-      as: "createdUsers",
+      foreignKey: 'created_by',
+      as: 'createdUsers',
     });
   }
 
@@ -131,7 +131,7 @@ class AdminUser
         fullName: {
           type: DataTypes.STRING(100),
           allowNull: false,
-          field: "full_name",
+          field: 'full_name',
           validate: {
             notEmpty: true,
           },
@@ -148,7 +148,7 @@ class AdminUser
         phoneNumber: {
           type: DataTypes.STRING(15),
           allowNull: false,
-          field: "phone_number",
+          field: 'phone_number',
           unique: true,
           validate: {
             is: /^\+?[0-9]{10,15}$/,
@@ -158,12 +158,12 @@ class AdminUser
         passwordHash: {
           type: DataTypes.STRING(255),
           allowNull: false,
-          field: "password_hash",
+          field: 'password_hash',
         },
         adminType: {
           type: DataTypes.STRING(50),
           allowNull: false,
-          field: "admin_type",
+          field: 'admin_type',
           validate: {
             isIn: [Object.values(UserRole)],
           },
@@ -171,66 +171,66 @@ class AdminUser
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
-          field: "is_active",
+          field: 'is_active',
           defaultValue: true,
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "created_at",
+          field: 'created_at',
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
-          field: "updated_at",
+          field: 'updated_at',
           defaultValue: DataTypes.NOW,
         },
         lastLogin: {
           type: DataTypes.DATE,
           allowNull: true,
-          field: "last_login",
+          field: 'last_login',
         },
         createdBy: {
           type: DataTypes.UUID,
           allowNull: true,
-          field: "created_by",
+          field: 'created_by',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
         },
         recoveryToken: {
           type: DataTypes.STRING(255),
           allowNull: true,
-          field: "recovery_token",
+          field: 'recovery_token',
         },
         recoveryTokenExpiry: {
           type: DataTypes.DATE,
           allowNull: true,
-          field: "recovery_token_expiry",
+          field: 'recovery_token_expiry',
         },
         mfaSecret: {
           type: DataTypes.STRING(255),
           allowNull: true,
-          field: "mfa_secret",
+          field: 'mfa_secret',
         },
         mfaEnabled: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
-          field: "mfa_enabled",
+          field: 'mfa_enabled',
           defaultValue: false,
         },
         mfaBackupCodes: {
           type: DataTypes.ARRAY(DataTypes.STRING),
           allowNull: true,
-          field: "mfa_backup_codes",
+          field: 'mfa_backup_codes',
         },
       },
       {
         sequelize,
-        modelName: "AdminUser",
-        tableName: "admin_users",
+        modelName: 'AdminUser',
+        tableName: 'admin_users',
         timestamps: true,
         hooks: {
           beforeCreate: async (user: AdminUser) => {
@@ -244,7 +244,7 @@ class AdminUser
             }
           },
         },
-      }
+      },
     );
   }
 }

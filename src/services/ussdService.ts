@@ -29,15 +29,15 @@ const generateReceiptCode = (): string => {
 export const startSession = async (
   nin: string,
   vin: string,
-  phoneNumber: string
+  phoneNumber: string,
 ): Promise<{ sessionCode: string; expiresAt: Date }> => {
   // Verify voter credentials
   const voter = await Voter.findOne({
     where: {
       nin,
       vin,
-      phoneNumber
-    }
+      phoneNumber,
+    },
   });
 
   if (!voter) {
@@ -50,22 +50,22 @@ export const startSession = async (
       phoneNumber,
       isActive: true,
       expiresAt: {
-        [Op.gt]: new Date()
-      }
-    }
+        [Op.gt]: new Date(),
+      },
+    },
   });
 
   if (existingSession) {
     // Return existing session
     return {
       sessionCode: existingSession.sessionCode,
-      expiresAt: existingSession.expiresAt
+      expiresAt: existingSession.expiresAt,
     };
   }
 
   // Generate a new session code
   const sessionCode = generateSessionCode();
-  
+
   // Set expiration time (30 minutes from now)
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + 30);
@@ -79,12 +79,12 @@ export const startSession = async (
     sessionStatus: UssdSessionStatus.AUTHENTICATED,
     expiresAt,
     isActive: true,
-    lastActivity: new Date()
+    lastActivity: new Date(),
   });
 
   return {
     sessionCode: session.sessionCode,
-    expiresAt: session.expiresAt
+    expiresAt: session.expiresAt,
   };
 };
 
@@ -94,7 +94,7 @@ export const startSession = async (
 export const castVote = async (
   sessionCode: string,
   electionId: string,
-  candidateId: string
+  candidateId: string,
 ): Promise<{ receiptCode: string }> => {
   // Find the session
   const session = await UssdSession.findOne({
@@ -102,9 +102,9 @@ export const castVote = async (
       sessionCode,
       isActive: true,
       expiresAt: {
-        [Op.gt]: new Date()
-      }
-    }
+        [Op.gt]: new Date(),
+      },
+    },
   });
 
   if (!session) {
@@ -121,8 +121,8 @@ export const castVote = async (
   const candidate = await Candidate.findOne({
     where: {
       id: candidateId,
-      electionId
-    }
+      electionId,
+    },
   });
 
   if (!candidate) {
@@ -133,8 +133,8 @@ export const castVote = async (
   const existingVote = await UssdVote.findOne({
     where: {
       sessionId: session.id,
-      electionId
-    }
+      electionId,
+    },
   });
 
   if (existingVote) {
@@ -152,7 +152,7 @@ export const castVote = async (
     candidateId,
     voteTimestamp: new Date(),
     isVerified: false,
-    isCounted: true
+    isCounted: true,
   });
 
   // Update session status
@@ -162,12 +162,12 @@ export const castVote = async (
     sessionData: {
       ...session.sessionData,
       receiptCode,
-      voteId: vote.id
-    }
+      voteId: vote.id,
+    },
   });
 
   return {
-    receiptCode
+    receiptCode,
   };
 };
 
@@ -175,7 +175,7 @@ export const castVote = async (
  * Get session status
  */
 export const getSessionStatus = async (
-  sessionCode: string
+  sessionCode: string,
 ): Promise<{
   status: string;
   userId: string | null;
@@ -185,8 +185,8 @@ export const getSessionStatus = async (
   // Find the session
   const session = await UssdSession.findOne({
     where: {
-      sessionCode
-    }
+      sessionCode,
+    },
   });
 
   if (!session) {
@@ -197,7 +197,7 @@ export const getSessionStatus = async (
     status: session.sessionStatus,
     userId: session.userId,
     expiresAt: session.expiresAt,
-    lastActivity: session.lastActivity
+    lastActivity: session.lastActivity,
   };
 };
 
@@ -206,7 +206,7 @@ export const getSessionStatus = async (
  */
 export const verifyVote = async (
   receiptCode: string,
-  phoneNumber: string
+  phoneNumber: string,
 ): Promise<{
   isVerified: boolean;
   electionName?: string;
@@ -218,9 +218,9 @@ export const verifyVote = async (
     where: {
       phoneNumber,
       sessionData: {
-        receiptCode
-      }
-    }
+        receiptCode,
+      },
+    },
   });
 
   if (!session || !session.sessionData || !session.sessionData.voteId) {
@@ -243,14 +243,14 @@ export const verifyVote = async (
 
   // Mark vote as verified
   await vote.update({
-    isVerified: true
+    isVerified: true,
   });
 
   return {
     isVerified: true,
     electionName: election.electionName,
     candidateName: candidate.fullName,
-    voteTimestamp: vote.voteTimestamp
+    voteTimestamp: vote.voteTimestamp,
   };
 };
 
@@ -270,18 +270,18 @@ const ussdSessions: {
 export const createUssdSession = async (userId: string, phoneNumber: string): Promise<string> => {
   // Generate a random 6-digit session code
   const sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
-  
+
   // Store the session with a 10-minute expiry
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
-  
+
   ussdSessions[sessionCode] = {
     userId,
     phoneNumber,
     createdAt: now,
-    expiresAt
+    expiresAt,
   };
-  
+
   return sessionCode;
 };
 
@@ -290,22 +290,22 @@ export const createUssdSession = async (userId: string, phoneNumber: string): Pr
  */
 export const verifyUssdSession = async (sessionCode: string, phoneNumber: string) => {
   const session = ussdSessions[sessionCode];
-  
+
   if (!session) {
     return null;
   }
-  
+
   // Check if session has expired
   if (new Date() > session.expiresAt) {
     delete ussdSessions[sessionCode]; // Clean up expired session
     return null;
   }
-  
+
   // Check if phone number matches
   if (session.phoneNumber !== phoneNumber) {
     return null;
   }
-  
+
   return session;
 };
 
@@ -316,11 +316,11 @@ export const processUssdRequest = async (
   sessionId: string,
   serviceCode: string,
   phoneNumber: string,
-  text: string
+  text: string,
 ) => {
   // This is a simplified implementation of a USSD menu system
   // In a real application, this would be more sophisticated
-  
+
   // Initial menu (no text input yet)
   if (!text) {
     return `CON Welcome to the E-Voting System
@@ -329,11 +329,11 @@ export const processUssdRequest = async (
 3. Verify vote
 4. Exit`;
   }
-  
+
   // Process menu options
   const textParts = text.split('*');
   const currentOption = textParts[textParts.length - 1];
-  
+
   // Main menu options
   if (textParts.length === 1) {
     switch (currentOption) {
@@ -349,7 +349,7 @@ export const processUssdRequest = async (
         return `END Invalid option selected.`;
     }
   }
-  
+
   // Authentication flow
   if (textParts[0] === '1') {
     // NIN entered
@@ -364,18 +364,18 @@ export const processUssdRequest = async (
       return `END Authentication successful. Your session code is: ${sessionCode}. This code is valid for 10 minutes.`;
     }
   }
-  
+
   // Voting status check
   if (textParts[0] === '2' && textParts.length === 2) {
     // In a real implementation, this would check the voting status
     return `END You have not yet voted in the current election.`;
   }
-  
+
   // Vote verification
   if (textParts[0] === '3' && textParts.length === 2) {
     // In a real implementation, this would verify the vote
     return `END Your vote has been verified. It was cast on 2023-02-25 at 10:30 AM.`;
   }
-  
+
   return `END Invalid input. Please try again.`;
 };

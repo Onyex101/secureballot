@@ -32,12 +32,12 @@ export const verifyPassword = async (password: string, hash: string): Promise<bo
 export const generateJwtToken = (
   payload: Record<string, any>,
   secret: string = process.env.JWT_SECRET || 'default-secret-key',
-  expiresIn: string = '1h'
+  expiresIn: string = '1h',
 ): string => {
   const options: SignOptions = {
-    expiresIn: expiresIn as any
+    expiresIn: expiresIn as any,
   };
-  
+
   return jwt.sign(payload, secret as Secret, options);
 };
 
@@ -46,7 +46,7 @@ export const generateJwtToken = (
  */
 export const verifyJwtToken = (
   token: string,
-  secret: string = process.env.JWT_SECRET || 'default-secret-key'
+  secret: string = process.env.JWT_SECRET || 'default-secret-key',
 ): any => {
   try {
     return jwt.verify(token, secret as Secret);
@@ -63,14 +63,14 @@ export const generateRsaKeyPair = (): { publicKey: string; privateKey: string } 
     modulusLength: 2048,
     publicKeyEncoding: {
       type: 'spki',
-      format: 'pem'
+      format: 'pem',
     },
     privateKeyEncoding: {
       type: 'pkcs8',
-      format: 'pem'
-    }
+      format: 'pem',
+    },
   });
-  
+
   return { publicKey, privateKey };
 };
 
@@ -81,11 +81,11 @@ export const encryptWithPublicKey = (data: string, publicKey: string): string =>
   const encryptedData = crypto.publicEncrypt(
     {
       key: publicKey,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
     },
-    Buffer.from(data)
+    Buffer.from(data),
   );
-  
+
   return encryptedData.toString('base64');
 };
 
@@ -96,11 +96,11 @@ export const decryptWithPrivateKey = (encryptedData: string, privateKey: string)
   const decryptedData = crypto.privateDecrypt(
     {
       key: privateKey,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
     },
-    Buffer.from(encryptedData, 'base64')
+    Buffer.from(encryptedData, 'base64'),
   );
-  
+
   return decryptedData.toString();
 };
 
@@ -114,16 +114,19 @@ export const generateAesKey = (): string => {
 /**
  * Encrypt data with AES key
  */
-export const encryptWithAes = (data: string, key: string): { iv: string; encryptedData: string } => {
+export const encryptWithAes = (
+  data: string,
+  key: string,
+): { iv: string; encryptedData: string } => {
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
-  
+
   let encrypted = cipher.update(data, 'utf8', 'base64');
   encrypted += cipher.final('base64');
-  
+
   return {
     iv: iv.toString('hex'),
-    encryptedData: encrypted
+    encryptedData: encrypted,
   };
 };
 
@@ -131,11 +134,15 @@ export const encryptWithAes = (data: string, key: string): { iv: string; encrypt
  * Decrypt data with AES key
  */
 export const decryptWithAes = (encryptedData: string, iv: string, key: string): string => {
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
-  
+  const decipher = crypto.createDecipheriv(
+    'aes-256-cbc',
+    Buffer.from(key, 'hex'),
+    Buffer.from(iv, 'hex'),
+  );
+
   let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
   decrypted += decipher.final('utf8');
-  
+
   return decrypted;
 };
 
@@ -154,11 +161,11 @@ export const generateSecureRandomNumber = (min: number, max: number): number => 
   const bytesNeeded = Math.ceil(Math.log2(range) / 8);
   const maxValue = Math.pow(256, bytesNeeded);
   const randomBytes = crypto.randomBytes(bytesNeeded);
-  
+
   let randomValue = 0;
   for (let i = 0; i < bytesNeeded; i++) {
-    randomValue = (randomValue * 256) + randomBytes[i];
+    randomValue = randomValue * 256 + randomBytes[i];
   }
-  
+
   return min + Math.floor((randomValue / maxValue) * range);
 };

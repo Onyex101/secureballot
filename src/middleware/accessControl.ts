@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from "express";
-import { AuthRequest } from "./auth";
-import { ApiError } from "./errorHandler";
-import { logger } from "../config/logger";
-import { UserRole, Permission } from "../types";
+import { Request, Response, NextFunction } from 'express';
+import { AuthRequest } from './auth';
+import { ApiError } from './errorHandler';
+import { logger } from '../config/logger';
+import { UserRole, Permission } from '../types';
 
 // Define role hierarchy
 const roleHierarchy: Record<string, number> = {
@@ -85,10 +85,7 @@ export const rolePermissions: Record<string, string[]> = {
  * @param userRole The user's role
  * @param requiredRole The role to compare against
  */
-const hasEqualOrHigherRole = (
-  userRole: string,
-  requiredRole: string,
-): boolean => {
+const hasEqualOrHigherRole = (userRole: string, requiredRole: string): boolean => {
   const userRoleValue = roleHierarchy[userRole] || 0;
   const requiredRoleValue = roleHierarchy[requiredRole] || 0;
   return userRoleValue >= requiredRoleValue;
@@ -99,10 +96,7 @@ const hasEqualOrHigherRole = (
  * @param userRole User's role
  * @param requiredPermission Required permission
  */
-const roleHasPermission = (
-  userRole: string,
-  requiredPermission: string,
-): boolean => {
+const roleHasPermission = (userRole: string, requiredPermission: string): boolean => {
   const permissions = rolePermissions[userRole] || [];
   return permissions.includes(requiredPermission);
 };
@@ -115,9 +109,9 @@ export const requireRole = (roles: UserRole | UserRole[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        const error: ApiError = new Error("User not authenticated");
+        const error: ApiError = new Error('User not authenticated');
         error.statusCode = 401;
-        error.code = "AUTHENTICATION_REQUIRED";
+        error.code = 'AUTHENTICATION_REQUIRED';
         error.isOperational = true;
         throw error;
       }
@@ -127,21 +121,19 @@ export const requireRole = (roles: UserRole | UserRole[]) => {
         const userRole = req.user.role as string;
 
         if (!userRole) {
-          const error: ApiError = new Error("User has no assigned role");
+          const error: ApiError = new Error('User has no assigned role');
           error.statusCode = 403;
-          error.code = "ROLE_REQUIRED";
+          error.code = 'ROLE_REQUIRED';
           error.isOperational = true;
           throw error;
         }
 
-        const hasRequiredRole = roles.some((role) =>
-          hasEqualOrHigherRole(userRole, role),
-        );
+        const hasRequiredRole = roles.some(role => hasEqualOrHigherRole(userRole, role));
 
         if (!hasRequiredRole) {
-          const error: ApiError = new Error("Insufficient permissions");
+          const error: ApiError = new Error('Insufficient permissions');
           error.statusCode = 403;
-          error.code = "INSUFFICIENT_PERMISSIONS";
+          error.code = 'INSUFFICIENT_PERMISSIONS';
           error.isOperational = true;
           throw error;
         }
@@ -150,17 +142,17 @@ export const requireRole = (roles: UserRole | UserRole[]) => {
         const userRole = req.user.role as string;
 
         if (!userRole) {
-          const error: ApiError = new Error("User has no assigned role");
+          const error: ApiError = new Error('User has no assigned role');
           error.statusCode = 403;
-          error.code = "ROLE_REQUIRED";
+          error.code = 'ROLE_REQUIRED';
           error.isOperational = true;
           throw error;
         }
 
         if (!hasEqualOrHigherRole(userRole, roles)) {
-          const error: ApiError = new Error("Insufficient permissions");
+          const error: ApiError = new Error('Insufficient permissions');
           error.statusCode = 403;
-          error.code = "INSUFFICIENT_PERMISSIONS";
+          error.code = 'INSUFFICIENT_PERMISSIONS';
           error.isOperational = true;
           throw error;
         }
@@ -177,15 +169,13 @@ export const requireRole = (roles: UserRole | UserRole[]) => {
  * Middleware to require specific permissions
  * @param requiredPermissions The permissions required to access the resource
  */
-export const requirePermission = (
-  requiredPermissions: Permission | Permission[],
-) => {
+export const requirePermission = (requiredPermissions: Permission | Permission[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        const error: ApiError = new Error("User not authenticated");
+        const error: ApiError = new Error('User not authenticated');
         error.statusCode = 401;
-        error.code = "AUTHENTICATION_REQUIRED";
+        error.code = 'AUTHENTICATION_REQUIRED';
         error.isOperational = true;
         throw error;
       }
@@ -194,9 +184,9 @@ export const requirePermission = (
       const userPermissions = (req.user.permissions as string[]) || [];
 
       if (!userRole) {
-        const error: ApiError = new Error("User has no assigned role");
+        const error: ApiError = new Error('User has no assigned role');
         error.statusCode = 403;
-        error.code = "ROLE_REQUIRED";
+        error.code = 'ROLE_REQUIRED';
         error.isOperational = true;
         throw error;
       }
@@ -207,17 +197,14 @@ export const requirePermission = (
         : [requiredPermissions];
 
       // Check if user has explicit permissions or role-based permissions
-      const hasAccess = permissions.every((permission) => {
-        return (
-          userPermissions.includes(permission) ||
-          roleHasPermission(userRole, permission)
-        );
+      const hasAccess = permissions.every(permission => {
+        return userPermissions.includes(permission) || roleHasPermission(userRole, permission);
       });
 
       if (!hasAccess) {
-        const error: ApiError = new Error("Insufficient permissions");
+        const error: ApiError = new Error('Insufficient permissions');
         error.statusCode = 403;
-        error.code = "INSUFFICIENT_PERMISSIONS";
+        error.code = 'INSUFFICIENT_PERMISSIONS';
         error.isOperational = true;
         throw error;
       }
@@ -233,13 +220,13 @@ export const requirePermission = (
  * Middleware to require regional access
  * @param regionParam The request parameter containing the region ID
  */
-export const requireRegionalAccess = (regionParam: string = "regionId") => {
+export const requireRegionalAccess = (regionParam: string = 'regionId') => {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        const error: ApiError = new Error("User not authenticated");
+        const error: ApiError = new Error('User not authenticated');
         error.statusCode = 401;
-        error.code = "AUTHENTICATION_REQUIRED";
+        error.code = 'AUTHENTICATION_REQUIRED';
         error.isOperational = true;
         throw error;
       }
@@ -249,27 +236,24 @@ export const requireRegionalAccess = (regionParam: string = "regionId") => {
       const regionId = req.params[regionParam] || req.query[regionParam];
 
       // System administrators and electoral commissioners have access to all regions
-      if (
-        userRole === UserRole.SYSTEM_ADMIN ||
-        userRole === UserRole.ELECTORAL_COMMISSIONER
-      ) {
+      if (userRole === UserRole.SYSTEM_ADMIN || userRole === UserRole.ELECTORAL_COMMISSIONER) {
         return next();
       }
 
       // Regional officers need to have access to the specific region
       if (!regionId) {
-        const error: ApiError = new Error("Region ID is required");
+        const error: ApiError = new Error('Region ID is required');
         error.statusCode = 400;
-        error.code = "REGION_REQUIRED";
+        error.code = 'REGION_REQUIRED';
         error.isOperational = true;
         throw error;
       }
 
       const regionIdStr = String(regionId);
       if (!userRegions.includes(regionIdStr)) {
-        const error: ApiError = new Error("Access denied for this region");
+        const error: ApiError = new Error('Access denied for this region');
         error.statusCode = 403;
-        error.code = "REGION_ACCESS_DENIED";
+        error.code = 'REGION_ACCESS_DENIED';
         error.isOperational = true;
         throw error;
       }
@@ -284,22 +268,18 @@ export const requireRegionalAccess = (regionParam: string = "regionId") => {
 /**
  * Middleware to log access attempts
  */
-export const logAccess = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
+export const logAccess = (req: AuthRequest, res: Response, next: NextFunction) => {
   const user = req.user;
 
   if (user) {
     logger.info({
-      message: "API access",
+      message: 'API access',
       userId: user.id,
       role: user.role,
       path: req.path,
       method: req.method,
       ip: req.ip,
-      userAgent: req.headers["user-agent"],
+      userAgent: req.headers['user-agent'],
     });
   }
 

@@ -8,7 +8,7 @@ export const sendSMS = async (phoneNumber: string, message: string) => {
   return {
     success: true,
     messageId: `sms-${Date.now()}`,
-    timestamp: new Date()
+    timestamp: new Date(),
   };
 };
 
@@ -22,21 +22,26 @@ export const sendEmail = async (email: string, subject: string, body: string) =>
   return {
     success: true,
     messageId: `email-${Date.now()}`,
-    timestamp: new Date()
+    timestamp: new Date(),
   };
 };
 
 /**
  * Send push notification
  */
-export const sendPushNotification = async (deviceToken: string, title: string, body: string, data?: any) => {
+export const sendPushNotification = async (
+  deviceToken: string,
+  title: string,
+  body: string,
+  data?: any,
+) => {
   // In a real implementation, this would use a push notification service
   // For now, just logging and returning success
   console.log(`[Push] To: ${deviceToken}, Title: ${title}, Body: ${body}, Data:`, data);
   return {
     success: true,
     messageId: `push-${Date.now()}`,
-    timestamp: new Date()
+    timestamp: new Date(),
   };
 };
 
@@ -51,7 +56,11 @@ export const sendVerificationCode = async (phoneNumber: string, code: string) =>
 /**
  * Send vote receipt
  */
-export const sendVoteReceipt = async (phoneNumber: string, electionName: string, receiptCode: string) => {
+export const sendVoteReceipt = async (
+  phoneNumber: string,
+  electionName: string,
+  receiptCode: string,
+) => {
   const message = `Thank you for voting in the ${electionName}. Your receipt code is: ${receiptCode}`;
   return sendSMS(phoneNumber, message);
 };

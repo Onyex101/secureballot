@@ -13,15 +13,19 @@ import { resultService } from '../../services';
  * @route GET /api/v1/results/live/:electionId
  * @access Public
  */
-export const getLiveResults = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getLiveResults = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId } = req.params;
-    
+
     // Get election
     const election = await db.Election.findByPk(electionId, {
       attributes: ['id', 'electionName', 'electionType', 'status'],
     });
-    
+
     if (!election) {
       const error: ApiError = new Error('Election not found');
       error.statusCode = 404;
@@ -29,7 +33,7 @@ export const getLiveResults = async (req: Request, res: Response, next: NextFunc
       error.isOperational = true;
       throw error;
     }
-    
+
     // Check if election is active or completed
     if (![ElectionStatus.ACTIVE, ElectionStatus.COMPLETED].includes(election.status)) {
       const error: ApiError = new Error('Results are not available for this election');
@@ -38,10 +42,10 @@ export const getLiveResults = async (req: Request, res: Response, next: NextFunc
       error.isOperational = true;
       throw error;
     }
-    
+
     // Get live results using the result service
     const results = await resultService.getLiveResults(electionId);
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -49,10 +53,10 @@ export const getLiveResults = async (req: Request, res: Response, next: NextFunc
           id: election.id,
           name: election.electionName,
           type: election.electionType,
-          status: election.status
+          status: election.status,
         },
-        results
-      }
+        results,
+      },
     });
   } catch (error) {
     next(error);
@@ -64,16 +68,29 @@ export const getLiveResults = async (req: Request, res: Response, next: NextFunc
  * @route GET /api/v1/results/region/:electionId
  * @access Public
  */
-export const getResultsByRegion = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getResultsByRegion = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId } = req.params;
     const { regionType = 'state', regionCode } = req.query;
-    
+
+    // Validate regionType is one of the allowed values
+    if (regionType !== 'state' && regionType !== 'lga' && regionType !== 'ward') {
+      const error: ApiError = new Error('Invalid region type. Must be one of: state, lga, ward');
+      error.statusCode = 400;
+      error.code = 'INVALID_REGION_TYPE';
+      error.isOperational = true;
+      throw error;
+    }
+
     // Get election
     const election = await db.Election.findByPk(electionId, {
       attributes: ['id', 'electionName', 'electionType', 'status'],
     });
-    
+
     if (!election) {
       const error: ApiError = new Error('Election not found');
       error.statusCode = 404;
@@ -81,7 +98,7 @@ export const getResultsByRegion = async (req: Request, res: Response, next: Next
       error.isOperational = true;
       throw error;
     }
-    
+
     // Check if election is active or completed
     if (![ElectionStatus.ACTIVE, ElectionStatus.COMPLETED].includes(election.status)) {
       const error: ApiError = new Error('Results are not available for this election');
@@ -90,14 +107,14 @@ export const getResultsByRegion = async (req: Request, res: Response, next: Next
       error.isOperational = true;
       throw error;
     }
-    
+
     // Get results by region using the result service
     const results = await resultService.getResultsByRegion(
-      electionId, 
-      regionType as string,
-      regionCode as string
+      electionId,
+      regionType as 'state' | 'lga' | 'ward',
+      regionCode as string,
     );
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -105,11 +122,11 @@ export const getResultsByRegion = async (req: Request, res: Response, next: Next
           id: election.id,
           name: election.electionName,
           type: election.electionType,
-          status: election.status
+          status: election.status,
         },
         regionType,
-        results
-      }
+        results,
+      },
     });
   } catch (error) {
     next(error);
@@ -121,15 +138,19 @@ export const getResultsByRegion = async (req: Request, res: Response, next: Next
  * @route GET /api/v1/results/statistics/:electionId
  * @access Public
  */
-export const getElectionStatistics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getElectionStatistics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId } = req.params;
-    
+
     // Get election
     const election = await db.Election.findByPk(electionId, {
       attributes: ['id', 'electionName', 'electionType', 'status'],
     });
-    
+
     if (!election) {
       const error: ApiError = new Error('Election not found');
       error.statusCode = 404;
@@ -137,7 +158,7 @@ export const getElectionStatistics = async (req: Request, res: Response, next: N
       error.isOperational = true;
       throw error;
     }
-    
+
     // Check if election is active or completed
     if (![ElectionStatus.ACTIVE, ElectionStatus.COMPLETED].includes(election.status)) {
       const error: ApiError = new Error('Statistics are not available for this election');
@@ -146,10 +167,10 @@ export const getElectionStatistics = async (req: Request, res: Response, next: N
       error.isOperational = true;
       throw error;
     }
-    
+
     // Get election statistics using the result service
     const statistics = await resultService.getElectionStatistics(electionId);
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -157,10 +178,10 @@ export const getElectionStatistics = async (req: Request, res: Response, next: N
           id: election.id,
           name: election.electionName,
           type: election.electionType,
-          status: election.status
+          status: election.status,
         },
-        statistics
-      }
+        statistics,
+      },
     });
   } catch (error) {
     next(error);

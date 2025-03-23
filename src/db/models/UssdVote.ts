@@ -1,4 +1,4 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 interface UssdVoteAttributes {
   id: string;
@@ -15,12 +15,7 @@ interface UssdVoteAttributes {
 interface UssdVoteCreationAttributes
   extends Optional<
     UssdVoteAttributes,
-    | "id"
-    | "voteTimestamp"
-    | "isVerified"
-    | "isCounted"
-    | "createdAt"
-    | "updatedAt"
+    'id' | 'voteTimestamp' | 'isVerified' | 'isCounted' | 'createdAt' | 'updatedAt'
   > {}
 
 class UssdVote
@@ -38,24 +33,24 @@ class UssdVote
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     UssdVote.belongsTo(models.UssdSession, {
-      foreignKey: "sessionId",
-      as: "session",
+      foreignKey: 'session_id',
+      as: 'session',
     });
 
     UssdVote.belongsTo(models.Election, {
-      foreignKey: "electionId",
-      as: "election",
+      foreignKey: 'election_id',
+      as: 'election',
     });
 
     UssdVote.belongsTo(models.Candidate, {
-      foreignKey: "candidateId",
-      as: "candidate",
+      foreignKey: 'candidate_id',
+      as: 'candidate',
     });
   }
 
@@ -70,71 +65,79 @@ class UssdVote
         sessionId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'session_id',
           references: {
-            model: "ussd_sessions",
-            key: "id",
+            model: 'ussd_sessions',
+            key: 'id',
           },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
         },
         electionId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'election_id',
           references: {
-            model: "elections",
-            key: "id",
+            model: 'elections',
+            key: 'id',
           },
-          onDelete: "RESTRICT",
-          onUpdate: "CASCADE",
+          onDelete: 'RESTRICT',
+          onUpdate: 'CASCADE',
         },
         candidateId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'candidate_id',
           references: {
-            model: "candidates",
-            key: "id",
+            model: 'candidates',
+            key: 'id',
           },
-          onDelete: "RESTRICT",
-          onUpdate: "CASCADE",
+          onDelete: 'RESTRICT',
+          onUpdate: 'CASCADE',
         },
         voteTimestamp: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'vote_timestamp',
         },
         isVerified: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
+          field: 'is_verified',
         },
         isCounted: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
+          field: 'is_counted',
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'updated_at',
         },
       },
       {
         sequelize,
-        modelName: "UssdVote",
-        tableName: "ussd_votes",
+        modelName: 'UssdVote',
+        tableName: 'ussd_votes',
         underscored: false,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ["sessionId", "electionId"] },
-          { fields: ["electionId"] },
-          { fields: ["candidateId"] },
-          { fields: ["isVerified"] },
-          { fields: ["isCounted"] },
+          { unique: true, fields: ['session_id', 'election_id'] },
+          { fields: ['election_id'] },
+          { fields: ['candidate_id'] },
+          { fields: ['is_verified'] },
+          { fields: ['is_counted'] },
         ],
       },
     );

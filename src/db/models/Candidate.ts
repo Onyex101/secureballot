@@ -1,11 +1,11 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 // Candidate status enum
 export enum CandidateStatus {
-  PENDING = "pending",
-  APPROVED = "approved",
-  REJECTED = "rejected",
-  DISQUALIFIED = "disqualified",
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  DISQUALIFIED = 'disqualified',
 }
 
 interface CandidateAttributes {
@@ -27,15 +27,15 @@ interface CandidateAttributes {
 interface CandidateCreationAttributes
   extends Optional<
     CandidateAttributes,
-    | "id"
-    | "bio"
-    | "photoUrl"
-    | "position"
-    | "manifesto"
-    | "status"
-    | "isActive"
-    | "createdAt"
-    | "updatedAt"
+    | 'id'
+    | 'bio'
+    | 'photoUrl'
+    | 'position'
+    | 'manifesto'
+    | 'status'
+    | 'isActive'
+    | 'createdAt'
+    | 'updatedAt'
   > {}
 
 class Candidate
@@ -57,19 +57,19 @@ class Candidate
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     Candidate.belongsTo(models.Election, {
-      foreignKey: "electionId",
-      as: "election",
+      foreignKey: 'election_id',
+      as: 'election',
     });
 
     Candidate.hasMany(models.Vote, {
-      foreignKey: "candidateId",
-      as: "votes",
+      foreignKey: 'candidate_id',
+      as: 'votes',
     });
   }
 
@@ -84,16 +84,18 @@ class Candidate
         electionId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'election_id',
           references: {
-            model: "elections",
-            key: "id",
+            model: 'elections',
+            key: 'id',
           },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
         },
         fullName: {
           type: DataTypes.STRING(100),
           allowNull: false,
+          field: 'full_name',
           validate: {
             notEmpty: true,
           },
@@ -101,12 +103,14 @@ class Candidate
         partyCode: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: 'party_code',
           validate: {
             notEmpty: true,
           },
         },
         partyName: {
           type: DataTypes.STRING(100),
+          field: 'party_name',
           allowNull: false,
           validate: {
             notEmpty: true,
@@ -117,7 +121,8 @@ class Candidate
           allowNull: true,
         },
         photoUrl: {
-          type: DataTypes.STRING(255),
+          type: DataTypes.TEXT,
+          field: 'photo_url',
           allowNull: true,
           validate: {
             isUrl: true,
@@ -143,30 +148,33 @@ class Candidate
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: true,
+          field: 'is_active',
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'updated_at',
         },
       },
       {
         sequelize,
-        modelName: "Candidate",
-        tableName: "candidates",
+        modelName: 'Candidate',
+        tableName: 'candidates',
         underscored: false,
         timestamps: true,
         indexes: [
-          { fields: ["electionId"] },
-          { fields: ["partyCode"] },
-          { fields: ["status"] },
-          { fields: ["isActive"] },
-          { unique: true, fields: ["electionId", "partyCode"] },
+          { fields: ['election_id'] },
+          { fields: ['party_code'] },
+          { fields: ['status'] },
+          { fields: ['is_active'] },
+          { unique: true, fields: ['election_id', 'party_code'] },
         ],
         hooks: {
           beforeUpdate: async (candidate: Candidate) => {

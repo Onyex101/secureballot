@@ -8,19 +8,19 @@ import Voter from '../db/models/Voter';
  */
 export const getVerificationStatus = async (voterId: string): Promise<any> => {
   const verificationStatus = await VerificationStatus.findOne({
-    where: { userId: voterId }
+    where: { userId: voterId },
   });
-  
+
   if (!verificationStatus) {
     throw new Error('Verification status not found');
   }
-  
+
   return {
     id: verificationStatus.id,
     isVerified: verificationStatus.isVerified,
     state: verificationStatus.state,
     verificationDate: verificationStatus.verifiedAt,
-    verificationMethod: verificationStatus.verificationMethod
+    verificationMethod: verificationStatus.verificationMethod,
   };
 };
 
@@ -31,14 +31,14 @@ export const submitVerificationRequest = async (
   voterId: string,
   documentType: string,
   documentNumber: string,
-  documentImageUrl: string
+  documentImageUrl: string,
 ): Promise<any> => {
   // Check if voter exists
   const voter = await Voter.findByPk(voterId);
   if (!voter) {
     throw new Error('Voter not found');
   }
-  
+
   // Find or create verification status
   const [verificationStatus, created] = await VerificationStatus.findOrCreate({
     where: { userId: voterId },
@@ -51,11 +51,11 @@ export const submitVerificationRequest = async (
         documentType,
         documentNumber,
         documentImageUrl,
-        submissionDate: new Date()
-      }
-    }
+        submissionDate: new Date(),
+      },
+    },
   });
-  
+
   // If not created, update the existing record
   if (!created) {
     await verificationStatus.update({
@@ -65,16 +65,16 @@ export const submitVerificationRequest = async (
         documentType,
         documentNumber,
         documentImageUrl,
-        submissionDate: new Date()
-      }
+        submissionDate: new Date(),
+      },
     });
   }
-  
+
   return {
     id: verificationStatus.id,
     state: verificationStatus.state,
     isVerified: verificationStatus.isVerified,
-    submissionDate: new Date()
+    submissionDate: new Date(),
   };
 };
 
@@ -84,14 +84,14 @@ export const submitVerificationRequest = async (
 export const approveVerification = async (
   verificationId: string,
   adminId: string,
-  notes?: string
+  notes?: string,
 ): Promise<any> => {
   const verificationStatus = await VerificationStatus.findByPk(verificationId);
-  
+
   if (!verificationStatus) {
     throw new Error('Verification status not found');
   }
-  
+
   // Update verification status
   await verificationStatus.update({
     isVerified: true,
@@ -102,15 +102,15 @@ export const approveVerification = async (
       ...verificationStatus.verificationData,
       approvedBy: adminId,
       approvalDate: new Date(),
-      notes
-    }
+      notes,
+    },
   });
-  
+
   return {
     id: verificationStatus.id,
     isVerified: true,
     state: 'approved',
-    verificationDate: new Date()
+    verificationDate: new Date(),
   };
 };
 
@@ -120,14 +120,14 @@ export const approveVerification = async (
 export const rejectVerification = async (
   verificationId: string,
   adminId: string,
-  reason: string
+  reason: string,
 ): Promise<any> => {
   const verificationStatus = await VerificationStatus.findByPk(verificationId);
-  
+
   if (!verificationStatus) {
     throw new Error('Verification status not found');
   }
-  
+
   // Update verification status
   await verificationStatus.update({
     isVerified: false,
@@ -136,15 +136,15 @@ export const rejectVerification = async (
       ...verificationStatus.verificationData,
       rejectedBy: adminId,
       rejectionDate: new Date(),
-      rejectionReason: reason
-    }
+      rejectionReason: reason,
+    },
   });
-  
+
   return {
     id: verificationStatus.id,
     isVerified: false,
     state: 'rejected',
-    rejectionReason: reason
+    rejectionReason: reason,
   };
 };
 
@@ -153,7 +153,7 @@ export const rejectVerification = async (
  */
 export const getPendingVerifications = async (
   page: number = 1,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<{
   verifications: any[];
   pagination: {
@@ -165,11 +165,11 @@ export const getPendingVerifications = async (
 }> => {
   // Calculate pagination
   const offset = (page - 1) * limit;
-  
+
   // Fetch pending verifications with pagination
   const { count, rows: verifications } = await VerificationStatus.findAndCountAll({
     where: {
-      state: 'pending'
+      state: 'pending',
     },
     limit,
     offset,
@@ -178,21 +178,21 @@ export const getPendingVerifications = async (
       {
         model: Voter,
         as: 'voter',
-        attributes: ['id', 'nin', 'vin', 'phoneNumber']
-      }
-    ]
+        attributes: ['id', 'nin', 'vin', 'phoneNumber'],
+      },
+    ],
   });
-  
+
   // Calculate pagination metadata
   const totalPages = Math.ceil(count / limit);
-  
+
   return {
     verifications,
     pagination: {
       total: count,
       page,
       limit,
-      totalPages
-    }
+      totalPages,
+    },
   };
-}; 
+};

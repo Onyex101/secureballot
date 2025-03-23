@@ -9,7 +9,11 @@ import { AuditActionType } from '../../db/models/AuditLog';
  * @route GET /api/v1/voter/profile
  * @access Private
  */
-export const getProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getProfile = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     // Get user ID from authenticated request
     const userId = req.user?.id;
@@ -32,12 +36,12 @@ export const getProfile = async (req: AuthRequest, res: Response, next: NextFunc
         AuditActionType.PROFILE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { action: 'view_profile' }
+        { action: 'view_profile' },
       );
 
       res.status(200).json({
         success: true,
-        data: voter
+        data: voter,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Voter not found');
@@ -56,7 +60,11 @@ export const getProfile = async (req: AuthRequest, res: Response, next: NextFunc
  * @route PUT /api/v1/voter/profile
  * @access Private
  */
-export const updateProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const updateProfile = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     // Get user ID from authenticated request
     const userId = req.user?.id;
@@ -75,7 +83,7 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
       // Update voter profile
       const updatedVoter = await voterService.updateVoterProfile(userId, {
         phoneNumber,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       });
 
       // Log the profile update
@@ -84,18 +92,18 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
         AuditActionType.PROFILE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           updatedFields: {
             phoneNumber: phoneNumber ? true : false,
-            dateOfBirth: dateOfBirth ? true : false
-          }
-        }
+            dateOfBirth: dateOfBirth ? true : false,
+          },
+        },
       );
 
       res.status(200).json({
         success: true,
         message: 'Profile updated successfully',
-        data: updatedVoter
+        data: updatedVoter,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to update profile');
@@ -114,7 +122,11 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
  * @route GET /api/v1/voter/polling-unit
  * @access Private
  */
-export const getPollingUnit = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getPollingUnit = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     // Get user ID from authenticated request
     const userId = req.user?.id;
@@ -137,12 +149,12 @@ export const getPollingUnit = async (req: AuthRequest, res: Response, next: Next
         'polling_unit_view',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { pollingUnitId: pollingUnit.id }
+        { pollingUnitId: pollingUnit.id },
       );
 
       res.status(200).json({
         success: true,
-        data: pollingUnit
+        data: pollingUnit,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Polling unit not assigned');
@@ -161,7 +173,11 @@ export const getPollingUnit = async (req: AuthRequest, res: Response, next: Next
  * @route GET /api/v1/voter/eligibility/:electionId
  * @access Private
  */
-export const checkEligibility = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const checkEligibility = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     // Get user ID from authenticated request
     const userId = req.user?.id;
@@ -184,16 +200,16 @@ export const checkEligibility = async (req: AuthRequest, res: Response, next: Ne
       'eligibility_check',
       req.ip || '',
       req.headers['user-agent'] || '',
-      { 
+      {
         electionId,
         isEligible: eligibility.isEligible,
-        reason: eligibility.reason
-      }
+        reason: eligibility.reason,
+      },
     );
 
     res.status(200).json({
       success: true,
-      data: eligibility
+      data: eligibility,
     });
   } catch (error) {
     next(error);
@@ -205,7 +221,11 @@ export const checkEligibility = async (req: AuthRequest, res: Response, next: Ne
  * @route POST /api/v1/voter/request-verification
  * @access Private
  */
-export const requestVerification = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const requestVerification = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     // Get user ID from authenticated request
     const userId = req.user?.id;
@@ -226,7 +246,7 @@ export const requestVerification = async (req: AuthRequest, res: Response, next:
         userId,
         documentType,
         documentNumber,
-        documentImageUrl
+        documentImageUrl,
       );
 
       // Log the verification request
@@ -235,16 +255,16 @@ export const requestVerification = async (req: AuthRequest, res: Response, next:
         AuditActionType.VERIFICATION,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           documentType,
-          verificationId: verification.id
-        }
+          verificationId: verification.id,
+        },
       );
 
       res.status(200).json({
         success: true,
         message: 'Verification request submitted successfully',
-        data: verification
+        data: verification,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to submit verification request');
@@ -263,11 +283,15 @@ export const requestVerification = async (req: AuthRequest, res: Response, next:
  * @route PUT /api/v1/voter/change-password
  * @access Private
  */
-export const changePassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const changePassword = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { currentPassword, newPassword } = req.body;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -275,23 +299,23 @@ export const changePassword = async (req: AuthRequest, res: Response, next: Next
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Change password
       await voterService.changePassword(userId, currentPassword, newPassword);
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         AuditActionType.PASSWORD_CHANGE,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { timestamp: new Date() }
+        { timestamp: new Date() },
       );
-      
+
       res.status(200).json({
         success: true,
-        message: 'Password changed successfully'
+        message: 'Password changed successfully',
       });
     } catch (error) {
       const apiError: ApiError = new Error((error as Error).message);

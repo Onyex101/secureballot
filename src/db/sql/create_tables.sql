@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS admin_users (
   created_by UUID,
   recovery_token VARCHAR(255),
   recovery_token_expiry TIMESTAMP,
+  mfa_secret VARCHAR(255),
+  mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  mfa_backup_codes TEXT[],
   CONSTRAINT fk_admin_users_created_by FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -183,7 +186,7 @@ CREATE TABLE IF NOT EXISTS candidates (
   party_code VARCHAR(50) NOT NULL,
   party_name VARCHAR(100) NOT NULL,
   bio TEXT,
-  photo_url VARCHAR(255),
+  photo_url TEXT,
   position VARCHAR(100),
   manifesto TEXT,
   status VARCHAR(20) NOT NULL DEFAULT 'pending',

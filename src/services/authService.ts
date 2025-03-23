@@ -27,7 +27,7 @@ export const registerVoter = async (
   vin: string,
   phoneNumber: string,
   dateOfBirth: Date,
-  password: string
+  password: string,
 ): Promise<{
   id: string;
   nin: string;
@@ -48,14 +48,14 @@ export const registerVoter = async (
     passwordHash,
     isActive: true,
     mfaEnabled: false,
-    password // This is required by the interface but not stored
+    password, // This is required by the interface but not stored
   });
 
   return {
     id: voter.id,
     nin: voter.nin,
     vin: voter.vin,
-    phoneNumber: voter.phoneNumber
+    phoneNumber: voter.phoneNumber,
   };
 };
 
@@ -64,7 +64,7 @@ export const registerVoter = async (
  */
 export const authenticateVoter = async (
   identifier: string,
-  password: string
+  password: string,
 ): Promise<{
   id: string;
   nin: string;
@@ -75,12 +75,8 @@ export const authenticateVoter = async (
   // Find voter by NIN, VIN, or phone number
   const voter = await Voter.findOne({
     where: {
-      [Op.or]: [
-        { nin: identifier },
-        { vin: identifier },
-        { phoneNumber: identifier }
-      ]
-    }
+      [Op.or]: [{ nin: identifier }, { vin: identifier }, { phoneNumber: identifier }],
+    },
   });
 
   if (!voter) {
@@ -100,7 +96,7 @@ export const authenticateVoter = async (
 
   // Update last login
   await voter.update({
-    lastLogin: new Date()
+    lastLogin: new Date(),
   });
 
   // Determine if MFA is required (could be based on settings or user preferences)
@@ -111,7 +107,7 @@ export const authenticateVoter = async (
     nin: voter.nin,
     vin: voter.vin,
     phoneNumber: voter.phoneNumber,
-    requiresMfa
+    requiresMfa,
   };
 };
 
@@ -121,25 +117,25 @@ export const authenticateVoter = async (
 export const authenticateVoterForUssd = async (nin: string, vin: string, phoneNumber: string) => {
   // In a real implementation, this would verify the NIN, VIN, and phone number against the database
   // For now, returning mock data
-  
+
   // Check if NIN and VIN match
   const voterExists = await checkVoterExists(nin, vin);
-  
+
   if (!voterExists) {
     throw new Error('Invalid credentials');
   }
-  
+
   // Check if phone number matches the voter's registered phone number
   // This is a simplified check for demonstration purposes
   if (phoneNumber !== '+2348012345678') {
     throw new Error('Phone number does not match records');
   }
-  
+
   return {
     id: 'voter-' + Math.random().toString(36).substring(2, 15),
     nin,
     vin,
-    phoneNumber
+    phoneNumber,
   };
 };
 
@@ -149,16 +145,16 @@ export const authenticateVoterForUssd = async (nin: string, vin: string, phoneNu
 export const generateToken = (
   userId: string,
   role: string = 'voter',
-  expiresIn: string = '1h'
+  expiresIn: string = '1h',
 ): string => {
   const payload = {
     id: userId,
-    role
+    role,
   };
 
   const secret = process.env.JWT_SECRET || 'default-secret-key';
   const options: SignOptions = {
-    expiresIn: expiresIn as any
+    expiresIn: expiresIn as any,
   };
 
   return jwt.sign(payload, secret as Secret, options);
@@ -174,27 +170,24 @@ export const generateMfaSecret = (): {
   const secret = speakeasy.generateSecret({ length: 20 });
   const token = speakeasy.totp({
     secret: secret.base32,
-    encoding: 'base32'
+    encoding: 'base32',
   });
 
   return {
     secret: secret.base32,
-    token
+    token,
   };
 };
 
 /**
  * Verify MFA token
  */
-export const verifyMfaToken = (
-  secret: string,
-  token: string
-): boolean => {
+export const verifyMfaToken = (secret: string, token: string): boolean => {
   return speakeasy.totp.verify({
     secret,
     encoding: 'base32',
     token,
-    window: 1 // Allow 1 step before and after current time
+    window: 1, // Allow 1 step before and after current time
   });
 };
 
@@ -202,14 +195,14 @@ export const verifyMfaToken = (
  * Generate password reset token
  */
 export const generatePasswordResetToken = async (
-  phoneNumber: string
+  phoneNumber: string,
 ): Promise<{
   token: string;
   expiryDate: Date;
 }> => {
   // Find voter by phone number
   const voter = await Voter.findOne({
-    where: { phoneNumber }
+    where: { phoneNumber },
   });
 
   if (!voter) {
@@ -218,7 +211,7 @@ export const generatePasswordResetToken = async (
 
   // Generate token
   const token = crypto.randomBytes(32).toString('hex');
-  
+
   // Set expiry (1 hour from now)
   const expiryDate = new Date();
   expiryDate.setHours(expiryDate.getHours() + 1);
@@ -226,30 +219,27 @@ export const generatePasswordResetToken = async (
   // Update voter with token
   await voter.update({
     recoveryToken: token,
-    recoveryTokenExpiry: expiryDate
+    recoveryTokenExpiry: expiryDate,
   });
 
   return {
     token,
-    expiryDate
+    expiryDate,
   };
 };
 
 /**
  * Reset password using token
  */
-export const resetPassword = async (
-  token: string,
-  newPassword: string
-): Promise<boolean> => {
+export const resetPassword = async (token: string, newPassword: string): Promise<boolean> => {
   // Find voter with valid token
   const voter = await Voter.findOne({
     where: {
       recoveryToken: token,
       recoveryTokenExpiry: {
-        [Op.gt]: new Date()
-      }
-    }
+        [Op.gt]: new Date(),
+      },
+    },
   });
 
   if (!voter) {
@@ -264,7 +254,7 @@ export const resetPassword = async (
   await voter.update({
     passwordHash,
     recoveryToken: null,
-    recoveryTokenExpiry: null
+    recoveryTokenExpiry: null,
   });
 
   return true;
@@ -274,9 +264,7 @@ export const resetPassword = async (
  * Log user out (invalidate token)
  * Note: In a real implementation, you might use a token blacklist or Redis
  */
-export const logoutUser = async (
-  userId: string
-): Promise<boolean> => {
+export const logoutUser = async (userId: string): Promise<boolean> => {
   // In a real implementation, you would invalidate the token
   // For now, we'll just return true
   return true;

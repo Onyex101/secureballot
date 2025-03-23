@@ -58,17 +58,20 @@ router.post(
   defaultLimiter,
   validate([
     body('nin')
-      .notEmpty().withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('NIN'))
+      .isLength({ min: 11, max: 11 })
+      .withMessage(validationMessages.nin()),
+
     body('vin')
-      .notEmpty().withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
-    
-    body('password')
-      .notEmpty().withMessage(validationMessages.required('Password'))
+      .notEmpty()
+      .withMessage(validationMessages.required('VIN'))
+      .isLength({ min: 19, max: 19 })
+      .withMessage(validationMessages.vin()),
+
+    body('password').notEmpty().withMessage(validationMessages.required('Password')),
   ]),
-  mobileAuthController.mobileLogin
+  mobileAuthController.mobileLogin,
 );
 
 /**
@@ -108,14 +111,18 @@ router.post(
   authenticate,
   validate([
     body('deviceId')
-      .notEmpty().withMessage(validationMessages.required('Device ID'))
-      .isLength({ min: 36, max: 64 }).withMessage('Device ID must be between 36 and 64 characters'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Device ID'))
+      .isLength({ min: 36, max: 64 })
+      .withMessage('Device ID must be between 36 and 64 characters'),
+
     body('verificationCode')
-      .notEmpty().withMessage(validationMessages.required('Verification code'))
-      .isLength({ min: 6, max: 6 }).withMessage('Verification code must be 6 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('Verification code'))
+      .isLength({ min: 6, max: 6 })
+      .withMessage('Verification code must be 6 characters'),
   ]),
-  mobileAuthController.verifyDevice
+  mobileAuthController.verifyDevice,
 );
 
 /**
@@ -148,10 +155,12 @@ router.get(
   authenticate,
   validate([
     query('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  mobileVoteController.getOfflinePackage
+  mobileVoteController.getOfflinePackage,
 );
 
 /**
@@ -209,17 +218,20 @@ router.post(
   authenticate,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
     body('encryptedVotes')
-      .notEmpty().withMessage(validationMessages.required('Encrypted votes'))
-      .isArray().withMessage('Encrypted votes must be an array'),
-    
-    body('signature')
-      .notEmpty().withMessage(validationMessages.required('Signature'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Encrypted votes'))
+      .isArray()
+      .withMessage('Encrypted votes must be an array'),
+
+    body('signature').notEmpty().withMessage(validationMessages.required('Signature')),
   ]),
-  mobileVoteController.submitOfflineVotes
+  mobileVoteController.submitOfflineVotes,
 );
 
 /**
@@ -266,18 +278,23 @@ router.get(
   authenticate,
   validate([
     query('latitude')
-      .notEmpty().withMessage(validationMessages.required('Latitude'))
-      .isFloat({ min: -90, max: 90 }).withMessage('Latitude must be between -90 and 90'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Latitude'))
+      .isFloat({ min: -90, max: 90 })
+      .withMessage('Latitude must be between -90 and 90'),
+
     query('longitude')
-      .notEmpty().withMessage(validationMessages.required('Longitude'))
-      .isFloat({ min: -180, max: 180 }).withMessage('Longitude must be between -180 and 180'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Longitude'))
+      .isFloat({ min: -180, max: 180 })
+      .withMessage('Longitude must be between -180 and 180'),
+
     query('radius')
       .optional()
-      .isFloat({ min: 0.1, max: 50 }).withMessage('Radius must be between 0.1 and 50 km')
+      .isFloat({ min: 0.1, max: 50 })
+      .withMessage('Radius must be between 0.1 and 50 km'),
   ]),
-  mobilePollingUnitController.getNearbyPollingUnits
+  mobilePollingUnitController.getNearbyPollingUnits,
 );
 
 /**
@@ -315,16 +332,14 @@ router.post(
   authenticate,
   validate([
     body('type')
-      .notEmpty().withMessage(validationMessages.required('Type'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Type'))
       .isIn(['elections', 'candidates', 'pollingUnits', 'profile'])
       .withMessage('Type must be one of: elections, candidates, pollingUnits, profile'),
-    
-    body('data')
-      .optional()
-      .isObject()
-      .withMessage('Invalid data type')
+
+    body('data').optional().isObject().withMessage('Invalid data type'),
   ]),
-  mobileSyncController.syncData
+  mobileSyncController.syncData,
 );
 
 /**
@@ -373,10 +388,12 @@ router.get(
   authenticate,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  mobileSyncController.getElectionDetails
+  mobileSyncController.getElectionDetails,
 );
 
 /**
@@ -451,20 +468,24 @@ router.post(
   authenticate,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
     body('candidateId')
-      .notEmpty().withMessage(validationMessages.required('Candidate ID'))
-      .isUUID().withMessage(validationMessages.uuid('Candidate ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Candidate ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Candidate ID')),
+
     body('encryptedVote')
-      .notEmpty().withMessage(validationMessages.required('Encrypted vote data')),
-    
-    body('signature')
-      .notEmpty().withMessage(validationMessages.required('Signature'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Encrypted vote data')),
+
+    body('signature').notEmpty().withMessage(validationMessages.required('Signature')),
   ]),
-  mobileSyncController.castVote
+  mobileSyncController.castVote,
 );
 
 export default router;

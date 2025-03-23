@@ -62,26 +62,36 @@ router.post(
   authLimiter,
   validate([
     body('nin')
-      .notEmpty().withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('NIN'))
+      .isLength({ min: 11, max: 11 })
+      .withMessage(validationMessages.nin()),
+
     body('vin')
-      .notEmpty().withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('VIN'))
+      .isLength({ min: 19, max: 19 })
+      .withMessage(validationMessages.vin()),
+
     body('phoneNumber')
-      .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Phone number'))
+      .matches(/^\+?[0-9]{10,15}$/)
+      .withMessage(validationMessages.phoneNumber()),
+
     body('dateOfBirth')
-      .notEmpty().withMessage(validationMessages.required('Date of birth'))
-      .isISO8601().withMessage('Date of birth must be a valid date'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Date of birth'))
+      .isISO8601()
+      .withMessage('Date of birth must be a valid date'),
+
     body('password')
-      .notEmpty().withMessage(validationMessages.required('Password'))
-      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('Password'))
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters'),
   ]),
-  authController.register
+  authController.register,
 );
 
 /**
@@ -119,13 +129,11 @@ router.post(
   '/login',
   authLimiter,
   validate([
-    body('identifier')
-      .notEmpty().withMessage(validationMessages.required('Identifier')),
-    
-    body('password')
-      .notEmpty().withMessage(validationMessages.required('Password'))
+    body('identifier').notEmpty().withMessage(validationMessages.required('Identifier')),
+
+    body('password').notEmpty().withMessage(validationMessages.required('Password')),
   ]),
-  authController.login
+  authController.login,
 );
 
 /**
@@ -167,18 +175,24 @@ router.post(
   authLimiter,
   validate([
     body('nin')
-      .notEmpty().withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 }).withMessage(validationMessages.nin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('NIN'))
+      .isLength({ min: 11, max: 11 })
+      .withMessage(validationMessages.nin()),
+
     body('vin')
-      .notEmpty().withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 }).withMessage(validationMessages.vin()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('VIN'))
+      .isLength({ min: 19, max: 19 })
+      .withMessage(validationMessages.vin()),
+
     body('phoneNumber')
-      .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+      .notEmpty()
+      .withMessage(validationMessages.required('Phone number'))
+      .matches(/^\+?[0-9]{10,15}$/)
+      .withMessage(validationMessages.phoneNumber()),
   ]),
-  ussdAuthController.authenticateViaUssd
+  ussdAuthController.authenticateViaUssd,
 );
 
 /**
@@ -212,10 +226,12 @@ router.post(
   authLimiter,
   validate([
     body('sessionCode')
-      .notEmpty().withMessage(validationMessages.required('Session code'))
-      .isLength({ min: 6, max: 10 }).withMessage('Session code must be 6-10 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('Session code'))
+      .isLength({ min: 6, max: 10 })
+      .withMessage('Session code must be 6-10 characters'),
   ]),
-  ussdAuthController.verifyUssdSession
+  ussdAuthController.verifyUssdSession,
 );
 
 /**
@@ -254,15 +270,20 @@ router.post(
   authLimiter,
   validate([
     body('userId')
-      .notEmpty().withMessage(validationMessages.required('User ID'))
-      .isUUID().withMessage(validationMessages.uuid('User ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('User ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('User ID')),
+
     body('token')
-      .notEmpty().withMessage(validationMessages.required('MFA token'))
-      .isLength({ min: 6, max: 6 }).withMessage('MFA token must be 6 digits')
-      .isNumeric().withMessage('MFA token must contain only numbers')
+      .notEmpty()
+      .withMessage(validationMessages.required('MFA token'))
+      .isLength({ min: 6, max: 6 })
+      .withMessage('MFA token must be 6 digits')
+      .isNumeric()
+      .withMessage('MFA token must contain only numbers'),
   ]),
-  authController.verifyMfa
+  authController.verifyMfa,
 );
 
 /**
@@ -279,11 +300,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post(
-  '/setup-mfa',
-  authenticate,
-  mfaController.setupMfa
-);
+router.post('/setup-mfa', authenticate, mfaController.setupMfa);
 
 /**
  * @swagger
@@ -319,11 +336,14 @@ router.post(
   authenticate,
   validate([
     body('token')
-      .notEmpty().withMessage(validationMessages.required('MFA token'))
-      .isLength({ min: 6, max: 6 }).withMessage('MFA token must be 6 digits')
-      .isNumeric().withMessage('MFA token must contain only numbers')
+      .notEmpty()
+      .withMessage(validationMessages.required('MFA token'))
+      .isLength({ min: 6, max: 6 })
+      .withMessage('MFA token must be 6 digits')
+      .isNumeric()
+      .withMessage('MFA token must contain only numbers'),
   ]),
-  mfaController.enableMfa
+  mfaController.enableMfa,
 );
 
 /**
@@ -360,11 +380,14 @@ router.post(
   authenticate,
   validate([
     body('token')
-      .notEmpty().withMessage(validationMessages.required('MFA token'))
-      .isLength({ min: 6, max: 6 }).withMessage('MFA token must be 6 digits')
-      .isNumeric().withMessage('MFA token must contain only numbers')
+      .notEmpty()
+      .withMessage(validationMessages.required('MFA token'))
+      .isLength({ min: 6, max: 6 })
+      .withMessage('MFA token must be 6 digits')
+      .isNumeric()
+      .withMessage('MFA token must contain only numbers'),
   ]),
-  mfaController.disableMfa
+  mfaController.disableMfa,
 );
 
 /**
@@ -381,11 +404,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post(
-  '/generate-backup-codes',
-  authenticate,
-  mfaController.generateBackupCodes
-);
+router.post('/generate-backup-codes', authenticate, mfaController.generateBackupCodes);
 
 /**
  * @swagger
@@ -422,13 +441,14 @@ router.post(
   authLimiter,
   validate([
     body('userId')
-      .notEmpty().withMessage(validationMessages.required('User ID'))
-      .isUUID().withMessage(validationMessages.uuid('User ID')),
-    
-    body('backupCode')
-      .notEmpty().withMessage(validationMessages.required('Backup code'))
+      .notEmpty()
+      .withMessage(validationMessages.required('User ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('User ID')),
+
+    body('backupCode').notEmpty().withMessage(validationMessages.required('Backup code')),
   ]),
-  mfaController.verifyBackupCode
+  mfaController.verifyBackupCode,
 );
 
 /**
@@ -445,11 +465,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post(
-  '/refresh-token',
-  authenticate,
-  authController.refreshToken
-);
+router.post('/refresh-token', authenticate, authController.refreshToken);
 
 /**
  * @swagger
@@ -465,11 +481,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post(
-  '/logout',
-  authenticate,
-  authController.logout
-);
+router.post('/logout', authenticate, authController.logout);
 
 /**
  * @swagger
@@ -500,10 +512,12 @@ router.post(
   authLimiter,
   validate([
     body('email')
-      .notEmpty().withMessage(validationMessages.required('Email'))
-      .isEmail().withMessage(validationMessages.email())
+      .notEmpty()
+      .withMessage(validationMessages.required('Email'))
+      .isEmail()
+      .withMessage(validationMessages.email()),
   ]),
-  authController.forgotPassword
+  authController.forgotPassword,
 );
 
 /**
@@ -537,14 +551,15 @@ router.post(
   '/reset-password',
   authLimiter,
   validate([
-    body('token')
-      .notEmpty().withMessage(validationMessages.required('Token')),
-    
+    body('token').notEmpty().withMessage(validationMessages.required('Token')),
+
     body('newPassword')
-      .notEmpty().withMessage(validationMessages.required('New password'))
-      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('New password'))
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters'),
   ]),
-  authController.resetPassword
+  authController.resetPassword,
 );
 
 export default router;

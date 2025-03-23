@@ -1,4 +1,4 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 interface ElectionStatsAttributes {
   id: string;
@@ -15,14 +15,14 @@ interface ElectionStatsAttributes {
 interface ElectionStatsCreationAttributes
   extends Optional<
     ElectionStatsAttributes,
-    | "id"
-    | "totalVotes"
-    | "validVotes"
-    | "invalidVotes"
-    | "turnoutPercentage"
-    | "lastUpdated"
-    | "createdAt"
-    | "updatedAt"
+    | 'id'
+    | 'totalVotes'
+    | 'validVotes'
+    | 'invalidVotes'
+    | 'turnoutPercentage'
+    | 'lastUpdated'
+    | 'createdAt'
+    | 'updatedAt'
   > {}
 
 class ElectionStats
@@ -40,14 +40,14 @@ class ElectionStats
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     ElectionStats.belongsTo(models.Election, {
-      foreignKey: "electionId",
-      as: "election",
+      foreignKey: 'election_id',
+      as: 'election',
     });
   }
 
@@ -61,57 +61,65 @@ class ElectionStats
         },
         electionId: {
           type: DataTypes.UUID,
+          field: 'election_id',
           allowNull: false,
           unique: true,
           references: {
-            model: "elections",
-            key: "id",
+            model: 'elections',
+            key: 'id',
           },
         },
         totalVotes: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
+          field: 'total_votes',
         },
         validVotes: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
+          field: 'valid_votes',
         },
         invalidVotes: {
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
+          field: 'invalid_votes',
         },
         turnoutPercentage: {
           type: DataTypes.DECIMAL(5, 2),
           allowNull: false,
           defaultValue: 0,
+          field: 'turnout_percentage',
         },
         lastUpdated: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'last_updated',
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: 'updated_at',
           defaultValue: DataTypes.NOW,
         },
       },
       {
         sequelize,
-        modelName: "ElectionStats",
-        tableName: "election_stats",
+        modelName: 'ElectionStats',
+        tableName: 'election_stats',
         timestamps: true,
-      }
+      },
     );
   }
 }
 
-export default ElectionStats; 
+export default ElectionStats;

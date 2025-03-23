@@ -1,23 +1,23 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 // Election status enum
 export enum ElectionStatus {
-  DRAFT = "draft",
-  SCHEDULED = "scheduled",
-  ACTIVE = "active",
-  PAUSED = "paused",
-  COMPLETED = "completed",
-  CANCELLED = "cancelled",
+  DRAFT = 'draft',
+  SCHEDULED = 'scheduled',
+  ACTIVE = 'active',
+  PAUSED = 'paused',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
 }
 
 // Election type enum
 export enum ElectionType {
-  PRESIDENTIAL = "Presidential",
-  GUBERNATORIAL = "Gubernatorial",
-  SENATORIAL = "Senatorial",
-  HOUSE_OF_REPS = "HouseOfReps",
-  STATE_ASSEMBLY = "StateAssembly",
-  LOCAL_GOVERNMENT = "LocalGovernment",
+  PRESIDENTIAL = 'Presidential',
+  GUBERNATORIAL = 'Gubernatorial',
+  SENATORIAL = 'Senatorial',
+  HOUSE_OF_REPS = 'HouseOfReps',
+  STATE_ASSEMBLY = 'StateAssembly',
+  LOCAL_GOVERNMENT = 'LocalGovernment',
 }
 
 interface ElectionAttributes {
@@ -38,13 +38,7 @@ interface ElectionAttributes {
 interface ElectionCreationAttributes
   extends Optional<
     ElectionAttributes,
-    | "id"
-    | "description"
-    | "isActive"
-    | "status"
-    | "eligibilityRules"
-    | "createdAt"
-    | "updatedAt"
+    'id' | 'description' | 'isActive' | 'status' | 'eligibilityRules' | 'createdAt' | 'updatedAt'
   > {}
 
 class Election
@@ -65,29 +59,29 @@ class Election
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     Election.hasMany(models.Candidate, {
-      foreignKey: "electionId",
-      as: "candidates",
+      foreignKey: 'election_id',
+      as: 'candidates',
     });
 
     Election.hasMany(models.Vote, {
-      foreignKey: "electionId",
-      as: "votes",
+      foreignKey: 'election_id',
+      as: 'votes',
     });
 
     Election.hasOne(models.ElectionStats, {
-      foreignKey: "electionId",
-      as: "stats",
+      foreignKey: 'election_id',
+      as: 'stats',
     });
 
     Election.belongsTo(models.AdminUser, {
-      foreignKey: "createdBy",
-      as: "creator",
+      foreignKey: 'created_by',
+      as: 'creator',
     });
   }
 
@@ -101,6 +95,7 @@ class Election
         },
         electionName: {
           type: DataTypes.STRING(100),
+          field: 'election_name',
           allowNull: false,
           validate: {
             notEmpty: true,
@@ -108,6 +103,7 @@ class Election
         },
         electionType: {
           type: DataTypes.STRING(50),
+          field: 'election_type',
           allowNull: false,
           validate: {
             isIn: [Object.values(ElectionType)],
@@ -115,25 +111,29 @@ class Election
         },
         startDate: {
           type: DataTypes.DATE,
+          field: 'start_date',
           allowNull: false,
         },
         endDate: {
           type: DataTypes.DATE,
+          field: 'end_date',
           allowNull: false,
           validate: {
             isAfterStartDate(this: any, value: Date) {
               if (value <= this.startDate) {
-                throw new Error("End date must be after start date");
+                throw new Error('End date must be after start date');
               }
             },
           },
         },
         description: {
           type: DataTypes.TEXT,
+          field: 'description',
           allowNull: true,
         },
         isActive: {
           type: DataTypes.BOOLEAN,
+          field: 'is_active',
           allowNull: false,
           defaultValue: false,
         },
@@ -148,43 +148,47 @@ class Election
         eligibilityRules: {
           type: DataTypes.JSONB,
           allowNull: true,
+          field: 'eligibility_rules',
         },
         createdBy: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'created_by',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'updated_at',
         },
       },
       {
         sequelize,
-        modelName: "Election",
-        tableName: "elections",
+        modelName: 'Election',
+        tableName: 'elections',
         underscored: false,
         timestamps: true,
         indexes: [
-          { fields: ["electionType"] },
-          { fields: ["startDate", "endDate"] },
-          { fields: ["status"] },
-          { fields: ["isActive"] },
+          { fields: ['election_type'] },
+          { fields: ['start_date', 'end_date'] },
+          { fields: ['status'] },
+          { fields: ['is_active'] },
         ],
         hooks: {
           beforeCreate: async (election: Election) => {
             // Validate dates
             if (election.startDate >= election.endDate) {
-              throw new Error("End date must be after start date");
+              throw new Error('End date must be after start date');
             }
           },
           beforeUpdate: async (election: Election) => {

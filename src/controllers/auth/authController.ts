@@ -1,29 +1,23 @@
-import { Request, Response, NextFunction } from "express";
-import { authService, auditService } from "../../services";
-import { ApiError } from "../../middleware/errorHandler";
-import { AuditActionType } from "../../db/models/AuditLog";
+import { Request, Response, NextFunction } from 'express';
+import { authService, auditService } from '../../services';
+import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Register a new voter
  * @route POST /api/v1/auth/register
  * @access Public
  */
-export const register = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
+export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { nin, vin, phoneNumber, dateOfBirth, password } = req.body;
 
     // Check if voter already exists
     const voterExists = await authService.checkVoterExists(nin, vin);
     if (voterExists) {
-      const error: ApiError = new Error(
-        "Voter with this NIN or VIN already exists",
-      );
+      const error: ApiError = new Error('Voter with this NIN or VIN already exists');
       error.statusCode = 409;
-      error.code = "VOTER_EXISTS";
+      error.code = 'VOTER_EXISTS';
       error.isOperational = true;
       throw error;
     }
@@ -34,7 +28,7 @@ export const register = async (
       vin,
       phoneNumber,
       new Date(dateOfBirth),
-      password
+      password,
     );
 
     // Log the registration
@@ -43,12 +37,12 @@ export const register = async (
       AuditActionType.REGISTRATION,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { nin, phoneNumber }
+      { nin, phoneNumber },
     );
 
     res.status(201).json({
       success: true,
-      message: "Voter registered successfully",
+      message: 'Voter registered successfully',
       data: {
         id: voter.id,
         nin: voter.nin,
@@ -66,11 +60,7 @@ export const register = async (
  * @route POST /api/v1/auth/login
  * @access Public
  */
-export const login = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
+export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { identifier, password } = req.body;
 
@@ -87,12 +77,12 @@ export const login = async (
         AuditActionType.LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { identifier }
+        { identifier },
       );
 
       res.status(200).json({
         success: true,
-        message: "Login successful",
+        message: 'Login successful',
         data: {
           token,
           voter: {
@@ -111,12 +101,12 @@ export const login = async (
         'login_failed',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { identifier, error: (error as Error).message }
+        { identifier, error: (error as Error).message },
       );
 
-      const apiError: ApiError = new Error("Invalid credentials");
+      const apiError: ApiError = new Error('Invalid credentials');
       apiError.statusCode = 401;
-      apiError.code = "INVALID_CREDENTIALS";
+      apiError.code = 'INVALID_CREDENTIALS';
       apiError.isOperational = true;
       throw apiError;
     }
@@ -130,25 +120,21 @@ export const login = async (
  * @route POST /api/v1/auth/verify-mfa
  * @access Public
  */
-export const verifyMfa = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
+export const verifyMfa = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId, token } = req.body;
 
     // In a real implementation, you would retrieve the user's MFA secret
     // For now, we'll use a placeholder
-    const secret = "PLACEHOLDER_SECRET";
+    const secret = 'PLACEHOLDER_SECRET';
 
     // Verify the token
     const isValid = authService.verifyMfaToken(secret, token);
 
     if (!isValid) {
-      const error: ApiError = new Error("Invalid MFA token");
+      const error: ApiError = new Error('Invalid MFA token');
       error.statusCode = 401;
-      error.code = "INVALID_MFA_TOKEN";
+      error.code = 'INVALID_MFA_TOKEN';
       error.isOperational = true;
       throw error;
     }
@@ -162,12 +148,12 @@ export const verifyMfa = async (
       AuditActionType.MFA_VERIFY,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { success: true }
+      { success: true },
     );
 
     res.status(200).json({
       success: true,
-      message: "MFA verification successful",
+      message: 'MFA verification successful',
       data: {
         token: newToken,
       },
@@ -180,7 +166,7 @@ export const verifyMfa = async (
         'mfa_verification_failed',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { error: (error as Error).message }
+        { error: (error as Error).message },
       );
     }
 
@@ -211,12 +197,12 @@ export const refreshToken = async (
       'token_refresh',
       req.ip || '',
       req.headers['user-agent'] || '',
-      {}
+      {},
     );
 
     res.status(200).json({
       success: true,
-      message: "Token refreshed successfully",
+      message: 'Token refreshed successfully',
       data: {
         token,
       },
@@ -231,11 +217,7 @@ export const refreshToken = async (
  * @route POST /api/v1/auth/logout
  * @access Private
  */
-export const logout = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
+export const logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // The user ID should be available from the authentication middleware
     const userId = (req as any).user.id;
@@ -249,12 +231,12 @@ export const logout = async (
       AuditActionType.LOGOUT,
       req.ip || '',
       req.headers['user-agent'] || '',
-      {}
+      {},
     );
 
     res.status(200).json({
       success: true,
-      message: "Logout successful",
+      message: 'Logout successful',
     });
   } catch (error) {
     next(error);
@@ -288,18 +270,18 @@ export const forgotPassword = async (
         AuditActionType.PASSWORD_RESET,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { email }
+        { email },
       );
 
       res.status(200).json({
         success: true,
-        message: "Password reset instructions sent to your email",
+        message: 'Password reset instructions sent to your email',
       });
     } catch (error) {
       // Don't reveal if the email exists or not
       res.status(200).json({
         success: true,
-        message: "If your email is registered, you will receive password reset instructions",
+        message: 'If your email is registered, you will receive password reset instructions',
       });
     }
   } catch (error) {
@@ -330,17 +312,17 @@ export const resetPassword = async (
         'password_reset_complete',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { success: true }
+        { success: true },
       );
 
       res.status(200).json({
         success: true,
-        message: "Password reset successful",
+        message: 'Password reset successful',
       });
     } catch (error) {
-      const apiError: ApiError = new Error("Invalid or expired token");
+      const apiError: ApiError = new Error('Invalid or expired token');
       apiError.statusCode = 400;
-      apiError.code = "INVALID_TOKEN";
+      apiError.code = 'INVALID_TOKEN';
       apiError.isOperational = true;
       throw apiError;
     }

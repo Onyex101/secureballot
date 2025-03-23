@@ -5,7 +5,6 @@ import { authenticate, authorize } from '../../middleware/auth';
 import { requireRole } from '../../middleware/accessControl';
 import { UserRole } from '../../types';
 import { defaultLimiter, adminLimiter } from '../../middleware/rateLimiter';
-import { Request, Response } from 'express';
 
 // Import controllers
 import * as systemAdminController from '../../controllers/admin/systemAdminController';
@@ -16,7 +15,6 @@ import * as resultVerificationController from '../../controllers/admin/resultVer
 import * as verificationController from '../../controllers/voter/verificationController';
 
 // Controllers would be implemented based on admin dashboard needs
-// This is a placeholder for the route structure
 const router = Router();
 
 // All admin routes require authentication
@@ -63,23 +61,21 @@ router.get(
   authorize([UserRole.SYSTEM_ADMIN]),
   adminLimiter,
   validate([
-    query('role')
-      .optional(),
-    
+    query('role').optional(),
+
     query('status')
       .optional()
       .isIn(['active', 'inactive', 'all'])
       .withMessage('Status must be one of: active, inactive, all'),
-    
-    query('page')
-      .optional()
-      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-    
+
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+
     query('limit')
       .optional()
-      .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
   ]),
-  systemAdminController.listUsers
+  systemAdminController.listUsers,
 );
 
 /**
@@ -134,26 +130,32 @@ router.post(
   adminLimiter,
   validate([
     body('email')
-      .notEmpty().withMessage(validationMessages.required('Email'))
-      .isEmail().withMessage(validationMessages.email()),
-    
-    body('fullName')
-      .notEmpty().withMessage(validationMessages.required('Full name')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Email'))
+      .isEmail()
+      .withMessage(validationMessages.email()),
+
+    body('fullName').notEmpty().withMessage(validationMessages.required('Full name')),
+
     body('phoneNumber')
-      .notEmpty().withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber()),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Phone number'))
+      .matches(/^\+?[0-9]{10,15}$/)
+      .withMessage(validationMessages.phoneNumber()),
+
     body('password')
-      .notEmpty().withMessage(validationMessages.required('Password'))
-      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Password'))
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters'),
+
     body('role')
-      .notEmpty().withMessage(validationMessages.required('Role'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Role'))
       .isIn(Object.values(UserRole).filter(role => role !== UserRole.VOTER))
-      .withMessage('Invalid admin role')
+      .withMessage('Invalid admin role'),
   ]),
-  systemAdminController.createUser
+  systemAdminController.createUser,
 );
 
 /**
@@ -209,35 +211,31 @@ router.get(
   [
     query('actionType')
       .optional()
-      .isIn(['login', 'logout', 'registration', 'verification', 'password_reset', 'vote_cast', 'profile_update', 'election_view', 'mfa_setup', 'mfa_verify', 'ussd_session'])
+      .isIn([
+        'login',
+        'logout',
+        'registration',
+        'verification',
+        'password_reset',
+        'vote_cast',
+        'profile_update',
+        'election_view',
+        'mfa_setup',
+        'mfa_verify',
+        'ussd_session',
+      ])
       .withMessage('Invalid action type'),
-    query('startDate')
-      .optional()
-      .isISO8601()
-      .withMessage('Start date must be a valid ISO date'),
-    query('endDate')
-      .optional()
-      .isISO8601()
-      .withMessage('End date must be a valid ISO date'),
-    query('userId')
-      .optional()
-      .isUUID(4)
-      .withMessage('User ID must be a valid UUID'),
-    query('page')
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage('Page must be a positive integer'),
+    query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO date'),
+    query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO date'),
+    query('userId').optional().isUUID(4).withMessage('User ID must be a valid UUID'),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit')
       .optional()
       .isInt({ min: 1, max: 100 })
       .withMessage('Limit must be between 1 and 100'),
   ],
-  validate([
-    query('status'),
-    query('page'),
-    query('limit')
-  ]),
-  systemAuditorController.getAuditLogs
+  validate([query('status'), query('page'), query('limit')]),
+  systemAuditorController.getAuditLogs,
 );
 
 /**
@@ -293,29 +291,38 @@ router.post(
   defaultLimiter,
   [
     body('electionName')
-      .notEmpty().withMessage(validationMessages.required('Election name'))
-      .isLength({ min: 3, max: 100 }).withMessage('Election name must be between 3 and 100 characters'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election name'))
+      .isLength({ min: 3, max: 100 })
+      .withMessage('Election name must be between 3 and 100 characters'),
+
     body('electionType')
-      .notEmpty().withMessage(validationMessages.required('Election type'))
-      .isIn(['Presidential', 'Gubernatorial', 'Senatorial', 'HouseOfReps', 'StateAssembly', 'LocalGovernment'])
+      .notEmpty()
+      .withMessage(validationMessages.required('Election type'))
+      .isIn([
+        'Presidential',
+        'Gubernatorial',
+        'Senatorial',
+        'HouseOfReps',
+        'StateAssembly',
+        'LocalGovernment',
+      ])
       .withMessage('Invalid election type'),
-    
+
     body('startDate')
-      .notEmpty().withMessage(validationMessages.required('Start date'))
-      .isISO8601().withMessage('Start date must be a valid ISO date'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Start date'))
+      .isISO8601()
+      .withMessage('Start date must be a valid ISO date'),
+
     body('endDate')
-      .notEmpty().withMessage(validationMessages.required('End date'))
-      .isISO8601().withMessage('End date must be a valid ISO date'),
+      .notEmpty()
+      .withMessage(validationMessages.required('End date'))
+      .isISO8601()
+      .withMessage('End date must be a valid ISO date'),
   ],
-  validate([
-    body('electionName'),
-    body('electionType'),
-    body('startDate'),
-    body('endDate')
-  ]),
-  electoralCommissionerController.createElection
+  validate([body('electionName'), body('electionType'), body('startDate'), body('endDate')]),
+  electoralCommissionerController.createElection,
 );
 
 /**
@@ -369,18 +376,9 @@ router.get(
       .optional()
       .isIn(['low', 'medium', 'high', 'critical'])
       .withMessage('Severity must be one of: low, medium, high, critical'),
-    query('startDate')
-      .optional()
-      .isISO8601()
-      .withMessage('Start date must be a valid ISO date'),
-    query('endDate')
-      .optional()
-      .isISO8601()
-      .withMessage('End date must be a valid ISO date'),
-    query('page')
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage('Page must be a positive integer'),
+    query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO date'),
+    query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO date'),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit')
       .optional()
       .isInt({ min: 1, max: 100 })
@@ -391,9 +389,9 @@ router.get(
     query('startDate'),
     query('endDate'),
     query('page'),
-    query('limit')
+    query('limit'),
   ]),
-  securityOfficerController.getSecurityLogs
+  securityOfficerController.getSecurityLogs,
 );
 
 /**
@@ -438,18 +436,17 @@ router.post(
   defaultLimiter,
   [
     body('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID(4).withMessage('Election ID must be a valid UUID'),
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID(4)
+      .withMessage('Election ID must be a valid UUID'),
     body('publishLevel')
       .optional()
       .isIn(['preliminary', 'final'])
       .withMessage('Publish level must be either preliminary or final'),
   ],
-  validate([
-    body('electionId'),
-    body('publishLevel')
-  ]),
-  resultVerificationController.verifyAndPublishResults
+  validate([body('electionId'), body('publishLevel')]),
+  resultVerificationController.verifyAndPublishResults,
 );
 
 /**
@@ -484,15 +481,14 @@ router.get(
   authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
   adminLimiter,
   validate([
-    query('page')
-      .optional()
-      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-    
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+
     query('limit')
       .optional()
-      .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
   ]),
-  verificationController.getPendingVerifications
+  verificationController.getPendingVerifications,
 );
 
 /**
@@ -536,13 +532,14 @@ router.post(
   adminLimiter,
   validate([
     param('id')
-      .notEmpty().withMessage(validationMessages.required('Verification ID'))
-      .isUUID().withMessage(validationMessages.uuid('Verification ID')),
-    
-    body('notes')
-      .optional()
+      .notEmpty()
+      .withMessage(validationMessages.required('Verification ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Verification ID')),
+
+    body('notes').optional(),
   ]),
-  verificationController.approveVerification
+  verificationController.approveVerification,
 );
 
 /**
@@ -589,13 +586,14 @@ router.post(
   adminLimiter,
   validate([
     param('id')
-      .notEmpty().withMessage(validationMessages.required('Verification ID'))
-      .isUUID().withMessage(validationMessages.uuid('Verification ID')),
-    
-    body('reason')
-      .notEmpty().withMessage(validationMessages.required('Rejection reason'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Verification ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Verification ID')),
+
+    body('reason').notEmpty().withMessage(validationMessages.required('Rejection reason')),
   ]),
-  verificationController.rejectVerification
+  verificationController.rejectVerification,
 );
 
 // Add more admin routes as needed...

@@ -6,11 +6,15 @@ import { ApiError } from '../../middleware/errorHandler';
 /**
  * Synchronize data between mobile app and server
  */
-export const syncData = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const syncData = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { type, data } = req.body;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -18,10 +22,10 @@ export const syncData = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       let responseData;
-      
+
       // Process different types of sync requests
       switch (type) {
         case 'elections':
@@ -34,50 +38,50 @@ export const syncData = async (req: AuthRequest, res: Response, next: NextFuncti
               type: election.electionType,
               startDate: election.startDate,
               endDate: election.endDate,
-              status: election.status
+              status: election.status,
             })),
-            lastSyncTimestamp: new Date()
+            lastSyncTimestamp: new Date(),
           };
           break;
-          
+
         case 'candidates':
           // Get candidates for a specific election
           if (!data || !data.electionId) {
             throw new Error('Election ID is required for candidate sync');
           }
-          
-          const candidates = await electionService.getElectionCandidates(data.electionId);
+
+          const candidatesResult = await electionService.getElectionCandidates(data.electionId);
           responseData = {
-            candidates: candidates.map((candidate: any) => ({
+            candidates: candidatesResult.candidates.map((candidate: any) => ({
               id: candidate.id,
               name: candidate.fullName,
               party: candidate.partyAffiliation,
               position: candidate.position,
-              electionId: data.electionId
+              electionId: data.electionId,
             })),
-            lastSyncTimestamp: new Date()
+            lastSyncTimestamp: new Date(),
           };
           break;
-          
+
         case 'pollingUnits':
           // Get polling units for a specific region
           if (!data || !data.regionId) {
             throw new Error('Region ID is required for polling unit sync');
           }
-          
-          const pollingUnits = await electionService.getPollingUnitsByRegion(data.regionId);
+
+          const pollingUnitsResult = await electionService.getPollingUnitsByRegion(data.regionId);
           responseData = {
-            pollingUnits: pollingUnits.map((unit: any) => ({
+            pollingUnits: pollingUnitsResult.pollingUnits.map((unit: any) => ({
               id: unit.id,
               name: unit.name,
               code: unit.code,
               address: unit.address,
-              regionId: data.regionId
+              regionId: data.regionId,
             })),
-            lastSyncTimestamp: new Date()
+            lastSyncTimestamp: new Date(),
           };
           break;
-          
+
         case 'profile':
           // Get voter profile data
           const voterProfile = await electionService.getVoterDetails(userId);
@@ -87,35 +91,37 @@ export const syncData = async (req: AuthRequest, res: Response, next: NextFuncti
               nin: voterProfile.nin,
               vin: voterProfile.vin,
               phoneNumber: voterProfile.phoneNumber,
-              pollingUnit: voterProfile.pollingUnit
+              pollingUnit: voterProfile.pollingUnit,
             },
-            lastSyncTimestamp: new Date()
+            lastSyncTimestamp: new Date(),
           };
           break;
-          
+
         default:
           throw new Error(`Unsupported sync type: ${type}`);
       }
-      
+
       // Log the sync action
       await auditService.createAuditLog(
         userId,
         'mobile_data_sync',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           syncType: type,
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: `Data synchronized successfully for type: ${type}`,
-        data: responseData
+        data: responseData,
       });
     } catch (error) {
-      const apiError: ApiError = new Error(`Failed to synchronize data: ${(error as Error).message}`);
+      const apiError: ApiError = new Error(
+        `Failed to synchronize data: ${(error as Error).message}`,
+      );
       apiError.statusCode = 400;
       apiError.code = 'SYNC_ERROR';
       apiError.isOperational = true;
@@ -129,11 +135,15 @@ export const syncData = async (req: AuthRequest, res: Response, next: NextFuncti
 /**
  * Get election details for mobile app
  */
-export const getElectionDetails = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getElectionDetails = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { electionId } = req.params;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -141,11 +151,11 @@ export const getElectionDetails = async (req: AuthRequest, res: Response, next: 
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Get election details
       const election = await electionService.getElectionById(electionId);
-      
+
       if (!election) {
         const error: ApiError = new Error('Election not found');
         error.statusCode = 404;
@@ -153,22 +163,22 @@ export const getElectionDetails = async (req: AuthRequest, res: Response, next: 
         error.isOperational = true;
         throw error;
       }
-      
+
       // Get candidates for the election
-      const candidates = await electionService.getElectionCandidates(electionId);
-      
+      const candidatesResult = await electionService.getElectionCandidates(electionId);
+
       // Check voter eligibility
       const eligibility = await electionService.checkVoterEligibility(userId, electionId);
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'mobile_election_details_view',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { electionId }
+        { electionId },
       );
-      
+
       res.status(200).json({
         success: true,
         data: {
@@ -179,17 +189,17 @@ export const getElectionDetails = async (req: AuthRequest, res: Response, next: 
             startDate: election.startDate,
             endDate: election.endDate,
             status: election.status,
-            description: election.description
+            description: election.description,
           },
-          candidates: candidates.map((candidate: any) => ({
+          candidates: candidatesResult.candidates.map((candidate: any) => ({
             id: candidate.id,
             name: candidate.fullName,
             party: candidate.partyAffiliation,
             position: candidate.position,
-            photoUrl: candidate.photoUrl
+            photoUrl: candidate.photoUrl,
           })),
-          eligibility
-        }
+          eligibility,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to get election details');
@@ -206,12 +216,16 @@ export const getElectionDetails = async (req: AuthRequest, res: Response, next: 
 /**
  * Cast vote from mobile app
  */
-export const castVote = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const castVote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { electionId } = req.params;
     const { candidateId, encryptedVote, signature } = req.body;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -219,11 +233,11 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Check voter eligibility
       const eligibility = await electionService.checkVoterEligibility(userId, electionId);
-      
+
       if (!eligibility.isEligible) {
         const error: ApiError = new Error(`Voter is not eligible: ${eligibility.reason}`);
         error.statusCode = 403;
@@ -231,38 +245,38 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
         error.isOperational = true;
         throw error;
       }
-      
+
       // Verify signature
       // In a real implementation, this would involve proper signature verification
       const isSignatureValid = true; // Placeholder
-      
+
       if (!isSignatureValid) {
         throw new Error('Invalid signature');
       }
-      
+
       // Cast the vote
       const vote = await electionService.castVote(userId, electionId, candidateId, encryptedVote);
-      
+
       // Log the vote (without revealing the choice)
       await auditService.createAuditLog(
         userId,
         'mobile_vote_cast',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           electionId,
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       );
-      
+
       res.status(201).json({
         success: true,
         message: 'Vote cast successfully',
         data: {
           voteId: vote.id,
           receiptCode: vote.receiptCode,
-          timestamp: vote.timestamp
-        }
+          timestamp: vote.timestamp,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error(`Failed to cast vote: ${(error as Error).message}`);
@@ -274,4 +288,4 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
   } catch (error) {
     next(error);
   }
-}; 
+};

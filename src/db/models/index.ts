@@ -1,28 +1,21 @@
-import fs from "fs";
-import path from "path";
-import { Sequelize, DataTypes } from "sequelize";
-import { logger } from "../../config/logger";
-import config from "../../config/database";
+import fs from 'fs';
+import path from 'path';
+import { Sequelize, DataTypes } from 'sequelize';
+import { logger } from '../../config/logger';
+import config from '../../config/database';
 
-const env = process.env.NODE_ENV || "development";
+const env = process.env.NODE_ENV || 'development';
 const dbConfig = config[env as keyof typeof config];
 
 // Create Sequelize instance
-const sequelize = new Sequelize(
-  dbConfig.database,
-  dbConfig.username,
-  dbConfig.password,
-  {
-    host: dbConfig.host,
-    port: dbConfig.port,
-    dialect: dbConfig.dialect,
-    logging: dbConfig.logging,
-    ...(env === "production"
-      ? { dialectOptions: dbConfig.dialectOptions }
-      : {}),
-    ...(env === "production" ? { pool: dbConfig.pool } : {}),
-  },
-);
+const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
+  host: dbConfig.host,
+  port: dbConfig.port,
+  dialect: dbConfig.dialect,
+  logging: dbConfig.logging,
+  ...(env === 'production' ? { dialectOptions: dbConfig.dialectOptions } : {}),
+  ...(env === 'production' ? { pool: dbConfig.pool } : {}),
+});
 
 const db: {
   sequelize: Sequelize;
@@ -34,14 +27,14 @@ const db: {
 };
 
 // Import models dynamically
-const modelFiles = fs.readdirSync(__dirname).filter((file) => {
+const modelFiles = fs.readdirSync(__dirname).filter(file => {
   return (
-    file.indexOf(".") !== 0 &&
+    file.indexOf('.') !== 0 &&
     file !== path.basename(__filename) &&
-    (file.endsWith(".ts") || file.endsWith(".js")) &&
-    !file.endsWith(".test.ts") &&
-    !file.endsWith(".test.js") &&
-    !file.endsWith(".d.ts") // Exclude TypeScript declaration files
+    (file.endsWith('.ts') || file.endsWith('.js')) &&
+    !file.endsWith('.test.ts') &&
+    !file.endsWith('.test.js') &&
+    !file.endsWith('.d.ts') // Exclude TypeScript declaration files
   );
 });
 
@@ -50,7 +43,7 @@ for (const file of modelFiles) {
   try {
     const modelModule = require(path.join(__dirname, file));
     const model = modelModule.default;
-    
+
     // Check if the model has an initialize method
     if (model && typeof model.initialize === 'function') {
       // Initialize the model with sequelize
@@ -66,7 +59,7 @@ for (const file of modelFiles) {
 }
 
 // Second pass: Associate models after all models are initialized
-Object.keys(db).forEach((modelName) => {
+Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }

@@ -62,9 +62,10 @@ router.put(
   validate([
     body('phoneNumber')
       .optional()
-      .matches(/^\+?[0-9]{10,15}$/).withMessage(validationMessages.phoneNumber())
+      .matches(/^\+?[0-9]{10,15}$/)
+      .withMessage(validationMessages.phoneNumber()),
   ]),
-  voterController.updateProfile
+  voterController.updateProfile,
 );
 
 /**
@@ -104,16 +105,17 @@ router.put(
   authenticate,
   defaultLimiter,
   validate([
-    body('currentPassword')
-      .notEmpty().withMessage(validationMessages.required('Current password')),
-    
+    body('currentPassword').notEmpty().withMessage(validationMessages.required('Current password')),
+
     body('newPassword')
-      .notEmpty().withMessage(validationMessages.required('New password'))
-      .isLength({ min: 8 }).withMessage(validationMessages.min('New password', 8))
+      .notEmpty()
+      .withMessage(validationMessages.required('New password'))
+      .isLength({ min: 8 })
+      .withMessage(validationMessages.min('New password', 8))
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password())
+      .withMessage(validationMessages.password()),
   ]),
-  voterController.changePassword
+  voterController.changePassword,
 );
 
 /**
@@ -197,10 +199,12 @@ router.get(
   '/polling-units/:id',
   validate([
     param('id')
-      .notEmpty().withMessage(validationMessages.required('Polling Unit ID'))
-      .isUUID().withMessage(validationMessages.uuid('Polling Unit ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Polling Unit ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Polling Unit ID')),
   ]),
-  pollingUnitController.getPollingUnitById
+  pollingUnitController.getPollingUnitById,
 );
 
 /**
@@ -301,15 +305,15 @@ router.get('/verification-status', verificationController.getVerificationStatus)
 router.post(
   '/submit-verification',
   validate([
-    body('documentType')
-      .notEmpty().withMessage(validationMessages.required('Document type')),
-    body('documentNumber')
-      .notEmpty().withMessage(validationMessages.required('Document number')),
+    body('documentType').notEmpty().withMessage(validationMessages.required('Document type')),
+    body('documentNumber').notEmpty().withMessage(validationMessages.required('Document number')),
     body('documentImageUrl')
-      .notEmpty().withMessage(validationMessages.required('Document image URL'))
-      .isURL().withMessage(validationMessages.url('Document image URL'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Document image URL'))
+      .isURL()
+      .withMessage(validationMessages.url('Document image URL')),
   ]),
-  verificationController.submitVerification
+  verificationController.submitVerification,
 );
 
 /**
@@ -337,10 +341,12 @@ router.get(
   '/eligibility/:electionId',
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  voterController.checkEligibility
+  voterController.checkEligibility,
 );
 
 /**
@@ -385,10 +391,12 @@ router.get(
   '/verify-vote/:receiptCode',
   validate([
     param('receiptCode')
-      .notEmpty().withMessage(validationMessages.required('Receipt code'))
-      .isLength({ min: 16, max: 16 }).withMessage('Receipt code must be 16 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('Receipt code'))
+      .isLength({ min: 16, max: 16 })
+      .withMessage('Receipt code must be 16 characters'),
   ]),
-  voteController.verifyVote
+  voteController.verifyVote,
 );
 
 /**
@@ -430,19 +438,24 @@ router.post(
   '/report-vote-issue',
   validate([
     body('voteId')
-      .notEmpty().withMessage(validationMessages.required('Vote ID'))
-      .isUUID().withMessage(validationMessages.uuid('Vote ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Vote ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Vote ID')),
+
     body('issueType')
-      .notEmpty().withMessage(validationMessages.required('Issue type'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Issue type'))
       .isIn(['technical', 'fraud', 'coercion', 'other'])
       .withMessage('Issue type must be one of: technical, fraud, coercion, other'),
-    
+
     body('description')
-      .notEmpty().withMessage(validationMessages.required('Description'))
-      .isLength({ min: 10, max: 1000 }).withMessage('Description must be between 10 and 1000 characters')
+      .notEmpty()
+      .withMessage(validationMessages.required('Description'))
+      .isLength({ min: 10, max: 1000 })
+      .withMessage('Description must be between 10 and 1000 characters'),
   ]),
-  voteController.reportVoteIssue
+  voteController.reportVoteIssue,
 );
 
 /**

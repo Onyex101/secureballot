@@ -17,51 +17,47 @@ export const getElectionStatistics = async (electionId: string): Promise<any> =>
   if (!election) {
     throw new Error('Election not found');
   }
-  
+
   // Get total registered voters
   const totalRegisteredVoters = await Voter.count({
     include: [
       {
         model: VoterCard,
         as: 'voterCard',
-        required: true
-      }
-    ]
+        required: true,
+      },
+    ],
   });
-  
+
   // Get total votes cast
   const totalVotesCast = await Vote.count({
-    where: { electionId }
+    where: { electionId },
   });
-  
+
   // Get total USSD votes
   const totalUssdVotes = await UssdVote.count({
-    where: { electionId }
+    where: { electionId },
   });
-  
+
   // Get votes by polling unit
   const votesByPollingUnit = await Vote.findAll({
     where: { electionId },
-    attributes: [
-      'pollingUnitId',
-      [Sequelize.fn('COUNT', Sequelize.col('id')), 'voteCount']
-    ],
+    attributes: ['pollingUnitId', [Sequelize.fn('COUNT', Sequelize.col('id')), 'voteCount']],
     include: [
       {
         model: PollingUnit,
         as: 'pollingUnit',
-        attributes: ['id', 'name', 'code']
-      }
+        attributes: ['id', 'name', 'code'],
+      },
     ],
     group: ['pollingUnitId'],
-    order: [[Sequelize.literal('voteCount'), 'DESC']]
+    order: [[Sequelize.literal('voteCount'), 'DESC']],
   });
-  
+
   // Calculate voter turnout
-  const voterTurnout = totalRegisteredVoters > 0 
-    ? (totalVotesCast / totalRegisteredVoters) * 100 
-    : 0;
-  
+  const voterTurnout =
+    totalRegisteredVoters > 0 ? (totalVotesCast / totalRegisteredVoters) * 100 : 0;
+
   return {
     electionId: election.id,
     electionName: election.electionName,
@@ -73,7 +69,7 @@ export const getElectionStatistics = async (electionId: string): Promise<any> =>
     totalVotesCast,
     totalUssdVotes,
     voterTurnout,
-    votesByPollingUnit
+    votesByPollingUnit,
   };
 };
 
@@ -82,66 +78,63 @@ export const getElectionStatistics = async (electionId: string): Promise<any> =>
  */
 export const getElectionResults = async (
   electionId: string,
-  includePollingUnitBreakdown: boolean = false
+  includePollingUnitBreakdown: boolean = false,
 ): Promise<any> => {
   // Get the election
   const election = await Election.findByPk(electionId);
   if (!election) {
     throw new Error('Election not found');
   }
-  
+
   // Get all candidates for this election
   const candidates = await Candidate.findAll({
     where: { electionId },
-    attributes: ['id', 'fullName', 'partyName']
+    attributes: ['id', 'fullName', 'partyName'],
   });
-  
+
   // Get vote counts for each candidate
   const candidateResults = await Promise.all(
-    candidates.map(async (candidate) => {
+    candidates.map(async candidate => {
       // Count web votes
       const webVotes = await Vote.count({
         where: {
           electionId,
-          candidateId: candidate.id
-        }
+          candidateId: candidate.id,
+        },
       });
-      
+
       // Count USSD votes
       const ussdVotes = await UssdVote.count({
         where: {
           electionId,
-          candidateId: candidate.id
-        }
+          candidateId: candidate.id,
+        },
       });
-      
+
       // Total votes
       const totalVotes = webVotes + ussdVotes;
-      
+
       // Get polling unit breakdown if requested
       let pollingUnitBreakdown = null;
       if (includePollingUnitBreakdown) {
         pollingUnitBreakdown = await Vote.findAll({
           where: {
             electionId,
-            candidateId: candidate.id
+            candidateId: candidate.id,
           },
-          attributes: [
-            'pollingUnitId',
-            [Sequelize.fn('COUNT', Sequelize.col('id')), 'voteCount']
-          ],
+          attributes: ['pollingUnitId', [Sequelize.fn('COUNT', Sequelize.col('id')), 'voteCount']],
           include: [
             {
               model: PollingUnit,
               as: 'pollingUnit',
-              attributes: ['id', 'name', 'code']
-            }
+              attributes: ['id', 'name', 'code'],
+            },
           ],
           group: ['pollingUnitId'],
-          order: [[Sequelize.literal('voteCount'), 'DESC']]
+          order: [[Sequelize.literal('voteCount'), 'DESC']],
         });
       }
-      
+
       return {
         candidateId: candidate.id,
         candidateName: candidate.fullName,
@@ -149,35 +142,30 @@ export const getElectionResults = async (
         totalVotes,
         webVotes,
         ussdVotes,
-        pollingUnitBreakdown
+        pollingUnitBreakdown,
       };
-    })
+    }),
   );
-  
+
   // Sort by total votes in descending order
   candidateResults.sort((a, b) => b.totalVotes - a.totalVotes);
-  
+
   // Get total votes cast
-  const totalVotesCast = candidateResults.reduce(
-    (sum, candidate) => sum + candidate.totalVotes, 
-    0
-  );
-  
+  const totalVotesCast = candidateResults.reduce((sum, candidate) => sum + candidate.totalVotes, 0);
+
   // Calculate percentages
   const resultsWithPercentages = candidateResults.map(result => ({
     ...result,
-    percentage: totalVotesCast > 0 
-      ? (result.totalVotes / totalVotesCast) * 100 
-      : 0
+    percentage: totalVotesCast > 0 ? (result.totalVotes / totalVotesCast) * 100 : 0,
   }));
-  
+
   return {
     electionId: election.id,
     electionName: election.electionName,
     electionType: election.electionType,
     status: election.status,
     totalVotesCast,
-    results: resultsWithPercentages
+    results: resultsWithPercentages,
   };
 };
 
@@ -190,55 +178,55 @@ export const getRealTimeVotingStats = async (): Promise<any> => {
     where: {
       status: 'active',
       startDate: {
-        [Op.lte]: new Date()
+        [Op.lte]: new Date(),
       },
       endDate: {
-        [Op.gte]: new Date()
-      }
-    }
+        [Op.gte]: new Date(),
+      },
+    },
   });
-  
+
   // Get stats for each active election
   const electionStats = await Promise.all(
-    activeElections.map(async (election) => {
+    activeElections.map(async election => {
       // Get total votes cast
       const totalVotesCast = await Vote.count({
-        where: { 
+        where: {
           electionId: election.id,
           voteTimestamp: {
-            [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-          }
-        }
+            [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+          },
+        },
       });
-      
+
       // Get votes by hour for the last 24 hours
       const hourlyVotes = await Vote.findAll({
         where: {
           electionId: election.id,
           voteTimestamp: {
-            [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000)
-          }
+            [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          },
         },
         attributes: [
           [Sequelize.fn('date_trunc', 'hour', Sequelize.col('voteTimestamp')), 'hour'],
-          [Sequelize.fn('COUNT', Sequelize.col('id')), 'voteCount']
+          [Sequelize.fn('COUNT', Sequelize.col('id')), 'voteCount'],
         ],
         group: ['hour'],
-        order: [[Sequelize.col('hour'), 'ASC']]
+        order: [[Sequelize.col('hour'), 'ASC']],
       });
-      
+
       return {
         electionId: election.id,
         electionName: election.electionName,
         electionType: election.electionType,
         totalVotesCast,
-        hourlyVotes
+        hourlyVotes,
       };
-    })
+    }),
   );
-  
+
   return {
     timestamp: new Date(),
-    activeElections: electionStats
+    activeElections: electionStats,
   };
-}; 
+};

@@ -13,19 +13,14 @@ const env = process.env.NODE_ENV || 'development';
 const dbConfig = databaseConfig[env as keyof typeof databaseConfig];
 
 // Connect to database
-const sequelize = new Sequelize(
-  dbConfig.database,
-  dbConfig.username,
-  dbConfig.password,
-  {
-    host: dbConfig.host,
-    port: dbConfig.port,
-    dialect: dbConfig.dialect,
-    logging: dbConfig.logging,
-    ...(env === 'production' ? { dialectOptions: dbConfig.dialectOptions } : {}),
-    ...(env === 'production' ? { pool: dbConfig.pool } : {}),
-  }
-);
+const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
+  host: dbConfig.host,
+  port: dbConfig.port,
+  dialect: dbConfig.dialect,
+  logging: dbConfig.logging,
+  ...(env === 'production' ? { dialectOptions: dbConfig.dialectOptions } : {}),
+  ...(env === 'production' ? { pool: dbConfig.pool } : {}),
+});
 
 // Test database connection
 const testDbConnection = async () => {
@@ -71,9 +66,10 @@ const startServer = async () => {
       throw error;
     }
 
-    const bind = typeof serverConfig.port === 'string'
-      ? `Pipe ${serverConfig.port}`
-      : `Port ${serverConfig.port}`;
+    const bind =
+      typeof serverConfig.port === 'string'
+        ? `Pipe ${serverConfig.port}`
+        : `Port ${serverConfig.port}`;
 
     // Handle specific listen errors with friendly messages
     switch (error.code) {
@@ -95,12 +91,13 @@ const startServer = async () => {
     logger.info(`${signal} signal received: closing HTTP server...`);
     server.close(() => {
       logger.info('HTTP server closed');
-      sequelize.close()
+      sequelize
+        .close()
         .then(() => {
           logger.info('Database connection closed');
           process.exit(0);
         })
-        .catch((err) => {
+        .catch(err => {
           logger.error('Error closing database connection:', err);
           process.exit(1);
         });

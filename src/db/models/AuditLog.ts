@@ -1,19 +1,19 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 // Audit action types
 export enum AuditActionType {
-  LOGIN = "login",
-  LOGOUT = "logout",
-  REGISTRATION = "registration",
-  VERIFICATION = "verification",
-  PASSWORD_RESET = "password_reset",
-  PASSWORD_CHANGE = "password_change",
-  VOTE_CAST = "vote_cast",
-  PROFILE_UPDATE = "profile_update",
-  ELECTION_VIEW = "election_view",
-  MFA_SETUP = "mfa_setup",
-  MFA_VERIFY = "mfa_verify",
-  USSD_SESSION = "ussd_session",
+  LOGIN = 'login',
+  LOGOUT = 'logout',
+  REGISTRATION = 'registration',
+  VERIFICATION = 'verification',
+  PASSWORD_RESET = 'password_reset',
+  PASSWORD_CHANGE = 'password_change',
+  VOTE_CAST = 'vote_cast',
+  PROFILE_UPDATE = 'profile_update',
+  ELECTION_VIEW = 'election_view',
+  MFA_SETUP = 'mfa_setup',
+  MFA_VERIFY = 'mfa_verify',
+  USSD_SESSION = 'ussd_session',
 }
 
 interface AuditLogAttributes {
@@ -32,12 +32,7 @@ interface AuditLogAttributes {
 interface AuditLogCreationAttributes
   extends Optional<
     AuditLogAttributes,
-    | "id"
-    | "actionTimestamp"
-    | "actionDetails"
-    | "isSuspicious"
-    | "createdAt"
-    | "updatedAt"
+    'id' | 'actionTimestamp' | 'actionDetails' | 'isSuspicious' | 'createdAt' | 'updatedAt'
   > {}
 
 class AuditLog
@@ -56,14 +51,14 @@ class AuditLog
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     AuditLog.belongsTo(models.Voter, {
-      foreignKey: "userId",
-      as: "voter",
+      foreignKey: 'user_id',
+      as: 'voter',
       constraints: false,
     });
   }
@@ -78,23 +73,27 @@ class AuditLog
         },
         userId: {
           type: DataTypes.UUID,
+          field: 'user_id',
           allowNull: true,
         },
         actionType: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: 'action_type',
           validate: {
             notEmpty: true,
           },
         },
         actionTimestamp: {
           type: DataTypes.DATE,
+          field: 'action_timestamp',
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
         ipAddress: {
           type: DataTypes.STRING(255),
           allowNull: false,
+          field: 'ip_address',
           validate: {
             notEmpty: true,
           },
@@ -102,6 +101,7 @@ class AuditLog
         userAgent: {
           type: DataTypes.STRING(255),
           allowNull: false,
+          field: 'user_agent',
           validate: {
             notEmpty: true,
           },
@@ -109,35 +109,39 @@ class AuditLog
         actionDetails: {
           type: DataTypes.JSONB,
           allowNull: true,
+          field: 'action_details',
         },
         isSuspicious: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
+          field: 'is_suspicious',
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'updated_at',
         },
       },
       {
         sequelize,
-        modelName: "AuditLog",
-        tableName: "audit_logs",
+        modelName: 'AuditLog',
+        tableName: 'audit_logs',
         underscored: false,
         timestamps: true,
         indexes: [
-          { fields: ["userId"] },
-          { fields: ["actionType"] },
-          { fields: ["actionTimestamp"] },
-          { fields: ["ipAddress"] },
-          { fields: ["isSuspicious"] },
+          { fields: ['user_id'] },
+          { fields: ['action_type'] },
+          { fields: ['action_timestamp'] },
+          { fields: ['ip_address'] },
+          { fields: ['is_suspicious'] },
         ],
       },
     );

@@ -21,7 +21,7 @@ export const defaultLimiter: RateLimitRequestHandler = rateLimit({
       limit: options.max,
       windowMs: options.windowMs,
     });
-    
+
     res.status(options.statusCode).json(options.message);
   },
 });
@@ -45,7 +45,7 @@ export const authLimiter: RateLimitRequestHandler = rateLimit({
       limit: options.max,
       windowMs: options.windowMs,
     });
-    
+
     res.status(options.statusCode).json(options.message);
   },
 });
@@ -69,7 +69,7 @@ export const sensitiveOpLimiter: RateLimitRequestHandler = rateLimit({
       limit: options.max,
       windowMs: options.windowMs,
     });
-    
+
     res.status(options.statusCode).json(options.message);
   },
 });
@@ -93,7 +93,7 @@ export const ussdLimiter: RateLimitRequestHandler = rateLimit({
       limit: options.max,
       windowMs: options.windowMs,
     });
-    
+
     res.status(options.statusCode).json(options.message);
   },
 });
@@ -117,7 +117,7 @@ export const adminLimiter: RateLimitRequestHandler = rateLimit({
       limit: options.max,
       windowMs: options.windowMs,
     });
-    
+
     res.status(options.statusCode).json(options.message);
   },
 });
@@ -127,7 +127,7 @@ export const createRateLimiter = (
   windowMs: number,
   max: number,
   errorCode: string,
-  errorMessage: string
+  errorMessage: string,
 ): RateLimitRequestHandler => {
   return rateLimit({
     windowMs,
@@ -147,7 +147,7 @@ export const createRateLimiter = (
         limit: options.max,
         windowMs: options.windowMs,
       });
-      
+
       res.status(options.statusCode).json(options.message);
     },
   });

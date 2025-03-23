@@ -11,12 +11,21 @@ import Vote from '../db/models/Vote';
  */
 export const getVoterProfile = async (voterId: string): Promise<any> => {
   const voter = await Voter.findByPk(voterId, {
-    attributes: ['id', 'nin', 'vin', 'phoneNumber', 'dateOfBirth', 'isActive', 'createdAt', 'lastLogin'],
+    attributes: [
+      'id',
+      'nin',
+      'vin',
+      'phoneNumber',
+      'dateOfBirth',
+      'isActive',
+      'createdAt',
+      'lastLogin',
+    ],
     include: [
       {
         model: VerificationStatus,
         as: 'verificationStatus',
-        attributes: ['isVerified', 'state', 'verificationDate']
+        attributes: ['isVerified', 'state', 'verificationDate'],
       },
       {
         model: VoterCard,
@@ -26,11 +35,11 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
           {
             model: PollingUnit,
             as: 'pollingUnit',
-            attributes: ['id', 'name', 'code', 'address']
-          }
-        ]
-      }
-    ]
+            attributes: ['id', 'name', 'code', 'address'],
+          },
+        ],
+      },
+    ],
   });
 
   if (!voter) {
@@ -48,7 +57,7 @@ export const updateVoterProfile = async (
   updates: {
     phoneNumber?: string;
     dateOfBirth?: Date;
-  }
+  },
 ): Promise<any> => {
   const voter = await Voter.findByPk(voterId);
 
@@ -74,7 +83,7 @@ export const updateVoterProfile = async (
     phoneNumber: voter.phoneNumber,
     dateOfBirth: voter.dateOfBirth,
     isActive: voter.isActive,
-    lastLogin: voter.lastLogin
+    lastLogin: voter.lastLogin,
   };
 };
 
@@ -87,9 +96,9 @@ export const getVoterPollingUnit = async (voterId: string): Promise<any> => {
     include: [
       {
         model: PollingUnit,
-        as: 'pollingUnit'
-      }
-    ]
+        as: 'pollingUnit',
+      },
+    ],
   });
 
   if (!voterCard || !voterCard.get('pollingUnit')) {
@@ -104,7 +113,7 @@ export const getVoterPollingUnit = async (voterId: string): Promise<any> => {
  */
 export const checkVoterEligibility = async (
   voterId: string,
-  electionId: string
+  electionId: string,
 ): Promise<{
   isEligible: boolean;
   reason?: string;
@@ -114,55 +123,55 @@ export const checkVoterEligibility = async (
     include: [
       {
         model: VerificationStatus,
-        as: 'verificationStatus'
-      }
-    ]
+        as: 'verificationStatus',
+      },
+    ],
   });
-  
+
   if (!voter) {
     return {
       isEligible: false,
-      reason: 'Voter not found'
+      reason: 'Voter not found',
     };
   }
-  
+
   // Check if voter is active
   if (!voter.isActive) {
     return {
       isEligible: false,
-      reason: 'Voter account is inactive'
+      reason: 'Voter account is inactive',
     };
   }
-  
+
   // Check if voter is verified
   const verificationStatus = await VerificationStatus.findOne({
-    where: { userId: voterId }
+    where: { userId: voterId },
   });
-  
+
   if (!verificationStatus || !verificationStatus.isVerified) {
     return {
       isEligible: false,
-      reason: 'Voter is not verified'
+      reason: 'Voter is not verified',
     };
   }
-  
+
   // Check if voter has already voted in this election
   const hasVoted = await Vote.findOne({
     where: {
       userId: voterId,
-      electionId
-    }
+      electionId,
+    },
   });
-  
+
   if (hasVoted) {
     return {
       isEligible: false,
-      reason: 'Voter has already cast a vote in this election'
+      reason: 'Voter has already cast a vote in this election',
     };
   }
-  
+
   return {
-    isEligible: true
+    isEligible: true,
   };
 };
 
@@ -173,7 +182,7 @@ export const requestVerification = async (
   voterId: string,
   documentType: string,
   documentNumber: string,
-  documentImageUrl: string
+  documentImageUrl: string,
 ): Promise<any> => {
   // Find or create verification status
   const [verificationStatus, created] = await VerificationStatus.findOrCreate({
@@ -187,11 +196,11 @@ export const requestVerification = async (
         documentType,
         documentNumber,
         documentImageUrl,
-        submittedAt: new Date()
-      }
-    }
+        submittedAt: new Date(),
+      },
+    },
   });
-  
+
   // If verification status already exists, update it
   if (!created) {
     await verificationStatus.update({
@@ -201,16 +210,16 @@ export const requestVerification = async (
         documentType,
         documentNumber,
         documentImageUrl,
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     });
   }
-  
+
   return {
     id: verificationStatus.id,
     state: verificationStatus.state,
     isVerified: verificationStatus.isVerified,
-    submittedAt: created ? new Date() : verificationStatus.updatedAt
+    submittedAt: created ? new Date() : verificationStatus.updatedAt,
   };
 };
 
@@ -220,24 +229,24 @@ export const requestVerification = async (
 export const changePassword = async (
   voterId: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<boolean> => {
   // Find voter
   const voter = await Voter.findByPk(voterId);
-  
+
   if (!voter) {
     throw new Error('Voter not found');
   }
-  
+
   // Validate current password
   const isPasswordValid = await voter.validatePassword(currentPassword);
-  
+
   if (!isPasswordValid) {
     throw new Error('Current password is incorrect');
   }
-  
+
   // Update password
   await voter.updatePassword(newPassword);
-  
+
   return true;
 };

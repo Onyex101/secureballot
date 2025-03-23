@@ -1,28 +1,28 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 // Report type enum
 export enum ReportType {
-  OPENING = "opening",
-  VOTING_PROCESS = "voting_process",
-  CLOSING = "closing",
-  INCIDENT = "incident",
-  GENERAL = "general",
+  OPENING = 'opening',
+  VOTING_PROCESS = 'voting_process',
+  CLOSING = 'closing',
+  INCIDENT = 'incident',
+  GENERAL = 'general',
 }
 
 // Report severity enum
 export enum ReportSeverity {
-  INFO = "info",
-  CONCERN = "concern",
-  VIOLATION = "violation",
-  CRITICAL = "critical",
+  INFO = 'info',
+  CONCERN = 'concern',
+  VIOLATION = 'violation',
+  CRITICAL = 'critical',
 }
 
 // Report status enum
 export enum ReportStatus {
-  SUBMITTED = "submitted",
-  UNDER_REVIEW = "under_review",
-  RESOLVED = "resolved",
-  DISMISSED = "dismissed",
+  SUBMITTED = 'submitted',
+  UNDER_REVIEW = 'under_review',
+  RESOLVED = 'resolved',
+  DISMISSED = 'dismissed',
 }
 
 interface ObserverReportAttributes {
@@ -46,15 +46,15 @@ interface ObserverReportAttributes {
 interface ObserverReportCreationAttributes
   extends Optional<
     ObserverReportAttributes,
-    | "id"
-    | "mediaUrls"
-    | "reportedAt"
-    | "status"
-    | "officialResponse"
-    | "reviewedBy"
-    | "reviewedAt"
-    | "createdAt"
-    | "updatedAt"
+    | 'id'
+    | 'mediaUrls'
+    | 'reportedAt'
+    | 'status'
+    | 'officialResponse'
+    | 'reviewedBy'
+    | 'reviewedAt'
+    | 'createdAt'
+    | 'updatedAt'
   > {}
 
 class ObserverReport
@@ -78,30 +78,30 @@ class ObserverReport
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     ObserverReport.belongsTo(models.AdminUser, {
-      foreignKey: "observerId",
-      as: "observer",
+      foreignKey: 'observer_id',
+      as: 'observer',
     });
 
     ObserverReport.belongsTo(models.Election, {
-      foreignKey: "electionId",
-      as: "election",
+      foreignKey: 'election_id',
+      as: 'election',
     });
 
     ObserverReport.belongsTo(models.PollingUnit, {
-      foreignKey: "pollingUnitCode",
-      targetKey: "pollingUnitCode",
-      as: "pollingUnit",
+      foreignKey: 'polling_unit_code',
+      targetKey: 'pollingUnitCode',
+      as: 'polling_unit',
     });
 
     ObserverReport.belongsTo(models.AdminUser, {
-      foreignKey: "reviewedBy",
-      as: "reviewer",
+      foreignKey: 'reviewed_by',
+      as: 'reviewer',
     });
   }
 
@@ -116,36 +116,40 @@ class ObserverReport
         observerId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'observer_id',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
         },
         electionId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'election_id',
           references: {
-            model: "elections",
-            key: "id",
+            model: 'elections',
+            key: 'id',
           },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
         },
         pollingUnitCode: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: 'polling_unit_code',
           references: {
-            model: "polling_units",
-            key: "pollingUnitCode",
+            model: 'polling_units',
+            key: 'polling_unit_code',
           },
-          onDelete: "RESTRICT",
-          onUpdate: "CASCADE",
+          onDelete: 'RESTRICT',
+          onUpdate: 'CASCADE',
         },
         reportType: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: 'report_type',
           validate: {
             isIn: [Object.values(ReportType)],
           },
@@ -153,6 +157,7 @@ class ObserverReport
         reportDetails: {
           type: DataTypes.TEXT,
           allowNull: false,
+          field: 'report_details',
           validate: {
             notEmpty: true,
           },
@@ -168,11 +173,13 @@ class ObserverReport
         mediaUrls: {
           type: DataTypes.JSONB,
           allowNull: true,
+          field: 'media_urls',
         },
         reportedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'reported_at',
         },
         status: {
           type: DataTypes.STRING(50),
@@ -185,53 +192,58 @@ class ObserverReport
         officialResponse: {
           type: DataTypes.TEXT,
           allowNull: true,
+          field: 'official_response',
         },
         reviewedBy: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: 'reviewed_by',
           references: {
-            model: "admin_users",
-            key: "id",
+            model: 'admin_users',
+            key: 'id',
           },
-          onDelete: "SET NULL",
-          onUpdate: "CASCADE",
+          onDelete: 'SET NULL',
+          onUpdate: 'CASCADE',
         },
         reviewedAt: {
           type: DataTypes.DATE,
           allowNull: true,
+          field: 'reviewed_at',
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'updated_at',
         },
       },
       {
         sequelize,
-        modelName: "ObserverReport",
-        tableName: "observer_reports",
+        modelName: 'ObserverReport',
+        tableName: 'observer_reports',
         underscored: false,
         timestamps: true,
         indexes: [
-          { fields: ["observerId"] },
-          { fields: ["electionId"] },
-          { fields: ["pollingUnitCode"] },
-          { fields: ["reportType"] },
-          { fields: ["severity"] },
-          { fields: ["status"] },
-          { fields: ["reportedAt"] },
+          { fields: ['observer_id'] },
+          { fields: ['election_id'] },
+          { fields: ['polling_unit_code'] },
+          { fields: ['report_type'] },
+          { fields: ['severity'] },
+          { fields: ['status'] },
+          { fields: ['reported_at'] },
         ],
         hooks: {
           beforeUpdate: async (report: ObserverReport) => {
             // Set review timestamp when status changes from submitted
             if (
-              report.changed("status") &&
-              report.previous("status") === ReportStatus.SUBMITTED &&
+              report.changed('status') &&
+              report.previous('status') === ReportStatus.SUBMITTED &&
               report.status !== ReportStatus.SUBMITTED
             ) {
               report.reviewedAt = new Date();

@@ -9,7 +9,11 @@ import { AuditActionType } from '../../db/models/AuditLog';
  * @route GET /api/v1/voter/verification-status
  * @access Private
  */
-export const getVerificationStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getVerificationStatus = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
 
@@ -24,19 +28,19 @@ export const getVerificationStatus = async (req: AuthRequest, res: Response, nex
     try {
       // Get verification status
       const verificationStatus = await verificationService.getVerificationStatus(userId);
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'verification_status_check',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
-        data: verificationStatus
+        data: verificationStatus,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Verification status not found');
@@ -55,7 +59,11 @@ export const getVerificationStatus = async (req: AuthRequest, res: Response, nex
  * @route POST /api/v1/voter/submit-verification
  * @access Private
  */
-export const submitVerification = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const submitVerification = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
 
@@ -83,25 +91,25 @@ export const submitVerification = async (req: AuthRequest, res: Response, next: 
         userId,
         documentType,
         documentNumber,
-        documentImageUrl
+        documentImageUrl,
       );
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         AuditActionType.VERIFICATION,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           documentType,
-          verificationId: result.id
-        }
+          verificationId: result.id,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'Verification request submitted successfully',
-        data: result
+        data: result,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to submit verification request');
@@ -120,28 +128,29 @@ export const submitVerification = async (req: AuthRequest, res: Response, next: 
  * @route GET /api/v1/admin/pending-verifications
  * @access Private (Admin)
  */
-export const getPendingVerifications = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getPendingVerifications = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { page = 1, limit = 50 } = req.query;
-    
+
     // Get pending verifications
-    const result = await verificationService.getPendingVerifications(
-      Number(page),
-      Number(limit)
-    );
-    
+    const result = await verificationService.getPendingVerifications(Number(page), Number(limit));
+
     // Log the action
     await auditService.createAuditLog(
-      (req.user?.id as string),
+      req.user?.id as string,
       'pending_verifications_view',
       req.ip || '',
       req.headers['user-agent'] || '',
-      { query: req.query }
+      { query: req.query },
     );
-    
+
     res.status(200).json({
       success: true,
-      data: result
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -153,7 +162,11 @@ export const getPendingVerifications = async (req: AuthRequest, res: Response, n
  * @route POST /api/v1/admin/approve-verification/:id
  * @access Private (Admin)
  */
-export const approveVerification = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const approveVerification = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
@@ -169,28 +182,24 @@ export const approveVerification = async (req: AuthRequest, res: Response, next:
 
     try {
       // Approve verification
-      const result = await verificationService.approveVerification(
-        id,
-        adminId,
-        notes
-      );
-      
+      const result = await verificationService.approveVerification(id, adminId, notes);
+
       // Log the action
       await auditService.createAuditLog(
         adminId,
         'verification_approval',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           verificationId: id,
-          notes
-        }
+          notes,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'Verification request approved',
-        data: result
+        data: result,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to approve verification request');
@@ -209,7 +218,11 @@ export const approveVerification = async (req: AuthRequest, res: Response, next:
  * @route POST /api/v1/admin/reject-verification/:id
  * @access Private (Admin)
  */
-export const rejectVerification = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const rejectVerification = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -233,28 +246,24 @@ export const rejectVerification = async (req: AuthRequest, res: Response, next: 
 
     try {
       // Reject verification
-      const result = await verificationService.rejectVerification(
-        id,
-        adminId,
-        reason
-      );
-      
+      const result = await verificationService.rejectVerification(id, adminId, reason);
+
       // Log the action
       await auditService.createAuditLog(
         adminId,
         'verification_rejection',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           verificationId: id,
-          reason
-        }
+          reason,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'Verification request rejected',
-        data: result
+        data: result,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to reject verification request');

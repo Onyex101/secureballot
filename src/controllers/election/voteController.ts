@@ -15,15 +15,19 @@ import { voteService, notificationService } from '../../services';
  * @route POST /api/v1/elections/:electionId/vote
  * @access Private
  */
-export const castVote = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const castVote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   // Use a transaction to ensure data consistency
   const transaction = await sequelize.transaction();
-  
+
   try {
     const { electionId } = req.params;
     const { candidateId, encryptedVote } = req.body;
     const userId = req.user?.id;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -31,14 +35,14 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Check if voter is verified
     const verification = await db.VerificationStatus.findOne({
       where: { userId },
       attributes: ['isVerified'],
       transaction,
     });
-    
+
     if (!verification || !verification.isVerified) {
       const error: ApiError = new Error('Voter is not verified');
       error.statusCode = 403;
@@ -46,14 +50,14 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Get voter's assigned polling unit
     const voterCard = await db.VoterCard.findOne({
       where: { userId },
       attributes: ['pollingUnitCode'],
       transaction,
     });
-    
+
     if (!voterCard) {
       const error: ApiError = new Error('Voter card not found');
       error.statusCode = 404;
@@ -61,14 +65,14 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Get polling unit ID
     const pollingUnit = await db.PollingUnit.findOne({
       where: { pollingUnitCode: voterCard.pollingUnitCode },
       attributes: ['id'],
       transaction,
     });
-    
+
     if (!pollingUnit) {
       const error: ApiError = new Error('Polling unit not found');
       error.statusCode = 404;
@@ -76,13 +80,13 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Get election
     const election = await db.Election.findByPk(electionId, {
       attributes: ['id', 'electionName', 'status', 'startDate', 'endDate', 'isActive'],
       transaction,
     });
-    
+
     if (!election) {
       const error: ApiError = new Error('Election not found');
       error.statusCode = 404;
@@ -90,7 +94,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Check if election is active
     if (!election.isActive || election.status !== ElectionStatus.ACTIVE) {
       const error: ApiError = new Error('Election is not active');
@@ -99,7 +103,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Check if election is within its timeframe
     const now = new Date();
     if (now < election.startDate || now > election.endDate) {
@@ -114,7 +118,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       };
       throw error;
     }
-    
+
     // Check if voter has already voted in this election
     const existingVote = await db.Vote.findOne({
       where: {
@@ -123,7 +127,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       },
       transaction,
     });
-    
+
     if (existingVote) {
       const error: ApiError = new Error('Voter has already cast a vote in this election');
       error.statusCode = 403;
@@ -131,7 +135,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Verify candidate exists and is active
     const candidate = await db.Candidate.findOne({
       where: {
@@ -141,7 +145,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       },
       transaction,
     });
-    
+
     if (!candidate) {
       const error: ApiError = new Error('Invalid candidate');
       error.statusCode = 400;
@@ -149,7 +153,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Process the encrypted vote
     if (!encryptedVote) {
       const error: ApiError = new Error('Encrypted vote data is required');
@@ -158,7 +162,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       error.isOperational = true;
       throw error;
     }
-    
+
     // Convert base64 encrypted vote to buffer
     let encryptedVoteBuffer: Buffer;
     try {
@@ -170,52 +174,55 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
       err.isOperational = true;
       throw err;
     }
-    
+
     // Generate vote hash for integrity verification
-    const voteHash = crypto
-      .createHash('sha256')
-      .update(encryptedVoteBuffer)
-      .digest('hex');
-    
+    const voteHash = crypto.createHash('sha256').update(encryptedVoteBuffer).digest('hex');
+
     // Create the vote record
-    const vote = await db.Vote.create({
-      userId,
-      electionId,
-      candidateId,
-      pollingUnitId: pollingUnit.id,
-      encryptedVoteData: encryptedVoteBuffer,
-      voteHash,
-      voteTimestamp: new Date(),
-      voteSource: VoteSource.WEB,
-      isCounted: false, // Will be set to true during vote counting process
-    }, { transaction });
-    
-    // Log the vote casting
-    await db.AuditLog.create({
-      userId,
-      actionType: AuditActionType.VOTE_CAST,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      actionDetails: {
+    const vote = await db.Vote.create(
+      {
+        userId,
         electionId,
-        electionName: election.electionName,
-        pollingUnitCode: voterCard.pollingUnitCode,
-        voteTimestamp: vote.voteTimestamp,
-        voteSource: vote.voteSource,
-        voteHash: voteHash.substring(0, 10) + '...' // Only log part of the hash for privacy
+        candidateId,
+        pollingUnitId: pollingUnit.id,
+        encryptedVoteData: encryptedVoteBuffer,
+        voteHash,
+        voteTimestamp: new Date(),
+        voteSource: VoteSource.WEB,
+        isCounted: false, // Will be set to true during vote counting process
       },
-    }, { transaction });
-    
+      { transaction },
+    );
+
+    // Log the vote casting
+    await db.AuditLog.create(
+      {
+        userId,
+        actionType: AuditActionType.VOTE_CAST,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'] || 'Unknown',
+        actionDetails: {
+          electionId,
+          electionName: election.electionName,
+          pollingUnitCode: voterCard.pollingUnitCode,
+          voteTimestamp: vote.voteTimestamp,
+          voteSource: vote.voteSource,
+          voteHash: voteHash.substring(0, 10) + '...', // Only log part of the hash for privacy
+        },
+      },
+      { transaction },
+    );
+
     // Commit the transaction
     await transaction.commit();
-    
+
     // Generate a receipt code for the voter
     const receiptCode = crypto
       .createHash('sha256')
       .update(`${userId}-${electionId}-${voteHash}`)
       .digest('hex')
       .substring(0, 16);
-    
+
     // Return success response
     res.status(201).json({
       code: 'VOTE_CAST_SUCCESS',
@@ -225,7 +232,7 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
         timestamp: vote.voteTimestamp,
         electionName: election.electionName,
         receiptCode,
-        verificationUrl: `/api/v1/voter/verify-vote/${receiptCode}`
+        verificationUrl: `/api/v1/voter/verify-vote/${receiptCode}`,
       },
     });
   } catch (error) {
@@ -240,11 +247,15 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
  * @route GET /api/v1/voter/verify-vote/:receiptCode
  * @access Private
  */
-export const verifyVote = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const verifyVote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { receiptCode } = req.params;
     const userId = req.user?.id;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -252,11 +263,11 @@ export const verifyVote = async (req: AuthRequest, res: Response, next: NextFunc
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Verify the vote using the vote service
       const verificationResult = await voteService.verifyVote(receiptCode);
-      
+
       // Log the verification attempt
       await db.AuditLog.create({
         userId,
@@ -266,26 +277,26 @@ export const verifyVote = async (req: AuthRequest, res: Response, next: NextFunc
         details: {
           receiptCode,
           isValid: verificationResult.isValid,
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       });
-      
+
       if (!verificationResult.isValid) {
         res.status(404).json({
           success: false,
-          message: 'Invalid receipt code. No vote found with this code.'
+          message: 'Invalid receipt code. No vote found with this code.',
         });
         return;
       }
-      
+
       res.status(200).json({
         success: true,
         message: 'Vote verified successfully',
         data: {
           isValid: true,
           timestamp: verificationResult.timestamp,
-          electionName: verificationResult.electionName
-        }
+          electionName: verificationResult.electionName,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to verify vote');
@@ -304,10 +315,14 @@ export const verifyVote = async (req: AuthRequest, res: Response, next: NextFunc
  * @route GET /api/v1/voter/vote-history
  * @access Private
  */
-export const getVoteHistory = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getVoteHistory = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -315,11 +330,11 @@ export const getVoteHistory = async (req: AuthRequest, res: Response, next: Next
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Get vote history using the vote service
       const voteHistory = await voteService.getVoteHistory(userId);
-      
+
       // Log the action
       await db.AuditLog.create({
         userId,
@@ -327,16 +342,16 @@ export const getVoteHistory = async (req: AuthRequest, res: Response, next: Next
         ipAddress: req.ip || '',
         userAgent: req.headers['user-agent'] || '',
         details: {
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       });
-      
+
       res.status(200).json({
         success: true,
         message: 'Vote history retrieved successfully',
         data: {
-          votes: voteHistory
-        }
+          votes: voteHistory,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to retrieve vote history');
@@ -355,11 +370,15 @@ export const getVoteHistory = async (req: AuthRequest, res: Response, next: Next
  * @route POST /api/v1/voter/report-vote-issue
  * @access Private
  */
-export const reportVoteIssue = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const reportVoteIssue = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId, receiptCode, issueType, description } = req.body;
     const userId = req.user?.id;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -367,30 +386,30 @@ export const reportVoteIssue = async (req: AuthRequest, res: Response, next: Nex
       error.isOperational = true;
       throw error;
     }
-    
+
     // Validate the receipt code if provided
     if (receiptCode) {
       // Find votes by this user
       const votes = await db.Vote.findAll({
         where: { userId, electionId },
       });
-      
+
       // Check each vote to see if it matches the receipt code
       let validReceipt = false;
-      
+
       for (const vote of votes) {
         const calculatedReceiptCode = crypto
           .createHash('sha256')
           .update(`${userId}-${electionId}-${vote.voteHash}`)
           .digest('hex')
           .substring(0, 16);
-        
+
         if (calculatedReceiptCode === receiptCode) {
           validReceipt = true;
           break;
         }
       }
-      
+
       if (!validReceipt) {
         const error: ApiError = new Error('Invalid receipt code');
         error.statusCode = 400;
@@ -399,7 +418,7 @@ export const reportVoteIssue = async (req: AuthRequest, res: Response, next: Nex
         throw error;
       }
     }
-    
+
     // Log the vote issue
     await db.AuditLog.create({
       userId,
@@ -415,10 +434,10 @@ export const reportVoteIssue = async (req: AuthRequest, res: Response, next: Nex
       },
       isSuspicious: true, // Flag for investigation
     });
-    
+
     // Create a support ticket in a real implementation
     // Here we're just simulating that process
-    
+
     // Return success response
     res.status(200).json({
       code: 'VOTE_ISSUE_REPORTED',
@@ -438,11 +457,15 @@ export const reportVoteIssue = async (req: AuthRequest, res: Response, next: Nex
  * @route GET /api/v1/elections/:electionId/voting-status
  * @access Private
  */
-export const checkVotingStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const checkVotingStatus = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId } = req.params;
     const userId = req.user?.id;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -450,11 +473,11 @@ export const checkVotingStatus = async (req: AuthRequest, res: Response, next: N
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Check if election exists
       const election = await db.Election.findByPk(electionId);
-      
+
       if (!election) {
         const error: ApiError = new Error('Election not found');
         error.statusCode = 404;
@@ -462,15 +485,15 @@ export const checkVotingStatus = async (req: AuthRequest, res: Response, next: N
         error.isOperational = true;
         throw error;
       }
-      
+
       // Check if voter has already voted
       const existingVote = await db.Vote.findOne({
         where: {
           userId,
-          electionId
-        }
+          electionId,
+        },
       });
-      
+
       // Log the action
       await db.AuditLog.create({
         userId,
@@ -480,16 +503,16 @@ export const checkVotingStatus = async (req: AuthRequest, res: Response, next: N
         details: {
           action: 'check_voting_status',
           electionId,
-          hasVoted: !!existingVote
-        }
+          hasVoted: !!existingVote,
+        },
       });
-      
+
       res.status(200).json({
         success: true,
         data: {
           hasVoted: !!existingVote,
-          votingTimestamp: existingVote ? existingVote.voteTimestamp : null
-        }
+          votingTimestamp: existingVote ? existingVote.voteTimestamp : null,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to check voting status');

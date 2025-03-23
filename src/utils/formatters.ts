@@ -32,14 +32,14 @@ export const formatPercentage = (value: number, decimalPlaces: number = 2): stri
 export const formatPhoneNumber = (phoneNumber: string): string => {
   // Remove all non-digit characters
   const cleaned = phoneNumber.replace(/\D/g, '');
-  
+
   // Check if it's a Nigerian number
   if (cleaned.startsWith('234') && cleaned.length === 13) {
     return `+${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 9)} ${cleaned.slice(9)}`;
   } else if (cleaned.startsWith('0') && cleaned.length === 11) {
     return `+234 ${cleaned.slice(1, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
   }
-  
+
   // Return original if not matching expected format
   return phoneNumber;
 };
@@ -50,12 +50,12 @@ export const formatPhoneNumber = (phoneNumber: string): string => {
 export const formatNIN = (nin: string): string => {
   // Remove all non-digit characters
   const cleaned = nin.replace(/\D/g, '');
-  
+
   // Check if it's a valid NIN (11 digits)
   if (cleaned.length === 11) {
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
   }
-  
+
   // Return original if not matching expected format
   return nin;
 };
@@ -66,12 +66,12 @@ export const formatNIN = (nin: string): string => {
 export const formatVIN = (vin: string): string => {
   // Remove all non-alphanumeric characters
   const cleaned = vin.replace(/[^a-zA-Z0-9]/g, '');
-  
+
   // Check if it's a valid VIN (19 characters)
   if (cleaned.length === 19) {
     return `${cleaned.slice(0, 5)}-${cleaned.slice(5, 10)}-${cleaned.slice(10, 15)}-${cleaned.slice(15)}`;
   }
-  
+
   // Return original if not matching expected format
   return vin;
 };
@@ -92,7 +92,7 @@ export const truncateText = (text: string, maxLength: number): string => {
 export const toTitleCase = (text: string): string => {
   return text.replace(
     /\w\S*/g,
-    (word) => word.charAt(0).toUpperCase() + word.substring(1).toLowerCase()
+    word => word.charAt(0).toUpperCase() + word.substring(1).toLowerCase(),
   );
 };
 
@@ -101,10 +101,10 @@ export const toTitleCase = (text: string): string => {
  */
 export const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };

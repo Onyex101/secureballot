@@ -8,26 +8,30 @@ import { ApiError } from '../../middleware/errorHandler';
  * @route GET /api/v1/results/statistics/:electionId
  * @access Private
  */
-export const getElectionStatistics = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getElectionStatistics = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId } = req.params;
-    
+
     try {
       // Get election statistics
       const statistics = await statisticsService.getElectionStatistics(electionId);
-      
+
       // Log the action
       await auditService.createAuditLog(
         (req.user?.id as string) || 'anonymous',
         'election_statistics_view',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { electionId }
+        { electionId },
       );
-      
+
       res.status(200).json({
         success: true,
-        data: statistics
+        data: statistics,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to get election statistics');
@@ -46,33 +50,37 @@ export const getElectionStatistics = async (req: AuthRequest, res: Response, nex
  * @route GET /api/v1/results/elections/:electionId
  * @access Private
  */
-export const getElectionResults = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getElectionResults = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { electionId } = req.params;
     const { includePollingUnitBreakdown = false } = req.query;
-    
+
     try {
       // Get election results
       const results = await statisticsService.getElectionResults(
         electionId,
-        includePollingUnitBreakdown === 'true'
+        includePollingUnitBreakdown === 'true',
       );
-      
+
       // Log the action
       await auditService.createAuditLog(
         (req.user?.id as string) || 'anonymous',
         'election_results_view',
         req.ip || '',
         req.headers['user-agent'] || '',
-        { 
+        {
           electionId,
-          includePollingUnitBreakdown
-        }
+          includePollingUnitBreakdown,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
-        data: results
+        data: results,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to get election results');
@@ -91,24 +99,28 @@ export const getElectionResults = async (req: AuthRequest, res: Response, next: 
  * @route GET /api/v1/results/live
  * @access Private
  */
-export const getRealTimeVotingStats = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getRealTimeVotingStats = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     try {
       // Get real-time voting statistics
       const stats = await statisticsService.getRealTimeVotingStats();
-      
+
       // Log the action
       await auditService.createAuditLog(
         (req.user?.id as string) || 'anonymous',
         'real_time_stats_view',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
-        data: stats
+        data: stats,
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to get real-time voting statistics');

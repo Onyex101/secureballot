@@ -6,15 +6,8 @@ import { auditService } from '../../services';
  */
 export const getAuditLogs = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { 
-      actionType, 
-      startDate, 
-      endDate, 
-      userId, 
-      page = 1, 
-      limit = 50 
-    } = req.query;
-    
+    const { actionType, startDate, endDate, userId, page = 1, limit = 50 } = req.query;
+
     // Get audit logs from service
     const result = await auditService.getAuditLogs(
       actionType as string,
@@ -22,28 +15,28 @@ export const getAuditLogs = async (req: Request, res: Response): Promise<void> =
       endDate as string,
       userId as string,
       Number(page),
-      Number(limit)
+      Number(limit),
     );
-    
+
     // Log this audit log view
     await auditService.createAuditLog(
       (req as any).user.id,
       'audit_log_view',
       req.ip || '',
       req.headers['user-agent'] || '',
-      { query: req.query }
+      { query: req.query },
     );
-    
+
     res.status(200).json({
       success: true,
-      data: result
+      data: result,
     });
   } catch (error) {
     console.error('Error fetching audit logs:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch audit logs',
-      error: (error as Error).message
+      error: (error as Error).message,
     });
   }
 };

@@ -9,14 +9,14 @@ export const generateKeyPair = () => {
     modulusLength: 2048,
     publicKeyEncoding: {
       type: 'spki',
-      format: 'pem'
+      format: 'pem',
     },
     privateKeyEncoding: {
       type: 'pkcs8',
-      format: 'pem'
-    }
+      format: 'pem',
+    },
   });
-  
+
   return { publicKey, privateKey };
 };
 
@@ -27,11 +27,11 @@ export const encryptWithPublicKey = (data: string, publicKey: string) => {
   const encryptedData = crypto.publicEncrypt(
     {
       key: publicKey,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
     },
-    Buffer.from(data)
+    Buffer.from(data),
   );
-  
+
   return encryptedData.toString('base64');
 };
 
@@ -42,11 +42,11 @@ export const decryptWithPrivateKey = (encryptedData: string, privateKey: string)
   const decryptedData = crypto.privateDecrypt(
     {
       key: privateKey,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
     },
-    Buffer.from(encryptedData, 'base64')
+    Buffer.from(encryptedData, 'base64'),
   );
-  
+
   return decryptedData.toString();
 };
 
@@ -63,13 +63,13 @@ export const generateAESKey = () => {
 export const encryptWithAES = (data: string, key: string) => {
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
-  
+
   let encrypted = cipher.update(data, 'utf8', 'base64');
   encrypted += cipher.final('base64');
-  
+
   return {
     iv: iv.toString('hex'),
-    encryptedData: encrypted
+    encryptedData: encrypted,
   };
 };
 
@@ -77,11 +77,15 @@ export const encryptWithAES = (data: string, key: string) => {
  * Decrypt data with AES key
  */
 export const decryptWithAES = (encryptedData: string, iv: string, key: string) => {
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), Buffer.from(iv, 'hex'));
-  
+  const decipher = crypto.createDecipheriv(
+    'aes-256-cbc',
+    Buffer.from(key, 'hex'),
+    Buffer.from(iv, 'hex'),
+  );
+
   let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
   decrypted += decipher.final('utf8');
-  
+
   return decrypted;
 };
 

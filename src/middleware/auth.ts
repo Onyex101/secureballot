@@ -18,11 +18,7 @@ type RoleType = string | string[] | undefined;
 /**
  * Middleware to authenticate JWT token
  */
-export const authenticate = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     // Get token from header
     const authHeader = req.headers.authorization;
@@ -39,10 +35,7 @@ export const authenticate = async (
 
     // Verify token
     try {
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || 'default-secret-key'
-      ) as {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret-key') as {
         id: string;
         role?: string;
         permissions?: string[];
@@ -133,8 +126,8 @@ export const hasPermission = (requiredPermissions: string | string[]) => {
       }
 
       // Check if user has all required permissions
-      const hasAllPermissions = permissions.every((permission) =>
-        req.user?.permissions?.includes(permission)
+      const hasAllPermissions = permissions.every(permission =>
+        req.user?.permissions?.includes(permission),
       );
 
       if (hasAllPermissions) {

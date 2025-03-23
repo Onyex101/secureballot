@@ -22,7 +22,7 @@ const createDatabase = async () => {
     const mainDbExists = await pool.query(`
       SELECT 1 FROM pg_database WHERE datname = '${dbName}'
     `);
-    
+
     // Create main database if it doesn't exist
     if (mainDbExists.rowCount === 0) {
       await pool.query(`CREATE DATABASE ${dbName}`);
@@ -35,7 +35,7 @@ const createDatabase = async () => {
     const testDbExists = await pool.query(`
       SELECT 1 FROM pg_database WHERE datname = '${dbNameTest}'
     `);
-    
+
     // Create test database if it doesn't exist
     if (testDbExists.rowCount === 0) {
       await pool.query(`CREATE DATABASE ${dbNameTest}`);
@@ -80,7 +80,7 @@ if (require.main === module) {
       logger.info('Database creation script completed');
       process.exit(0);
     })
-    .catch((error) => {
+    .catch(error => {
       logger.error('Database creation script failed:', error);
       process.exit(1);
     });

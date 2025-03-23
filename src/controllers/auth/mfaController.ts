@@ -8,7 +8,11 @@ import { ApiError } from '../../middleware/errorHandler';
  * @route POST /api/v1/auth/setup-mfa
  * @access Private
  */
-export const setupMfa = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const setupMfa = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const isAdmin = req.user?.role !== 'voter';
@@ -24,24 +28,24 @@ export const setupMfa = async (req: AuthRequest, res: Response, next: NextFuncti
     try {
       // Generate MFA secret
       const result = await mfaService.generateMfaSecret(userId, isAdmin);
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'mfa_setup',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'MFA setup information generated',
         data: {
           secret: result.secret,
           otpAuthUrl: result.otpAuthUrl,
-          qrCodeUrl: result.qrCodeUrl
-        }
+          qrCodeUrl: result.qrCodeUrl,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to set up MFA');
@@ -60,7 +64,11 @@ export const setupMfa = async (req: AuthRequest, res: Response, next: NextFuncti
  * @route POST /api/v1/auth/enable-mfa
  * @access Private
  */
-export const enableMfa = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const enableMfa = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { token } = req.body;
@@ -77,7 +85,7 @@ export const enableMfa = async (req: AuthRequest, res: Response, next: NextFunct
     try {
       // Verify and enable MFA
       const verified = await mfaService.verifyMfaToken(userId, token, isAdmin);
-      
+
       if (!verified) {
         const error: ApiError = new Error('Invalid MFA token');
         error.statusCode = 401;
@@ -85,19 +93,19 @@ export const enableMfa = async (req: AuthRequest, res: Response, next: NextFunct
         error.isOperational = true;
         throw error;
       }
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'mfa_enabled',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
-        message: 'MFA enabled successfully'
+        message: 'MFA enabled successfully',
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to enable MFA');
@@ -116,7 +124,11 @@ export const enableMfa = async (req: AuthRequest, res: Response, next: NextFunct
  * @route POST /api/v1/auth/disable-mfa
  * @access Private
  */
-export const disableMfa = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const disableMfa = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { token } = req.body;
@@ -133,7 +145,7 @@ export const disableMfa = async (req: AuthRequest, res: Response, next: NextFunc
     try {
       // Disable MFA
       const result = await mfaService.disableMfa(userId, token, isAdmin);
-      
+
       if (!result) {
         const error: ApiError = new Error('Invalid MFA token');
         error.statusCode = 401;
@@ -141,19 +153,19 @@ export const disableMfa = async (req: AuthRequest, res: Response, next: NextFunc
         error.isOperational = true;
         throw error;
       }
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'mfa_disabled',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
-        message: 'MFA disabled successfully'
+        message: 'MFA disabled successfully',
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to disable MFA');
@@ -172,7 +184,11 @@ export const disableMfa = async (req: AuthRequest, res: Response, next: NextFunc
  * @route POST /api/v1/auth/generate-backup-codes
  * @access Private
  */
-export const generateBackupCodes = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const generateBackupCodes = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const isAdmin = req.user?.role !== 'voter';
@@ -188,22 +204,22 @@ export const generateBackupCodes = async (req: AuthRequest, res: Response, next:
     try {
       // Generate backup codes
       const backupCodes = await mfaService.generateBackupCodes(userId, isAdmin);
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'backup_codes_generated',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'Backup codes generated successfully',
         data: {
-          backupCodes
-        }
+          backupCodes,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to generate backup codes');
@@ -222,7 +238,11 @@ export const generateBackupCodes = async (req: AuthRequest, res: Response, next:
  * @route POST /api/v1/auth/verify-backup-code
  * @access Public
  */
-export const verifyBackupCode = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const verifyBackupCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { userId, backupCode } = req.body;
     const isAdmin = req.body.isAdmin === true;
@@ -230,7 +250,7 @@ export const verifyBackupCode = async (req: Request, res: Response, next: NextFu
     try {
       // Verify backup code
       const verified = await mfaService.verifyBackupCode(userId, backupCode, isAdmin);
-      
+
       if (!verified) {
         const error: ApiError = new Error('Invalid backup code');
         error.statusCode = 401;
@@ -238,19 +258,19 @@ export const verifyBackupCode = async (req: Request, res: Response, next: NextFu
         error.isOperational = true;
         throw error;
       }
-      
+
       // Log the action
       await auditService.createAuditLog(
         userId,
         'backup_code_used',
         req.ip || '',
         req.headers['user-agent'] || '',
-        {}
+        {},
       );
-      
+
       res.status(200).json({
         success: true,
-        message: 'Backup code verified successfully'
+        message: 'Backup code verified successfully',
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to verify backup code');

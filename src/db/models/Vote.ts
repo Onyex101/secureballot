@@ -23,7 +23,11 @@ interface VoteAttributes {
   updatedAt: Date;
 }
 
-interface VoteCreationAttributes extends Optional<VoteAttributes, 'id' | 'voteTimestamp' | 'isCounted' | 'createdAt' | 'updatedAt'> {}
+interface VoteCreationAttributes
+  extends Optional<
+    VoteAttributes,
+    'id' | 'voteTimestamp' | 'isCounted' | 'createdAt' | 'updatedAt'
+  > {}
 
 class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements VoteAttributes {
   public id!: string;
@@ -46,23 +50,23 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
   // Model associations
   public static associate(models: any): void {
     Vote.belongsTo(models.Voter, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       as: 'voter',
     });
 
     Vote.belongsTo(models.Election, {
-      foreignKey: 'electionId',
+      foreignKey: 'election_id',
       as: 'election',
     });
 
     Vote.belongsTo(models.Candidate, {
-      foreignKey: 'candidateId',
+      foreignKey: 'candidate_id',
       as: 'candidate',
     });
 
     Vote.belongsTo(models.PollingUnit, {
-      foreignKey: 'pollingUnitId',
-      as: 'pollingUnit',
+      foreignKey: 'polling_unit_id',
+      as: 'polling_unit',
     });
   }
 
@@ -77,6 +81,7 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
         userId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'user_id',
           references: {
             model: 'voters',
             key: 'id',
@@ -87,6 +92,7 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
         electionId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'election_id',
           references: {
             model: 'elections',
             key: 'id',
@@ -97,6 +103,7 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
         candidateId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'candidate_id',
           references: {
             model: 'candidates',
             key: 'id',
@@ -107,6 +114,7 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
         pollingUnitId: {
           type: DataTypes.UUID,
           allowNull: false,
+          field: 'polling_unit_id',
           references: {
             model: 'polling_units',
             key: 'id',
@@ -115,19 +123,23 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
           onUpdate: 'CASCADE',
         },
         encryptedVoteData: {
+          field: 'encrypted_vote_data',
           type: DataTypes.BLOB,
           allowNull: false,
         },
         voteHash: {
+          field: 'vote_hash',
           type: DataTypes.STRING(255),
           allowNull: false,
         },
         voteTimestamp: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: 'vote_timestamp',
           defaultValue: DataTypes.NOW,
         },
         voteSource: {
+          field: 'vote_source',
           type: DataTypes.STRING(50),
           allowNull: false,
           validate: {
@@ -135,16 +147,19 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
           },
         },
         isCounted: {
+          field: 'is_counted',
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
         },
         createdAt: {
+          field: 'created_at',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
+          field: 'updated_at',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
@@ -157,15 +172,15 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
         underscored: false,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ['userId', 'electionId'] },
-          { fields: ['electionId'] },
-          { fields: ['candidateId'] },
-          { fields: ['pollingUnitId'] },
-          { fields: ['voteTimestamp'] },
-          { fields: ['voteSource'] },
-          { fields: ['isCounted'] },
+          { unique: true, fields: ['user_id', 'election_id'] },
+          { fields: ['election_id'] },
+          { fields: ['candidate_id'] },
+          { fields: ['polling_unit_id'] },
+          { fields: ['vote_timestamp'] },
+          { fields: ['vote_source'] },
+          { fields: ['is_counted'] },
         ],
-      }
+      },
     );
   }
 }

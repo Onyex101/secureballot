@@ -1,15 +1,15 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 // USSD session status enum
 export enum UssdSessionStatus {
-  CREATED = "created",
-  AUTHENTICATED = "authenticated",
-  ELECTION_SELECTED = "election_selected",
-  CANDIDATE_SELECTED = "candidate_selected",
-  VOTE_CONFIRMED = "vote_confirmed",
-  COMPLETED = "completed",
-  EXPIRED = "expired",
-  CANCELLED = "cancelled",
+  CREATED = 'created',
+  AUTHENTICATED = 'authenticated',
+  ELECTION_SELECTED = 'election_selected',
+  CANDIDATE_SELECTED = 'candidate_selected',
+  VOTE_CONFIRMED = 'vote_confirmed',
+  COMPLETED = 'completed',
+  EXPIRED = 'expired',
+  CANCELLED = 'cancelled',
 }
 
 interface UssdSessionAttributes {
@@ -29,13 +29,7 @@ interface UssdSessionAttributes {
 interface UssdSessionCreationAttributes
   extends Optional<
     UssdSessionAttributes,
-    | "id"
-    | "userId"
-    | "sessionData"
-    | "isActive"
-    | "lastActivity"
-    | "createdAt"
-    | "updatedAt"
+    'id' | 'userId' | 'sessionData' | 'isActive' | 'lastActivity' | 'createdAt' | 'updatedAt'
   > {}
 
 class UssdSession
@@ -55,19 +49,19 @@ class UssdSession
   public readonly updatedAt!: Date;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Model associations
   public static associate(models: any): void {
     UssdSession.belongsTo(models.Voter, {
-      foreignKey: "userId",
-      as: "voter",
+      foreignKey: 'user_id',
+      as: 'voter',
     });
 
     UssdSession.hasMany(models.UssdVote, {
-      foreignKey: "sessionId",
-      as: "votes",
+      foreignKey: 'session_id',
+      as: 'votes',
     });
   }
 
@@ -82,17 +76,19 @@ class UssdSession
         userId: {
           type: DataTypes.UUID,
           allowNull: true,
+          field: 'user_id',
           references: {
-            model: "voters",
-            key: "id",
+            model: 'voters',
+            key: 'id',
           },
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
         },
         sessionCode: {
           type: DataTypes.STRING(10),
           allowNull: false,
           unique: true,
+          field: 'session_code',
           validate: {
             notEmpty: true,
           },
@@ -100,6 +96,7 @@ class UssdSession
         phoneNumber: {
           type: DataTypes.STRING(15),
           allowNull: false,
+          field: 'phone_number',
           validate: {
             is: /^\+?[0-9]{10,15}$/,
             notEmpty: true,
@@ -108,25 +105,30 @@ class UssdSession
         sessionData: {
           type: DataTypes.JSONB,
           allowNull: true,
+          field: 'session_data',
         },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'created_at',
         },
         expiresAt: {
           type: DataTypes.DATE,
           allowNull: false,
+          field: 'expires_at',
         },
         isActive: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: true,
+          field: 'is_active',
         },
         sessionStatus: {
           type: DataTypes.STRING(50),
           allowNull: false,
           defaultValue: UssdSessionStatus.CREATED,
+          field: 'session_status',
           validate: {
             isIn: [Object.values(UssdSessionStatus)],
           },
@@ -135,26 +137,28 @@ class UssdSession
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'last_activity',
         },
         updatedAt: {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
+          field: 'updated_at',
         },
       },
       {
         sequelize,
-        modelName: "UssdSession",
-        tableName: "ussd_sessions",
+        modelName: 'UssdSession',
+        tableName: 'ussd_sessions',
         underscored: false,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ["sessionCode"] },
-          { fields: ["phoneNumber"] },
-          { fields: ["userId"] },
-          { fields: ["isActive"] },
-          { fields: ["sessionStatus"] },
-          { fields: ["expiresAt"] },
+          { unique: true, fields: ['session_code'] },
+          { fields: ['phone_number'] },
+          { fields: ['user_id'] },
+          { fields: ['is_active'] },
+          { fields: ['session_status'] },
+          { fields: ['expires_at'] },
         ],
         hooks: {
           beforeCreate: async (session: UssdSession) => {

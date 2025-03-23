@@ -15,9 +15,16 @@ interface VoterCardAttributes {
   updatedAt: Date;
 }
 
-interface VoterCardCreationAttributes extends Optional<VoterCardAttributes, 'id' | 'issuedDate' | 'isValid' | 'createdAt' | 'updatedAt'> {}
+interface VoterCardCreationAttributes
+  extends Optional<
+    VoterCardAttributes,
+    'id' | 'issuedDate' | 'isValid' | 'createdAt' | 'updatedAt'
+  > {}
 
-class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> implements VoterCardAttributes {
+class VoterCard
+  extends Model<VoterCardAttributes, VoterCardCreationAttributes>
+  implements VoterCardAttributes
+{
   public id!: string;
   public userId!: string;
   public fullName!: string;
@@ -38,14 +45,14 @@ class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> 
   // Model associations
   public static associate(models: any): void {
     VoterCard.belongsTo(models.Voter, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       as: 'voter',
     });
 
     VoterCard.belongsTo(models.PollingUnit, {
-      foreignKey: 'pollingUnitCode',
+      foreignKey: 'polling_unit_code',
       targetKey: 'pollingUnitCode',
-      as: 'pollingUnit',
+      as: 'polling_unit',
     });
   }
 
@@ -58,6 +65,7 @@ class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> 
           primaryKey: true,
         },
         userId: {
+          field: 'user_id',
           type: DataTypes.UUID,
           allowNull: false,
           references: {
@@ -68,6 +76,7 @@ class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> 
           onUpdate: 'CASCADE',
         },
         fullName: {
+          field: 'full_name',
           type: DataTypes.STRING(100),
           allowNull: false,
           validate: {
@@ -84,6 +93,7 @@ class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> 
           },
         },
         pollingUnitCode: {
+          field: 'polling_unit_code',
           type: DataTypes.STRING(50),
           allowNull: false,
           validate: {
@@ -112,21 +122,25 @@ class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> 
           },
         },
         issuedDate: {
+          field: 'issued_date',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
         isValid: {
+          field: 'is_valid',
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: true,
         },
         createdAt: {
+          field: 'created_at',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
+          field: 'updated_at',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
@@ -140,11 +154,11 @@ class VoterCard extends Model<VoterCardAttributes, VoterCardCreationAttributes> 
         timestamps: true,
         indexes: [
           { unique: true, fields: ['vin'] },
-          { fields: ['userId'] },
-          { fields: ['pollingUnitCode'] },
+          { fields: ['user_id'] },
+          { fields: ['polling_unit_code'] },
           { fields: ['state', 'lga', 'ward'] },
         ],
-      }
+      },
     );
   }
 }

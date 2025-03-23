@@ -8,11 +8,15 @@ import { ApiError } from '../../middleware/errorHandler';
  * @route GET /api/v1/elections/:electionId/offline-package
  * @access Private
  */
-export const generateOfflinePackage = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const generateOfflinePackage = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { electionId } = req.params;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -20,11 +24,11 @@ export const generateOfflinePackage = async (req: AuthRequest, res: Response, ne
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Check if election exists
       const election = await electionService.getElectionById(electionId);
-      
+
       if (!election) {
         const error: ApiError = new Error('Election not found');
         error.statusCode = 404;
@@ -32,10 +36,10 @@ export const generateOfflinePackage = async (req: AuthRequest, res: Response, ne
         error.isOperational = true;
         throw error;
       }
-      
+
       // Check voter eligibility
       const eligibility = await electionService.checkVoterEligibility(userId, electionId);
-      
+
       if (!eligibility.isEligible) {
         const error: ApiError = new Error(`Voter is not eligible: ${eligibility.reason}`);
         error.statusCode = 403;
@@ -43,23 +47,26 @@ export const generateOfflinePackage = async (req: AuthRequest, res: Response, ne
         error.isOperational = true;
         throw error;
       }
-      
+
       // Get candidates for the election
-      const candidates = await electionService.getElectionCandidates(electionId);
-      
+      const candidatesResult = await electionService.getElectionCandidates(electionId);
+
       // Get voter details
       const voterDetails = await electionService.getVoterDetails(userId);
-      
+
       // Generate encryption keys for offline voting
       const { publicKey, privateKey } = encryptionService.generateKeyPair();
-      
+
       // Store the private key securely (in a real implementation)
       // For now, we'll just log it
-      console.log('Private key generated for offline voting (would be stored securely):', privateKey.substring(0, 50) + '...');
-      
+      console.log(
+        'Private key generated for offline voting (would be stored securely):',
+        privateKey.substring(0, 50) + '...',
+      );
+
       // Create an expiry date (24 hours from now)
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      
+
       // Log the offline package generation
       await auditService.createAuditLog(
         userId,
@@ -68,10 +75,10 @@ export const generateOfflinePackage = async (req: AuthRequest, res: Response, ne
         req.headers['user-agent'] || '',
         {
           electionId,
-          expiresAt
-        }
+          expiresAt,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'Offline voting package generated successfully',
@@ -81,30 +88,32 @@ export const generateOfflinePackage = async (req: AuthRequest, res: Response, ne
             name: election.electionName,
             type: election.electionType,
             startDate: election.startDate,
-            endDate: election.endDate
+            endDate: election.endDate,
           },
-          candidates: candidates.map(candidate => ({
+          candidates: candidatesResult.candidates.map((candidate: any) => ({
             id: candidate.id,
             name: candidate.fullName,
             party: candidate.partyAffiliation,
-            position: candidate.position
+            position: candidate.position,
           })),
           voter: {
             id: userId,
-            pollingUnit: voterDetails.pollingUnit
+            pollingUnit: voterDetails.pollingUnit,
           },
           encryption: {
             publicKey,
             keyId: `offline-${Date.now()}`,
             algorithm: 'RSA-OAEP',
-            expiresAt
+            expiresAt,
           },
           timestamp: new Date(),
-          expiresAt
-        }
+          expiresAt,
+        },
       });
     } catch (error) {
-      const apiError: ApiError = new Error(`Failed to generate offline package: ${(error as Error).message}`);
+      const apiError: ApiError = new Error(
+        `Failed to generate offline package: ${(error as Error).message}`,
+      );
       apiError.statusCode = 400;
       apiError.code = 'OFFLINE_PACKAGE_ERROR';
       apiError.isOperational = true;
@@ -120,12 +129,16 @@ export const generateOfflinePackage = async (req: AuthRequest, res: Response, ne
  * @route POST /api/v1/elections/:electionId/submit-offline
  * @access Private
  */
-export const submitOfflineVotes = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const submitOfflineVotes = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { electionId } = req.params;
     const { encryptedVotes, signature, keyId } = req.body;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -133,11 +146,11 @@ export const submitOfflineVotes = async (req: AuthRequest, res: Response, next: 
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Check if election exists
       const election = await electionService.getElectionById(electionId);
-      
+
       if (!election) {
         const error: ApiError = new Error('Election not found');
         error.statusCode = 404;
@@ -145,11 +158,11 @@ export const submitOfflineVotes = async (req: AuthRequest, res: Response, next: 
         error.isOperational = true;
         throw error;
       }
-      
+
       // Verify signature (in a real implementation)
       // For now, we'll just assume it's valid
       const isSignatureValid = true;
-      
+
       if (!isSignatureValid) {
         const error: ApiError = new Error('Invalid signature');
         error.statusCode = 400;
@@ -157,33 +170,33 @@ export const submitOfflineVotes = async (req: AuthRequest, res: Response, next: 
         error.isOperational = true;
         throw error;
       }
-      
+
       // Process each vote
       const processedVotes = [];
-      
+
       for (const vote of encryptedVotes) {
         // In a real implementation, you would:
         // 1. Retrieve the private key associated with the keyId
         // 2. Decrypt the vote
         // 3. Verify the vote is valid
         // 4. Store the vote in the database
-        
+
         // For now, we'll just create a mock vote
         const processedVote = await voteService.castVote(
           userId,
           electionId,
           vote.candidateId,
           'offline-polling-unit',
-          vote.encryptedVote
+          vote.encryptedVote,
         );
-        
+
         processedVotes.push({
           id: processedVote.id,
           status: 'processed',
-          receiptCode: processedVote.receiptCode
+          receiptCode: processedVote.receiptCode,
         });
       }
-      
+
       // Log the offline votes submission
       await auditService.createAuditLog(
         userId,
@@ -192,20 +205,22 @@ export const submitOfflineVotes = async (req: AuthRequest, res: Response, next: 
         req.headers['user-agent'] || '',
         {
           electionId,
-          voteCount: encryptedVotes.length
-        }
+          voteCount: encryptedVotes.length,
+        },
       );
-      
+
       res.status(200).json({
         success: true,
         message: 'Offline votes submitted successfully',
         data: {
           processedVotes,
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       });
     } catch (error) {
-      const apiError: ApiError = new Error(`Failed to submit offline votes: ${(error as Error).message}`);
+      const apiError: ApiError = new Error(
+        `Failed to submit offline votes: ${(error as Error).message}`,
+      );
       apiError.statusCode = 400;
       apiError.code = 'OFFLINE_VOTE_SUBMISSION_ERROR';
       apiError.isOperational = true;
@@ -221,11 +236,15 @@ export const submitOfflineVotes = async (req: AuthRequest, res: Response, next: 
  * @route GET /api/v1/elections/:electionId/offline-votes/:receiptCode
  * @access Private
  */
-export const verifyOfflineVote = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const verifyOfflineVote = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { electionId, receiptCode } = req.params;
-    
+
     if (!userId) {
       const error: ApiError = new Error('User ID not found in request');
       error.statusCode = 401;
@@ -233,11 +252,11 @@ export const verifyOfflineVote = async (req: AuthRequest, res: Response, next: N
       error.isOperational = true;
       throw error;
     }
-    
+
     try {
       // Verify the vote
       const verificationResult = await voteService.verifyVote(receiptCode);
-      
+
       // Log the verification attempt
       await auditService.createAuditLog(
         userId,
@@ -247,26 +266,26 @@ export const verifyOfflineVote = async (req: AuthRequest, res: Response, next: N
         {
           electionId,
           receiptCode,
-          isValid: verificationResult.isValid
-        }
+          isValid: verificationResult.isValid,
+        },
       );
-      
+
       if (!verificationResult.isValid) {
         res.status(404).json({
           success: false,
-          message: 'Invalid receipt code. No vote found with this code.'
+          message: 'Invalid receipt code. No vote found with this code.',
         });
         return;
       }
-      
+
       res.status(200).json({
         success: true,
         message: 'Vote verified successfully',
         data: {
           isValid: true,
           timestamp: verificationResult.timestamp,
-          electionName: verificationResult.electionName
-        }
+          electionName: verificationResult.electionName,
+        },
       });
     } catch (error) {
       const apiError: ApiError = new Error('Failed to verify offline vote');
@@ -278,4 +297,4 @@ export const verifyOfflineVote = async (req: AuthRequest, res: Response, next: N
   } catch (error) {
     next(error);
   }
-}; 
+};

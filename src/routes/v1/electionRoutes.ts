@@ -56,19 +56,17 @@ router.get(
       .optional()
       .isIn(['active', 'upcoming', 'past', 'all'])
       .withMessage('Status must be one of: active, upcoming, past, all'),
-    
-    query('type')
-      .optional(),
-    
-    query('page')
-      .optional()
-      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-    
+
+    query('type').optional(),
+
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+
     query('limit')
       .optional()
-      .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
   ]),
-  electionController.getElections
+  electionController.getElections,
 );
 
 /**
@@ -99,10 +97,12 @@ router.get(
   defaultLimiter,
   validate([
     param('id')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  electionController.getElectionById
+  electionController.getElectionById,
 );
 
 /**
@@ -147,18 +147,19 @@ router.get(
   defaultLimiter,
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
-    query('page')
-      .optional()
-      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+
     query('limit')
       .optional()
-      .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
   ]),
-  candidateController.getCandidates
+  candidateController.getCandidates,
 );
 
 /**
@@ -216,26 +217,24 @@ router.post(
   '/:electionId/candidates',
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
-    body('fullName')
-      .notEmpty().withMessage(validationMessages.required('Full name')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
+    body('fullName').notEmpty().withMessage(validationMessages.required('Full name')),
+
     body('partyAffiliation')
-      .notEmpty().withMessage(validationMessages.required('Party affiliation')),
-    
-    body('position')
-      .notEmpty().withMessage(validationMessages.required('Position')),
-    
-    body('biography')
-      .optional(),
-    
-    body('photoUrl')
-      .optional()
-      .isURL().withMessage('Photo URL must be a valid URL')
+      .notEmpty()
+      .withMessage(validationMessages.required('Party affiliation')),
+
+    body('position').notEmpty().withMessage(validationMessages.required('Position')),
+
+    body('biography').optional(),
+
+    body('photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
   ]),
-  candidateController.createCandidate
+  candidateController.createCandidate,
 );
 
 /**
@@ -281,14 +280,18 @@ router.post(
   '/:id/vote',
   validate([
     param('id')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
     body('candidateId')
-      .notEmpty().withMessage(validationMessages.required('Candidate ID'))
-      .isUUID().withMessage(validationMessages.uuid('Candidate ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Candidate ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Candidate ID')),
   ]),
-  voteController.castVote
+  voteController.castVote,
 );
 
 /**
@@ -318,10 +321,12 @@ router.get(
   '/:id/voting-status',
   validate([
     param('id')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  voteController.checkVotingStatus
+  voteController.checkVotingStatus,
 );
 
 /**
@@ -353,10 +358,12 @@ router.get(
   '/:electionId/offline-package',
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
   ]),
-  offlineVoteController.generateOfflinePackage
+  offlineVoteController.generateOfflinePackage,
 );
 
 /**
@@ -416,20 +423,22 @@ router.post(
   '/:electionId/submit-offline',
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
     body('encryptedVotes')
-      .notEmpty().withMessage(validationMessages.required('Encrypted votes'))
-      .isArray().withMessage('Encrypted votes must be an array'),
-    
-    body('signature')
-      .notEmpty().withMessage(validationMessages.required('Signature')),
-    
-    body('keyId')
-      .notEmpty().withMessage(validationMessages.required('Key ID'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Encrypted votes'))
+      .isArray()
+      .withMessage('Encrypted votes must be an array'),
+
+    body('signature').notEmpty().withMessage(validationMessages.required('Signature')),
+
+    body('keyId').notEmpty().withMessage(validationMessages.required('Key ID')),
   ]),
-  offlineVoteController.submitOfflineVotes
+  offlineVoteController.submitOfflineVotes,
 );
 
 /**
@@ -464,13 +473,14 @@ router.get(
   '/:electionId/offline-votes/:receiptCode',
   validate([
     param('electionId')
-      .notEmpty().withMessage(validationMessages.required('Election ID'))
-      .isUUID().withMessage(validationMessages.uuid('Election ID')),
-    
-    param('receiptCode')
-      .notEmpty().withMessage(validationMessages.required('Receipt code'))
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+
+    param('receiptCode').notEmpty().withMessage(validationMessages.required('Receipt code')),
   ]),
-  offlineVoteController.verifyOfflineVote
+  offlineVoteController.verifyOfflineVote,
 );
 
 export default router;

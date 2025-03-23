@@ -1,5 +1,5 @@
-import { Model, DataTypes, Sequelize, Optional } from "sequelize";
-import bcrypt from "bcrypt";
+import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
+import bcrypt from 'bcrypt';
 
 interface VoterAttributes {
   id: string;
@@ -22,24 +22,21 @@ interface VoterAttributes {
 interface VoterCreationAttributes
   extends Optional<
     VoterAttributes,
-    | "id"
-    | "recoveryToken"
-    | "recoveryTokenExpiry"
-    | "isActive"
-    | "lastLogin"
-    | "createdAt"
-    | "updatedAt"
-    | "mfaSecret"
-    | "mfaEnabled"
-    | "mfaBackupCodes"
+    | 'id'
+    | 'recoveryToken'
+    | 'recoveryTokenExpiry'
+    | 'isActive'
+    | 'lastLogin'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'mfaSecret'
+    | 'mfaEnabled'
+    | 'mfaBackupCodes'
   > {
   password: string;
 }
 
-class Voter
-  extends Model<VoterAttributes, VoterCreationAttributes>
-  implements VoterAttributes
-{
+class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements VoterAttributes {
   public id!: string;
   public nin!: string;
   public vin!: string;
@@ -57,8 +54,8 @@ class Voter
   public mfaBackupCodes!: string[] | null;
 
   // Timestamps
-  public static readonly createdAt = "createdAt";
-  public static readonly updatedAt = "updatedAt";
+  public static readonly createdAt = 'createdAt';
+  public static readonly updatedAt = 'updatedAt';
 
   // Method to validate password
   public async validatePassword(password: string): Promise<boolean> {
@@ -67,7 +64,7 @@ class Voter
 
   // Method to update password
   public async updatePassword(password: string): Promise<void> {
-    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12", 10);
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
     this.passwordHash = await bcrypt.hash(password, saltRounds);
     await this.save();
   }
@@ -75,33 +72,33 @@ class Voter
   // Model associations
   public static associate(models: any): void {
     Voter.hasOne(models.VoterCard, {
-      foreignKey: "userId",
-      as: "voterCard",
+      foreignKey: 'user_id',
+      as: 'voter_card',
     });
 
     Voter.hasOne(models.VerificationStatus, {
-      foreignKey: "userId",
-      as: "verificationStatus",
+      foreignKey: 'user_id',
+      as: 'verification_status',
     });
 
     Voter.hasMany(models.Vote, {
-      foreignKey: "userId",
-      as: "votes",
+      foreignKey: 'user_id',
+      as: 'votes',
     });
 
     Voter.hasMany(models.AuditLog, {
-      foreignKey: "userId",
-      as: "auditLogs",
+      foreignKey: 'user_id',
+      as: 'audit_logs',
     });
 
     Voter.hasMany(models.FailedAttempt, {
-      foreignKey: "userId",
-      as: "failedAttempts",
+      foreignKey: 'user_id',
+      as: 'failed_attempts',
     });
 
     Voter.hasMany(models.UssdSession, {
-      foreignKey: "userId",
-      as: "ussdSessions",
+      foreignKey: 'user_id',
+      as: 'ussd_sessions',
     });
   }
 
@@ -132,6 +129,7 @@ class Voter
           },
         },
         phoneNumber: {
+          field: 'phone_number',
           type: DataTypes.STRING(15),
           allowNull: false,
           validate: {
@@ -140,89 +138,88 @@ class Voter
           },
         },
         dateOfBirth: {
+          field: 'date_of_birth',
           type: DataTypes.DATEONLY,
           allowNull: false,
         },
         passwordHash: {
+          field: 'password_hash',
           type: DataTypes.STRING,
           allowNull: false,
         },
         recoveryToken: {
+          field: 'recovery_token',
           type: DataTypes.STRING,
           allowNull: true,
         },
         recoveryTokenExpiry: {
+          field: 'recovery_token_expiry',
           type: DataTypes.DATE,
           allowNull: true,
         },
         isActive: {
+          field: 'is_active',
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: true,
         },
         lastLogin: {
+          field: 'last_login',
           type: DataTypes.DATE,
           allowNull: true,
         },
         createdAt: {
+          field: 'created_at',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
         updatedAt: {
+          field: 'updated_at',
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
         mfaSecret: {
+          field: 'mfa_secret',
           type: DataTypes.STRING,
           allowNull: true,
         },
         mfaEnabled: {
+          field: 'mfa_enabled',
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
         },
         mfaBackupCodes: {
+          field: 'mfa_backup_codes',
           type: DataTypes.ARRAY(DataTypes.STRING),
           allowNull: true,
         },
       },
       {
         sequelize,
-        modelName: "Voter",
-        tableName: "voters",
+        modelName: 'Voter',
+        tableName: 'voters',
         underscored: false,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ["nin"] },
-          { unique: true, fields: ["vin"] },
-          { fields: ["phoneNumber"] },
+          { unique: true, fields: ['nin'] },
+          { unique: true, fields: ['vin'] },
+          { fields: ['phone_number'] },
         ],
         hooks: {
           beforeCreate: async (voter: Voter & { password?: string }) => {
             if (voter.password) {
-              const saltRounds = parseInt(
-                process.env.BCRYPT_SALT_ROUNDS || "12",
-                10,
-              );
-              voter.passwordHash = await bcrypt.hash(
-                voter.password,
-                saltRounds,
-              );
+              const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
+              voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
               delete voter.password; // Remove plain text password
             }
           },
           beforeUpdate: async (voter: Voter & { password?: string }) => {
             if (voter.password) {
-              const saltRounds = parseInt(
-                process.env.BCRYPT_SALT_ROUNDS || "12",
-                10,
-              );
-              voter.passwordHash = await bcrypt.hash(
-                voter.password,
-                saltRounds,
-              );
+              const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
+              voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
               delete voter.password; // Remove plain text password
             }
           },
