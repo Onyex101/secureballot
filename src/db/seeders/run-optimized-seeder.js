@@ -11,6 +11,9 @@
  * 
  * For even better performance with garbage collection:
  * node --max-old-space-size=4096 --expose-gc src/db/seeders/run-optimized-seeder.js
+ * 
+ * To undo seeds:
+ * node src/db/seeders/run-optimized-seeder.js --undo
  */
 
 const path = require('path');
@@ -27,6 +30,9 @@ const {
 // Load environment variables
 require('dotenv').config();
 
+// Check if --undo flag is present
+const isUndoMode = process.argv.includes('--undo');
+
 // Configuration
 const CONFIG = {
   batchSize: parseInt(process.env.SEED_BATCH_SIZE, 10),
@@ -36,11 +42,16 @@ const CONFIG = {
   seedTarget: process.env.SEED_TARGET || 'all', // 'all', 'admin', 'elections', 'voters', etc.
   debug: process.env.DEBUG === 'true',
   disableConstraints: process.env.DISABLE_CONSTRAINTS === 'true',
-  disableIndexes: process.env.DISABLE_INDEXES === 'true'
+  disableIndexes: process.env.DISABLE_INDEXES === 'true',
+  isUndo: isUndoMode
 };
 
+async function generatePasswordHash(password) {
+  return bcrypt.hash(password, SALT_ROUNDS);
+}
+
 async function runOptimizedSeeder() {
-  console.log('Starting optimized seeder with configuration:', CONFIG);
+  console.log(`${isUndoMode ? 'Undoing' : 'Starting'} optimized seeder with configuration:`, CONFIG);
   
   try {
     // Find the database config file
@@ -79,73 +90,56 @@ async function runOptimizedSeeder() {
     }
     
     if (!configPath || !fs.existsSync(configPath)) {
-      throw new Error('Could not find database configuration file. Please check your project structure.');
+      throw new Error('Could not find database config file');
     }
     
     console.log(`Using database config from: ${configPath}`);
     
-    // Load the database config
-    const dbConfig = require(configPath)[process.env.NODE_ENV || 'development'];
+    // Get the database config
+    const dbConfig = require(configPath);
+    const env = process.env.NODE_ENV || 'development';
+    const config = typeof dbConfig === 'function' ? dbConfig(env) : dbConfig[env];
     
-    if (!dbConfig) {
-      throw new Error(`No database configuration found for environment: ${process.env.NODE_ENV || 'development'}`);
+    if (!config) {
+      throw new Error(`No database configuration found for environment: ${env}`);
     }
     
-    // Create Sequelize instance
-    const sequelize = new Sequelize(
-      dbConfig.database,
-      dbConfig.username,
-      dbConfig.password,
-      {
-        host: dbConfig.host,
-        port: dbConfig.port,
-        dialect: dbConfig.dialect,
-        logging: CONFIG.debug ? console.log : false,
-        pool: {
-          max: 25,
-          min: 0,
-          acquire: 60000,
-          idle: 10000
-        },
-        ...(dbConfig.dialectOptions && { dialectOptions: dbConfig.dialectOptions })
-      }
-    );
+    // Initialize Sequelize
+    const sequelize = new Sequelize(config.database, config.username, config.password, {
+      ...config,
+      logging: CONFIG.debug ? console.log : false
+    });
     
-    // Test the connection
-    await sequelize.authenticate();
-    console.log('Database connection has been established successfully.');
+    // Apply any database optimizations
+    if (CONFIG.debug) {
+      optimizeDbConnection(sequelize);
+    }
     
-    // Optimize database connection
-    optimizeDbConnection(sequelize);
-    
-    // Create query interface
     const queryInterface = sequelize.getQueryInterface();
     
-    // Load the seeder
-    const seederPath = path.resolve(__dirname, './20250309194037-demo-elections.js');
-    if (!fs.existsSync(seederPath)) {
-      throw new Error(`Seeder file not found at: ${seederPath}`);
-    }
+    // For undo operations or regular seeding, we might want to disable foreign key constraints
+    // This makes it easier to truncate tables without worrying about the order
+    const shouldDisableConstraints = CONFIG.disableConstraints || CONFIG.isUndo;
     
-    const seeder = require(seederPath);
-    
-    // Disable foreign key constraints if requested
-    if (CONFIG.disableConstraints) {
+    if (shouldDisableConstraints) {
+      console.log('Temporarily disabling foreign key constraints...');
       await toggleForeignKeyConstraints(queryInterface, true);
     }
     
     // Run the seeder with performance monitoring
     await withPerformanceMonitoring(async () => {
-      if (CONFIG.seedTarget === 'all') {
-        await seeder.up(queryInterface, Sequelize);
+      if (CONFIG.isUndo) {
+        // When undoing, always process all tables
+        await runTargetedSeed(queryInterface, Sequelize, 'all');
       } else {
-        // Run specific parts of the seeder based on the target
+        // For regular seeding, use the specified target
         await runTargetedSeed(queryInterface, Sequelize, CONFIG.seedTarget);
       }
     }, 'database seeding');
     
     // Re-enable foreign key constraints if they were disabled
-    if (CONFIG.disableConstraints) {
+    if (shouldDisableConstraints) {
+      console.log('Re-enabling foreign key constraints...');
       await toggleForeignKeyConstraints(queryInterface, false);
     }
     
@@ -153,7 +147,7 @@ async function runOptimizedSeeder() {
     await sequelize.close();
     
   } catch (error) {
-    console.error('Error running optimized seeder:', error);
+    console.error(`Error ${CONFIG.isUndo ? 'undoing' : 'running'} optimized seeder:`, error);
     if (CONFIG.debug && error.stack) {
       console.error(error.stack);
     }
@@ -173,10 +167,60 @@ async function runTargetedSeed(queryInterface, Sequelize, target) {
   const naijaFaker = require('@codegrenade/naija-faker');
   const { v4: uuidv4 } = require('uuid');
   
+  if (CONFIG.isUndo) {
+    console.log(`Undoing seed data for: ${target}`);
+    
+    // Tables to truncate (in reverse order to avoid foreign key constraint errors)
+    const tables = [
+      'votes', 
+      'ussd_votes',
+      'ussd_sessions',
+      'voter_cards',
+      'verification_statuses',
+      'voters',
+      'observer_reports',
+      'audit_logs',
+      'admin_logs',
+      'polling_units',
+      'candidates',
+      'election_stats',
+      'elections',
+      'admin_roles',
+      'admin_permissions',
+      'admin_users'
+    ];
+    
+    // Truncate tables in reverse order
+    for (const table of tables) {
+      try {
+        console.log(`Truncating table: ${table}`);
+        await queryInterface.bulkDelete(table, null, { truncate: true, cascade: true });
+      } catch (error) {
+        console.warn(`Warning: Could not truncate table ${table}: ${error.message}`);
+      }
+    }
+    
+    console.log('All seed data has been removed successfully');
+    return;
+  }
+  
   console.log(`Running targeted seed for: ${target}`);
   
   // Default password hash for all users
   const DEFAULT_PASSWORD_HASH = '$2b$10$1XpzUYu8FuvuJj.PoUMvZOFFWGYoR0jbJ6qZmHX5.G9qujpJjEKyy'; // hash for 'password123'
+  
+  // Load the main seeder file
+  const seederPath = path.resolve(__dirname, './20250309194037-demo-elections.js');
+  if (!fs.existsSync(seederPath)) {
+    throw new Error(`Seeder file not found at: ${seederPath}`);
+  }
+  
+  // Load the seeder module
+  const seeder = require(seederPath);
+  
+  // Make sure we set MAX_VOTERS_PER_STATE from CONFIG
+  seeder.MAX_VOTERS_PER_STATE = CONFIG.maxVotersPerState || seeder.DEFAULT_MAX_VOTERS_PER_STATE;
+  console.log(`Using MAX_VOTERS_PER_STATE: ${seeder.MAX_VOTERS_PER_STATE}`);
   
   switch (target) {
     case 'admin':
@@ -201,8 +245,6 @@ async function runTargetedSeed(queryInterface, Sequelize, target) {
       
     default:
       console.log(`Unknown target: ${target}, defaulting to 'all'`);
-      const seederPath = path.resolve(__dirname, './20250309194037-demo-elections.js');
-      const seeder = require(seederPath);
       await seeder.up(queryInterface, Sequelize);
   }
   
@@ -220,7 +262,7 @@ async function runTargetedSeed(queryInterface, Sequelize, target) {
       full_name: 'Super Administrator',
       email: 'admin@secureballot.ng',
       phone_number: naijaFaker.phoneNumber(),
-      password_hash: DEFAULT_PASSWORD_HASH,
+      password_hash: generatePasswordHash('password123'),
       admin_type: 'SystemAdministrator',
       is_active: true,
       created_at: new Date(),
@@ -233,12 +275,13 @@ async function runTargetedSeed(queryInterface, Sequelize, target) {
     await generateDataInChunks(adminCount, (index) => {
       const adminId = uuidv4();
       const adminType = ['SystemAdministrator', 'ElectoralCommissioner', 'SecurityOfficer'][index % 3];
+      const person = naijaFaker.person();
       
       return {
         id: adminId,
-        full_name: naijaFaker.name(),
-        email: naijaFaker.email().toLowerCase(),
-        phone_number: naijaFaker.phoneNumber(),
+        full_name: person.fullName,
+        email: person.email.toLowerCase(),
+        phone_number: person.phone,
         password_hash: DEFAULT_PASSWORD_HASH,
         admin_type: adminType,
         is_active: true,

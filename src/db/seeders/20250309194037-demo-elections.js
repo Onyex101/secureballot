@@ -30,9 +30,12 @@ const { v4: uuidv4 } = require('uuid');
 
 // Constants for our seed data
 const SALT_ROUNDS = 10;
-const MAX_VOTERS_PER_STATE = 100000;
+// Default max voters per state if not provided in CONFIG
+const DEFAULT_MAX_VOTERS_PER_STATE = 10000;
+// We'll set this value from run-optimized-seeder.js
+let MAX_VOTERS_PER_STATE = DEFAULT_MAX_VOTERS_PER_STATE;
 // Batch size for bulk inserts to prevent memory issues
-const BATCH_SIZE = 10000;
+const BATCH_SIZE = 5000;
 // Use a single password hash for all test users to avoid bcrypt overhead
 const DEFAULT_PASSWORD_HASH = '$2b$10$1XpzUYu8FuvuJj.PoUMvZOFFWGYoR0jbJ6qZmHX5.G9qujpJjEKyy'; // hash for 'password123'
 
@@ -447,18 +450,21 @@ module.exports = {
       }
       
       // Create admin users with pre-computed password hash for better performance
-      const adminUsers = adminIds.map((id, index) => ({
-        id: id,
-        full_name: naijaFaker.name(),
-        email: naijaFaker.email().toLowerCase(),
-        phone_number: formatPhoneNumber(naijaFaker.phoneNumber()),
-        password_hash: DEFAULT_PASSWORD_HASH, // Use pre-computed hash instead of generating
-        admin_type: adminRoles[index].role_name,
-        is_active: true,
-        created_by: superAdminId,
-        created_at: new Date(),
-        updated_at: new Date()
-      }));
+      const adminUsers = adminIds.map((id, index) => {
+        const person = naijaFaker.person();
+        return {
+          id: id,
+          full_name: person.fullName,
+          email: person.email.toLowerCase(),
+          phone_number: formatPhoneNumber(person.phone),
+          password_hash: DEFAULT_PASSWORD_HASH, // Use pre-computed hash instead of generating
+          admin_type: adminRoles[index].role_name,
+          is_active: true,
+          created_by: superAdminId,
+          created_at: new Date(),
+          updated_at: new Date()
+        };
+      });
       
       await queryInterface.bulkInsert('admin_users', adminUsers);
       await queryInterface.bulkInsert('admin_roles', adminRoles);
@@ -765,7 +771,6 @@ module.exports = {
       // Process each state for presidential election
       for (const [state, units] of Object.entries(stateUnits)) {
         // Calculate total voters for this state
-        // Ensure we don't exceed MAX_VOTERS_PER_STATE
         const totalRegisteredVoters = units.reduce((sum, unit) => sum + unit.registered_voters, 0);
         
         // Strictly enforce MAX_VOTERS_PER_STATE limit
@@ -839,7 +844,7 @@ module.exports = {
             // Generate 11-digit NIN using faker
             const nin = generateUniqueNIN(usedNINs);
             const vin = `${faker.string.alphanumeric(3).toUpperCase()}${faker.number.int({ min: 1000000000, max: 9999999999 })}${faker.string.alphanumeric(6).toUpperCase()}`;
-            const phoneNumber = formatPhoneNumber(person.phone || naijaFaker.phoneNumber());
+            const phoneNumber = formatPhoneNumber(person.phone);
             
             // Random date of birth (18-80 years old)
             const dob = faker.date.birthdate({ min: 18, max: 80, mode: 'age' });
@@ -1458,5 +1463,13 @@ module.exports = {
       console.error('Error removing seeded data:', error);
       throw error;
     }
+  },
+
+  // Export these values for configuration
+  DEFAULT_MAX_VOTERS_PER_STATE,
+  get MAX_VOTERS_PER_STATE() { return MAX_VOTERS_PER_STATE; },
+  set MAX_VOTERS_PER_STATE(value) { 
+    MAX_VOTERS_PER_STATE = value || DEFAULT_MAX_VOTERS_PER_STATE;
+    console.log(`MAX_VOTERS_PER_STATE set to: ${MAX_VOTERS_PER_STATE}`);
   }
 };
