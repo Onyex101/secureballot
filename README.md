@@ -369,27 +369,176 @@ npm run swagger-autogen
 
 ## Testing
 
+SecureBallot includes comprehensive test suites for unit tests, integration tests, and end-to-end (E2E) tests.
+
+### Test Types
+
+#### Unit Tests
+
+Unit tests verify individual functions and components in isolation, typically using mocks and stubs for dependencies. Our unit tests focus on business logic in service layers.
+
+**Example:**
+```javascript
+// Testing the login function in the authService
+it('should login a voter successfully without MFA', async () => {
+  // Mock dependencies
+  const findVoterStub = sandbox.stub(voterModel, 'findVoterByIdentifier').resolves(voter);
+  const compareStub = sandbox.stub(bcrypt, 'compare').resolves(true);
+  
+  // Test the function
+  const result = await authService.login(loginData);
+  
+  // Assertions
+  expect(result).to.have.property('token');
+  expect(result).to.have.property('mfaRequired', false);
+});
+```
+
+#### Integration Tests
+
+Integration tests verify that different components work together correctly. Our integration tests focus on API routes and controllers, testing how they interact with services and return proper responses.
+
+**Example:**
+```javascript
+// Testing the elections API route
+it('should return a list of elections', async () => {
+  // Make actual API request
+  const response = await request(app)
+    .get('/api/v1/elections')
+    .set('Authorization', `Bearer ${authToken}`)
+    .query({ status: 'active' });
+  
+  // Assertions
+  expect(response.status).to.equal(200);
+  expect(response.body).to.have.property('elections');
+});
+```
+
+#### End-to-End Tests
+
+E2E tests verify entire user flows from start to finish, simulating real user behavior. Our E2E tests cover full voter journeys from registration to voting and viewing results.
+
+**Example:**
+```javascript
+// Testing the full voter flow
+it('should register a new voter', async () => {
+  // Make registration request with test data
+  const response = await request(app)
+    .post('/api/v1/auth/register')
+    .send(data);
+  
+  // Assertions
+  expect(response.status).to.equal(201);
+  expect(response.body).to.have.property('userId');
+});
+
+// More tests follow for login, voting, etc.
+```
+
+### Test Structure
+
+```
+tests/
+├── api-test-data.json           # Test data for API routes
+├── api-tests.js                 # Basic API tests
+├── generate-test-data.js        # Script to generate test data
+├── e2e/                         # End-to-end test suites
+│   ├── config.js                # E2E test configuration
+│   ├── data/                    # Test data directory
+│   ├── index.js                 # Main E2E test runner
+│   ├── setup.js                 # Test setup and teardown
+│   ├── tests/                   # Test files
+│   │   ├── auth.test.js         # Authentication flow tests
+│   │   ├── elections.test.js    # Elections flow tests
+│   │   ├── mobile.test.js       # Mobile app flow tests
+│   │   └── ussd.test.js         # USSD flow tests
+│   └── utils/                   # Utility functions
+├── integration/                 # Integration test suites
+│   └── electionRoutes.test.js   # Tests election API routes
+└── unit/                        # Unit test suites
+    └── authService.test.js      # Tests authentication service functions
+```
+
 ### Running Tests
 
-Run all tests:
+#### Prerequisites
+
+- Node.js 16+ and npm
+- MongoDB instance running
+- Environment variables configured in `.env` file or test environment
+
+#### Running All Tests
 
 ```bash
 npm test
 ```
 
-Run specific test types:
+#### Running Specific Test Suites
 
 ```bash
-npm run test:unit       # Unit tests only
-npm run test:integration # Integration tests only
-npm run test:e2e        # End-to-end tests only
+# Run unit tests only
+npm run test:unit
+
+# Run integration tests only
+npm run test:integration
+
+# Run E2E tests only
+npm run test:e2e
 ```
 
-Generate test coverage report:
+#### Running End-to-End Tests
+
+For more granular control of E2E tests:
+
+```bash
+# Run all E2E tests
+npm run e2e
+
+# Run only authentication tests
+npm run e2e:auth
+
+# Run only election tests
+npm run e2e:elections
+
+# Run only USSD tests
+npm run e2e:ussd
+
+# Run only mobile app tests
+npm run e2e:mobile
+
+# Run all E2E tests in staging environment
+npm run e2e:staging
+```
+
+#### Running Test Coverage
+
+Generate a test coverage report:
 
 ```bash
 npm run test:coverage
 ```
+
+This will generate a coverage report in the `coverage/` directory, showing which parts of the codebase are well-tested and which need more attention.
+
+### Test Data Generation
+
+SecureBallot includes a test data generator that can create realistic test data:
+
+- Voters with realistic Nigerian information
+- Elections with appropriate types and statuses
+- Candidates with party affiliations
+- Polling units with geographic data
+- Admin users with different roles
+
+Run the test data generator with:
+
+```bash
+node tests/generate-test-data.js
+```
+
+### CI/CD Integration
+
+Our tests are automatically run in the CI/CD pipeline. See the `.github/workflows/test.yml` file for details on our GitHub Actions configuration.
 
 ## Project Structure
 

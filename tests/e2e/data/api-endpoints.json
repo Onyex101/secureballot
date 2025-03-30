@@ -1,0 +1,268 @@
+{
+  "description": "API endpoints data for E2E testing of the SecureBallot system",
+  "authRoutes": {
+    "/api/v1/auth/register": {
+      "method": "POST",
+      "description": "Register a new voter",
+      "requestBody": {
+        "nin": "12345678901",
+        "vin": "1234567890123456789",
+        "phoneNumber": "+2348012345678",
+        "dateOfBirth": "1990-01-01",
+        "password": "Password123!"
+      }
+    },
+    "/api/v1/auth/login": {
+      "method": "POST",
+      "description": "Login a user",
+      "requestBody": {
+        "identifier": "12345678901",
+        "password": "Password123!"
+      }
+    },
+    "/api/v1/auth/ussd/authenticate": {
+      "method": "POST",
+      "description": "Authenticate a voter via USSD",
+      "requestBody": {
+        "nin": "12345678901",
+        "vin": "1234567890123456789",
+        "phoneNumber": "+2348012345678"
+      }
+    },
+    "/api/v1/auth/ussd/verify-session": {
+      "method": "POST",
+      "description": "Verify USSD session and get token",
+      "requestBody": {
+        "sessionCode": "123456"
+      }
+    },
+    "/api/v1/auth/verify-mfa": {
+      "method": "POST",
+      "description": "Verify MFA token",
+      "requestBody": {
+        "userId": "550e8400-e29b-41d4-a716-446655440000",
+        "token": "123456"
+      }
+    },
+    "/api/v1/auth/setup-mfa": {
+      "method": "POST",
+      "description": "Set up MFA for a user",
+      "requiresAuth": true,
+      "requestBody": {}
+    }
+  },
+  "adminRoutes": {
+    "/api/v1/admin/users": {
+      "method": "GET",
+      "description": "Get all admin users (System Admin only)",
+      "requiresAuth": true,
+      "requiresRole": "SYSTEM_ADMIN",
+      "queryParams": {
+        "role": "SecurityOfficer",
+        "status": "active",
+        "page": 1,
+        "limit": 50
+      }
+    },
+    "/api/v1/admin/users": {
+      "method": "POST",
+      "description": "Create a new admin user (System Admin only)",
+      "requiresAuth": true,
+      "requiresRole": "SYSTEM_ADMIN",
+      "requestBody": {
+        "email": "admin@securevote.com",
+        "fullName": "John Admin",
+        "phoneNumber": "+2348012345678",
+        "password": "Admin123!",
+        "role": "ElectoralCommissioner"
+      }
+    }
+  },
+  "voterRoutes": {
+    "/api/v1/voter/profile": {
+      "method": "GET",
+      "description": "Get voter profile",
+      "requiresAuth": true
+    },
+    "/api/v1/voter/profile": {
+      "method": "PUT",
+      "description": "Update voter profile",
+      "requiresAuth": true,
+      "requestBody": {
+        "phoneNumber": "+2348012345678"
+      }
+    },
+    "/api/v1/voter/change-password": {
+      "method": "PUT",
+      "description": "Change voter password",
+      "requiresAuth": true,
+      "requestBody": {
+        "currentPassword": "Password123!",
+        "newPassword": "NewPass123!"
+      }
+    },
+    "/api/v1/voter/polling-unit": {
+      "method": "GET",
+      "description": "Get voter's assigned polling unit",
+      "requiresAuth": true
+    },
+    "/api/v1/voter/polling-units": {
+      "method": "GET",
+      "description": "Get all polling units with pagination and filtering",
+      "requiresAuth": true,
+      "queryParams": {
+        "regionId": "550e8400-e29b-41d4-a716-446655440000",
+        "page": 1,
+        "limit": 20
+      }
+    }
+  },
+  "electionRoutes": {
+    "/api/v1/elections": {
+      "method": "GET",
+      "description": "Get list of elections",
+      "requiresAuth": true,
+      "queryParams": {
+        "status": "active",
+        "type": "presidential",
+        "page": 1,
+        "limit": 10
+      }
+    },
+    "/api/v1/elections/{id}": {
+      "method": "GET",
+      "description": "Get election details",
+      "requiresAuth": true,
+      "pathParams": {
+        "id": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    },
+    "/api/v1/elections/{electionId}/candidates": {
+      "method": "GET",
+      "description": "Get all candidates for an election",
+      "requiresAuth": true,
+      "pathParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      },
+      "queryParams": {
+        "search": "John",
+        "page": 1,
+        "limit": 50
+      }
+    },
+    "/api/v1/elections/{electionId}/vote": {
+      "method": "POST",
+      "description": "Cast a vote in an election",
+      "requiresAuth": true,
+      "pathParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      },
+      "requestBody": {
+        "candidateId": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    }
+  },
+  "resultsRoutes": {
+    "/api/v1/results/live/{electionId}": {
+      "method": "GET",
+      "description": "Get real-time election results",
+      "requiresAuth": true,
+      "pathParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    },
+    "/api/v1/results/statistics/{electionId}": {
+      "method": "GET",
+      "description": "Get comprehensive election statistics",
+      "requiresAuth": true,
+      "pathParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    },
+    "/api/v1/results/elections/{electionId}": {
+      "method": "GET",
+      "description": "Get detailed election results",
+      "requiresAuth": true,
+      "pathParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      },
+      "queryParams": {
+        "includePollingUnitBreakdown": true
+      }
+    },
+    "/api/v1/results/live": {
+      "method": "GET",
+      "description": "Get real-time voting statistics across all active elections",
+      "requiresAuth": true
+    },
+    "/api/v1/results/region/{electionId}": {
+      "method": "GET",
+      "description": "Get election results by region",
+      "requiresAuth": true,
+      "pathParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    }
+  },
+  "ussdRoutes": {
+    "/api/v1/ussd/start": {
+      "method": "POST",
+      "description": "Initiate USSD voting session",
+      "requestBody": {
+        "nin": "12345678901",
+        "vin": "1234567890123456789",
+        "phoneNumber": "+2348012345678"
+      }
+    },
+    "/api/v1/ussd/vote": {
+      "method": "POST",
+      "description": "Cast a vote via USSD",
+      "requestBody": {
+        "sessionCode": "123456",
+        "electionId": "550e8400-e29b-41d4-a716-446655440000",
+        "candidateId": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    },
+    "/api/v1/ussd/session-status": {
+      "method": "GET",
+      "description": "Check USSD session status",
+      "queryParams": {
+        "sessionCode": "123456"
+      }
+    }
+  },
+  "mobileRoutes": {
+    "/api/v1/mobile/auth/login": {
+      "method": "POST",
+      "description": "Login via mobile app",
+      "requestBody": {
+        "nin": "12345678901",
+        "vin": "1234567890123456789",
+        "password": "Password123!",
+        "deviceInfo": {
+          "deviceId": "a1b2c3d4-e5f6-7g8h-9i0j-klmnopqrstuv",
+          "deviceModel": "iPhone 13",
+          "osVersion": "iOS 16.0",
+          "appVersion": "1.0.0"
+        }
+      }
+    },
+    "/api/v1/mobile/auth/verify-device": {
+      "method": "POST",
+      "description": "Verify a mobile device",
+      "requiresAuth": true,
+      "requestBody": {
+        "deviceId": "a1b2c3d4-e5f6-7g8h-9i0j-klmnopqrstuv",
+        "verificationCode": "123456"
+      }
+    },
+    "/api/v1/mobile/vote/offline-package": {
+      "method": "GET",
+      "description": "Download offline voting package",
+      "requiresAuth": true,
+      "queryParams": {
+        "electionId": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    }
+  }
+} 

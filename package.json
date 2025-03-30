@@ -31,7 +31,14 @@
     "db:seed:large": "SEED_BATCH_SIZE=10000 SEED_MAX_VOTERS_PER_STATE=50000 DISABLE_CONSTRAINTS=true DISABLE_INDEXES=true node --max-old-space-size=8192 --expose-gc src/db/seeders/run-optimized-seeder.js",
     "db:seed:debug": "DEBUG=true node src/db/seeders/run-optimized-seeder.js",
     "swagger-autogen": "ts-node src/scripts/swagger-autogen.ts",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "e2e": "node tests/e2e/index.js",
+    "e2e:auth": "node tests/e2e/index.js auth",
+    "e2e:elections": "node tests/e2e/index.js elections",
+    "e2e:ussd": "node tests/e2e/index.js ussd",
+    "e2e:mobile": "node tests/e2e/index.js mobile",
+    "e2e:all": "node tests/e2e/index.js auth elections ussd mobile",
+    "e2e:staging": "node tests/e2e/index.js --env staging"
   },
   "keywords": [
     "voting",
@@ -124,6 +131,13 @@
     "*.ts": [
       "eslint --fix",
       "prettier --write"
+    ]
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js",
+      "**/tests/e2e/tests/**/*.test.js"
     ]
   }
 }
