@@ -4,14 +4,14 @@ import { Op } from 'sequelize';
 /**
  * Create an audit log entry
  */
-export const createAuditLog = async (
-  userId: string,
+export const createAuditLog = (
+  userId: string | null,
   actionType: string,
   ipAddress: string,
   userAgent: string,
   actionDetails?: any,
 ) => {
-  return await AuditLog.create({
+  return AuditLog.create({
     userId,
     actionType,
     ipAddress,

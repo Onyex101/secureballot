@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param, query } from 'express-validator';
+import { body, param } from 'express-validator';
 import * as voterController from '../../controllers/voter/voterController';
 import * as voteController from '../../controllers/election/voteController';
 import * as pollingUnitController from '../../controllers/voter/pollingUnitController';

@@ -1,6 +1,13 @@
+/* eslint-disable no-return-await */
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 import bcrypt from 'bcrypt';
 import { UserRole } from '../../types/auth';
+import AdminRole from './AdminRole';
+import AdminPermission from './AdminPermission';
+import AuditLog from './AuditLog'; // Correct import name
+import PollingUnit from './PollingUnit'; // Add missing imports for associations
+import Election from './Election';
+// import ObserverReport from './ObserverReport'; // Add if ObserverReport model exists
 
 interface AdminUserAttributes {
   id: string;
@@ -39,10 +46,12 @@ interface AdminUserCreationAttributes
   password: string;
 }
 
+// Remove @Table decorator
 class AdminUser
   extends Model<AdminUserAttributes, AdminUserCreationAttributes>
   implements AdminUserAttributes
 {
+  // Remove decorators
   public id!: string;
   public fullName!: string;
   public email!: string;
@@ -60,37 +69,54 @@ class AdminUser
   public mfaEnabled!: boolean;
   public mfaBackupCodes!: string[] | null;
 
-  // Timestamps
-  public static readonly createdAt = 'createdAt';
-  public static readonly updatedAt = 'updatedAt';
+  // Associations (defined in associate method)
+  public roles?: AdminRole[];
+  public permissions?: AdminPermission[];
+  public auditLogs?: AuditLog[]; // Correct property name
+  public assignedPollingUnits?: PollingUnit[];
+  // public observerReports?: ObserverReport[];
+  // public reviewedReports?: ObserverReport[];
+  public createdElections?: Election[];
+  public creator?: AdminUser;
+  public createdUsers?: AdminUser[];
 
   // Virtual fields
   public password?: string;
 
-  // Password validation and hashing
-  public static async hashPassword(password: string): Promise<string> {
+  // Password validation and hashing (keep static hash method if used elsewhere)
+  public static hashPassword(password: string): Promise<string> {
     const saltRounds = 10;
     return bcrypt.hash(password, saltRounds);
   }
 
-  public async validatePassword(password: string): Promise<boolean> {
+  public validatePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.passwordHash);
   }
 
-  // Model associations
+  // Re-add static associate method
   public static associate(models: any): void {
     AdminUser.hasMany(models.AdminRole, {
-      foreignKey: 'admin_id',
+      foreignKey: 'adminId',
+      sourceKey: 'id',
       as: 'roles',
     });
 
     AdminUser.hasMany(models.AdminPermission, {
-      foreignKey: 'admin_id',
+      foreignKey: 'adminId',
+      sourceKey: 'id',
       as: 'permissions',
     });
 
+    AdminUser.hasMany(models.AuditLog, {
+      // Correct model name
+      foreignKey: 'adminId',
+      sourceKey: 'id',
+      as: 'auditLogs', // Correct alias
+    });
+
     AdminUser.hasMany(models.PollingUnit, {
-      foreignKey: 'assigned_officer',
+      foreignKey: 'assignedOfficer',
+      sourceKey: 'id',
       as: 'assignedPollingUnits',
     });
 
@@ -105,21 +131,25 @@ class AdminUser
     });
 
     AdminUser.hasMany(models.Election, {
-      foreignKey: 'created_by',
+      foreignKey: 'createdBy',
+      sourceKey: 'id',
       as: 'createdElections',
     });
 
     AdminUser.belongsTo(models.AdminUser, {
-      foreignKey: 'created_by',
+      foreignKey: 'createdBy',
+      targetKey: 'id',
       as: 'creator',
     });
 
     AdminUser.hasMany(models.AdminUser, {
-      foreignKey: 'created_by',
+      foreignKey: 'createdBy',
+      sourceKey: 'id',
       as: 'createdUsers',
     });
   }
 
+  // Re-add static initialize method
   public static initialize(sequelize: Sequelize): typeof AdminUser {
     return AdminUser.init(
       {
@@ -165,7 +195,7 @@ class AdminUser
           allowNull: false,
           field: 'admin_type',
           validate: {
-            isIn: [Object.values(UserRole)],
+            isIn: [Object.values(UserRole)], // Ensure UserRole is accessible
           },
         },
         isActive: {
@@ -199,6 +229,8 @@ class AdminUser
             model: 'admin_users',
             key: 'id',
           },
+          onDelete: 'SET NULL', // Match SQL
+          onUpdate: 'CASCADE',
         },
         recoveryToken: {
           type: DataTypes.STRING(255),
@@ -232,15 +264,19 @@ class AdminUser
         modelName: 'AdminUser',
         tableName: 'admin_users',
         timestamps: true,
+        underscored: true,
         hooks: {
           beforeCreate: async (user: AdminUser) => {
             if (user.password) {
               user.passwordHash = await AdminUser.hashPassword(user.password);
+              user.password = undefined;
             }
           },
           beforeUpdate: async (user: AdminUser) => {
-            if (user.password) {
+            // Only hash if password is provided and changed
+            if (user.password && user.changed('passwordHash') === false) {
               user.passwordHash = await AdminUser.hashPassword(user.password);
+              user.password = undefined;
             }
           },
         },

@@ -1,0 +1,57 @@
+[
+  {
+    "nin": "42913314108",
+    "vin": "9847012214277807854",
+    "phoneNumber": "+2349094105277",
+    "dateOfBirth": "1969-03-04",
+    "password": "Password123!",
+    "fullName": "Olukayode Omoyele",
+    "address": "Plot 157, Akinlolu Ifedayo Avenue, Effon-Alaiye",
+    "state": "Jigawa",
+    "lga": "Egbedore"
+  },
+  {
+    "nin": "11204936068",
+    "vin": "9936062461253824498",
+    "phoneNumber": "+2349051052726",
+    "dateOfBirth": "1971-04-20",
+    "password": "Password123!",
+    "fullName": "Hadiza Kyauta",
+    "address": "Km 192, Ekundayo Oluwagbemiga Avenue, Owo",
+    "state": "Enugu",
+    "lga": "Shanga"
+  },
+  {
+    "nin": "18500493486",
+    "vin": "9501666829081220802",
+    "phoneNumber": "+2349016145758",
+    "dateOfBirth": "1949-02-13",
+    "password": "Password123!",
+    "fullName": "Adannaya Ifeanyichukwu",
+    "address": "151, Adaeze Chibueze Crescent, Omoku",
+    "state": "Nasarawa",
+    "lga": "Lavun"
+  },
+  {
+    "nin": "81222974293",
+    "vin": "1844631775526834466",
+    "phoneNumber": "+2347087023023",
+    "dateOfBirth": "1950-12-06",
+    "password": "Password123!",
+    "fullName": "Hauwa Kasuwa",
+    "address": "Km 166, Olamide Oluwaseyi Street, Oyo",
+    "state": "Bayelsa",
+    "lga": "Shiroro"
+  },
+  {
+    "nin": "14777809888",
+    "vin": "5246114776958918767",
+    "phoneNumber": "+2348163425045",
+    "dateOfBirth": "1962-12-12",
+    "password": "Password123!",
+    "fullName": "Daran Shekarau",
+    "address": "Plot 72, Oluwaseun Adisa Street, Ilobu",
+    "state": "Gombe",
+    "lga": "Ogba/Egbema/Ndoni"
+  }
+]

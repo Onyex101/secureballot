@@ -60,7 +60,8 @@ class UssdSession
     });
 
     UssdSession.hasMany(models.UssdVote, {
-      foreignKey: 'session_id',
+      foreignKey: 'session_code',
+      sourceKey: 'sessionCode',
       as: 'votes',
     });
   }
@@ -161,13 +162,13 @@ class UssdSession
           { fields: ['expires_at'] },
         ],
         hooks: {
-          beforeCreate: async (session: UssdSession) => {
+          beforeCreate: (session: UssdSession) => {
             // Set expiration date to 15 minutes from now by default
             const expiry = new Date();
             expiry.setMinutes(expiry.getMinutes() + 15);
             session.expiresAt = expiry;
           },
-          beforeUpdate: async (session: UssdSession) => {
+          beforeUpdate: (session: UssdSession) => {
             // Update lastActivity timestamp on each update
             session.lastActivity = new Date();
 

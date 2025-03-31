@@ -1,29 +1,41 @@
-import { Request, Response } from 'express';
-import { auditService } from '../../services';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../../middleware/auth';
+import * as auditService from '../../services/auditService';
+import { logger } from '../../config/logger';
+import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Get security logs with filtering and pagination
  */
-export const getSecurityLogs = async (req: Request, res: Response): Promise<void> => {
+export const getSecurityLogs = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const userId = req.user?.id;
   try {
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
     const { severity, startDate, endDate, page = 1, limit = 50 } = req.query;
 
     // Get security logs from service
     const result = await auditService.getSecurityLogs(
-      severity as string,
-      startDate as string,
-      endDate as string,
+      severity as string | undefined,
+      startDate as string | undefined,
+      endDate as string | undefined,
       Number(page),
       Number(limit),
     );
 
     // Log this security log view
     await auditService.createAuditLog(
-      (req as any).user.id,
-      'security_log_view',
+      userId,
+      AuditActionType.SECURITY_LOG_VIEW,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { query: req.query },
+      { query: req.query, success: true },
     );
 
     res.status(200).json({
@@ -31,11 +43,16 @@ export const getSecurityLogs = async (req: Request, res: Response): Promise<void
       data: result,
     });
   } catch (error) {
-    console.error('Error fetching security logs:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch security logs',
-      error: (error as Error).message,
-    });
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.SECURITY_LOG_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { query: req.query, success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log security log view error', logErr));
+    next(error);
   }
 };

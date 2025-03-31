@@ -29,6 +29,7 @@ interface AdminPermissionCreationAttributes
     | 'id'
     | 'resourceType'
     | 'resourceId'
+    | 'accessLevel'
     | 'grantedAt'
     | 'grantedBy'
     | 'expiresAt'

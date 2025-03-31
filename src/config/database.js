@@ -21,6 +21,12 @@ module.exports = {
     port: parseInt(process.env.DB_PORT || "5432", 10),
     dialect: process.env.DB_DIALECT || "postgres",
     logging: false,
+    pool: {
+      max: 5,
+      min: 1,
+      acquire: 30000,
+      idle: 10000,
+    },
   },
   production: {
     username: process.env.DB_USER || "postgres",

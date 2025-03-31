@@ -1,4 +1,8 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
+import Voter from './Voter';
+import Election from './Election';
+import Candidate from './Candidate';
+import PollingUnit from './PollingUnit';
 
 // Vote source enum
 export enum VoteSource {
@@ -19,6 +23,7 @@ interface VoteAttributes {
   voteTimestamp: Date;
   voteSource: VoteSource;
   isCounted: boolean;
+  receiptCode: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,7 +31,7 @@ interface VoteAttributes {
 interface VoteCreationAttributes
   extends Optional<
     VoteAttributes,
-    'id' | 'voteTimestamp' | 'isCounted' | 'createdAt' | 'updatedAt'
+    'id' | 'voteTimestamp' | 'isCounted' | 'createdAt' | 'updatedAt' | 'receiptCode'
   > {}
 
 class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements VoteAttributes {
@@ -40,33 +45,38 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
   public voteTimestamp!: Date;
   public voteSource!: VoteSource;
   public isCounted!: boolean;
+  public receiptCode!: string;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
-  // Timestamps
-  public static readonly createdAt = 'createdAt';
-  public static readonly updatedAt = 'updatedAt';
+  public voter?: Voter;
+  public election?: Election;
+  public candidate?: Candidate;
+  public pollingUnit?: PollingUnit;
 
-  // Model associations
   public static associate(models: any): void {
     Vote.belongsTo(models.Voter, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
+      targetKey: 'id',
       as: 'voter',
     });
 
     Vote.belongsTo(models.Election, {
-      foreignKey: 'election_id',
+      foreignKey: 'electionId',
+      targetKey: 'id',
       as: 'election',
     });
 
     Vote.belongsTo(models.Candidate, {
-      foreignKey: 'candidate_id',
+      foreignKey: 'candidateId',
+      targetKey: 'id',
       as: 'candidate',
     });
 
     Vote.belongsTo(models.PollingUnit, {
-      foreignKey: 'polling_unit_id',
-      as: 'polling_unit',
+      foreignKey: 'pollingUnitId',
+      targetKey: 'id',
+      as: 'pollingUnit',
     });
   }
 
@@ -151,6 +161,11 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
+        },
+        receiptCode: {
+          field: 'receipt_code',
+          type: DataTypes.STRING(255),
+          allowNull: false,
         },
         createdAt: {
           field: 'created_at',

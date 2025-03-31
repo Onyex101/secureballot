@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import speakeasy from 'speakeasy';
@@ -5,6 +6,14 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Op } from 'sequelize';
 import Voter from '../db/models/Voter';
+
+interface VoterRegistrationData {
+  nin: string;
+  vin: string;
+  phoneNumber: string;
+  dateOfBirth: Date;
+  password: string;
+}
 
 /**
  * Check if a voter exists with the given NIN or VIN
@@ -22,41 +31,25 @@ export const checkVoterExists = async (nin: string, vin: string): Promise<boolea
 /**
  * Register a new voter
  */
-export const registerVoter = async (
-  nin: string,
-  vin: string,
-  phoneNumber: string,
-  dateOfBirth: Date,
-  password: string,
-): Promise<{
-  id: string;
-  nin: string;
-  vin: string;
-  phoneNumber: string;
-}> => {
-  // Hash password
-  const saltRounds = 10;
-  const passwordHash = await bcrypt.hash(password, saltRounds);
+export const registerVoter = async (data: VoterRegistrationData): Promise<Voter> => {
+  const existingVoter = await checkVoterExists(data.nin, data.vin);
+  if (existingVoter) {
+    throw new Error('Voter already exists');
+  }
 
-  // Create new voter
+  const hashedPassword = await bcrypt.hash(data.password, 10);
   const voter = await Voter.create({
-    id: uuidv4(),
-    nin,
-    vin,
-    phoneNumber,
-    dateOfBirth,
-    passwordHash,
+    nin: data.nin,
+    vin: data.vin,
+    phoneNumber: data.phoneNumber,
+    dateOfBirth: data.dateOfBirth,
+    password: data.password,
+    passwordHash: hashedPassword,
     isActive: true,
     mfaEnabled: false,
-    password, // This is required by the interface but not stored
   });
 
-  return {
-    id: voter.id,
-    nin: voter.nin,
-    vin: voter.vin,
-    phoneNumber: voter.phoneNumber,
-  };
+  return voter;
 };
 
 /**
@@ -161,37 +154,6 @@ export const generateToken = (
 };
 
 /**
- * Generate MFA secret and token
- */
-export const generateMfaSecret = (): {
-  secret: string;
-  token: string;
-} => {
-  const secret = speakeasy.generateSecret({ length: 20 });
-  const token = speakeasy.totp({
-    secret: secret.base32,
-    encoding: 'base32',
-  });
-
-  return {
-    secret: secret.base32,
-    token,
-  };
-};
-
-/**
- * Verify MFA token
- */
-export const verifyMfaToken = (secret: string, token: string): boolean => {
-  return speakeasy.totp.verify({
-    secret,
-    encoding: 'base32',
-    token,
-    window: 1, // Allow 1 step before and after current time
-  });
-};
-
-/**
  * Generate password reset token
  */
 export const generatePasswordResetToken = async (
@@ -246,14 +208,10 @@ export const resetPassword = async (token: string, newPassword: string): Promise
     throw new Error('Invalid or expired token');
   }
 
-  // Hash new password
-  const saltRounds = 10;
-  const passwordHash = await bcrypt.hash(newPassword, saltRounds);
-
-  // Update voter
-  await voter.update({
-    passwordHash,
-    recoveryToken: null,
+  // Hash new password - Use the virtual field approach
+  await (voter as any).update({
+    password: newPassword,
+    recoveryToken: null, // Clear token after use
     recoveryTokenExpiry: null,
   });
 
@@ -264,8 +222,8 @@ export const resetPassword = async (token: string, newPassword: string): Promise
  * Log user out (invalidate token)
  * Note: In a real implementation, you might use a token blacklist or Redis
  */
-export const logoutUser = async (userId: string): Promise<boolean> => {
+export const logoutUser = (userId: string): Promise<boolean> => {
   // In a real implementation, you would invalidate the token
   // For now, we'll just return true
-  return true;
+  return Promise.resolve(true);
 };

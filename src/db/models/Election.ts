@@ -1,4 +1,8 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
+import AdminUser from './AdminUser';
+import Candidate from './Candidate';
+import Vote from './Vote';
+import ElectionStats from './ElectionStats';
 
 // Election status enum
 export enum ElectionStatus {
@@ -33,12 +37,26 @@ interface ElectionAttributes {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  resultsPublished?: boolean;
+  resultsPublishedAt?: Date;
+  preliminaryResultsPublished?: boolean;
+  preliminaryResultsPublishedAt?: Date;
 }
 
 interface ElectionCreationAttributes
   extends Optional<
     ElectionAttributes,
-    'id' | 'description' | 'isActive' | 'status' | 'eligibilityRules' | 'createdAt' | 'updatedAt'
+    | 'id'
+    | 'description'
+    | 'isActive'
+    | 'status'
+    | 'eligibilityRules'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'resultsPublished'
+    | 'resultsPublishedAt'
+    | 'preliminaryResultsPublished'
+    | 'preliminaryResultsPublishedAt'
   > {}
 
 class Election
@@ -57,30 +75,38 @@ class Election
   public createdBy!: string;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  public resultsPublished?: boolean;
+  public resultsPublishedAt?: Date;
+  public preliminaryResultsPublished?: boolean;
+  public preliminaryResultsPublishedAt?: Date;
 
-  // Timestamps
-  public static readonly createdAt = 'createdAt';
-  public static readonly updatedAt = 'updatedAt';
+  public candidates?: Candidate[];
+  public votes?: Vote[];
+  public stats?: ElectionStats;
+  public creator?: AdminUser;
 
-  // Model associations
   public static associate(models: any): void {
     Election.hasMany(models.Candidate, {
-      foreignKey: 'election_id',
+      foreignKey: 'electionId',
+      sourceKey: 'id',
       as: 'candidates',
     });
 
     Election.hasMany(models.Vote, {
-      foreignKey: 'election_id',
+      foreignKey: 'electionId',
+      sourceKey: 'id',
       as: 'votes',
     });
 
     Election.hasOne(models.ElectionStats, {
-      foreignKey: 'election_id',
+      foreignKey: 'electionId',
+      sourceKey: 'id',
       as: 'stats',
     });
 
     Election.belongsTo(models.AdminUser, {
-      foreignKey: 'created_by',
+      foreignKey: 'createdBy',
+      targetKey: 'id',
       as: 'creator',
     });
   }
@@ -119,7 +145,7 @@ class Election
           field: 'end_date',
           allowNull: false,
           validate: {
-            isAfterStartDate(this: any, value: Date) {
+            isAfterStartDate(this: Election, value: Date) {
               if (value <= this.startDate) {
                 throw new Error('End date must be after start date');
               }
@@ -158,6 +184,8 @@ class Election
             model: 'admin_users',
             key: 'id',
           },
+          onDelete: 'RESTRICT',
+          onUpdate: 'CASCADE',
         },
         createdAt: {
           type: DataTypes.DATE,
@@ -170,6 +198,28 @@ class Election
           allowNull: false,
           defaultValue: DataTypes.NOW,
           field: 'updated_at',
+        },
+        resultsPublished: {
+          type: DataTypes.BOOLEAN,
+          field: 'results_published',
+          allowNull: true,
+          defaultValue: false,
+        },
+        resultsPublishedAt: {
+          type: DataTypes.DATE,
+          field: 'results_published_at',
+          allowNull: true,
+        },
+        preliminaryResultsPublished: {
+          type: DataTypes.BOOLEAN,
+          field: 'preliminary_results_published',
+          allowNull: true,
+          defaultValue: false,
+        },
+        preliminaryResultsPublishedAt: {
+          type: DataTypes.DATE,
+          field: 'preliminary_results_published_at',
+          allowNull: true,
         },
       },
       {
@@ -185,14 +235,12 @@ class Election
           { fields: ['is_active'] },
         ],
         hooks: {
-          beforeCreate: async (election: Election) => {
-            // Validate dates
+          beforeCreate: (election: Election) => {
             if (election.startDate >= election.endDate) {
               throw new Error('End date must be after start date');
             }
           },
-          beforeUpdate: async (election: Election) => {
-            // Update isActive based on status
+          beforeUpdate: (election: Election) => {
             if (election.status === ElectionStatus.ACTIVE) {
               election.isActive = true;
             } else if (

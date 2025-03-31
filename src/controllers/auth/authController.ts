@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { authService, auditService } from '../../services';
+import { authService, auditService, mfaService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { logger } from '../../config/logger';
+import { logError } from '../../utils/logger';
 
 /**
  * Register a new voter
@@ -15,21 +17,24 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     // Check if voter already exists
     const voterExists = await authService.checkVoterExists(nin, vin);
     if (voterExists) {
-      const error: ApiError = new Error('Voter with this NIN or VIN already exists');
-      error.statusCode = 409;
-      error.code = 'VOTER_EXISTS';
-      error.isOperational = true;
+      const error = new ApiError(
+        409,
+        'Voter with this NIN or VIN already exists',
+        'VOTER_EXISTS',
+        undefined,
+        true,
+      );
       throw error;
     }
 
     // Register new voter
-    const voter = await authService.registerVoter(
+    const voter = await authService.registerVoter({
       nin,
       vin,
       phoneNumber,
-      new Date(dateOfBirth),
+      dateOfBirth: new Date(dateOfBirth),
       password,
-    );
+    });
 
     // Log the registration
     await auditService.createAuditLog(
@@ -77,7 +82,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         AuditActionType.LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { identifier },
+        { identifier, success: true },
       );
 
       res.status(200).json({
@@ -97,17 +102,20 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
     } catch (error) {
       // Log failed login attempt
       await auditService.createAuditLog(
-        'unknown',
-        'login_failed',
+        null, // Use null instead of 'unknown' for failed login attempts
+        AuditActionType.LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { identifier, error: (error as Error).message },
+        { identifier, success: false, error: (error as Error).message },
       );
 
-      const apiError: ApiError = new Error('Invalid credentials');
-      apiError.statusCode = 401;
-      apiError.code = 'INVALID_CREDENTIALS';
-      apiError.isOperational = true;
+      const apiError = new ApiError(
+        401,
+        'Invalid credentials',
+        'INVALID_CREDENTIALS',
+        undefined,
+        true,
+      );
       throw apiError;
     }
   } catch (error) {
@@ -124,25 +132,28 @@ export const verifyMfa = async (req: Request, res: Response, next: NextFunction)
   try {
     const { userId, token } = req.body;
 
-    // In a real implementation, you would retrieve the user's MFA secret
-    // For now, we'll use a placeholder
-    const secret = 'PLACEHOLDER_SECRET';
-
-    // Verify the token
-    const isValid = authService.verifyMfaToken(secret, token);
+    // Use mfaService to verify the token against the user's stored secret
+    // Assuming mfaService.verifyMfaToken can handle non-admin verification based on userId
+    const isValid = await mfaService.verifyMfaToken(userId, token);
 
     if (!isValid) {
-      const error: ApiError = new Error('Invalid MFA token');
-      error.statusCode = 401;
-      error.code = 'INVALID_MFA_TOKEN';
-      error.isOperational = true;
+      // Log failed MFA attempt before throwing
+      await auditService.createAuditLog(
+        userId,
+        AuditActionType.MFA_VERIFY,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, error: 'Invalid MFA token' },
+      );
+      const error = new ApiError(401, 'Invalid MFA token', 'INVALID_MFA_TOKEN', undefined, true);
       throw error;
     }
 
     // Generate a new token with extended expiry
+    // Assuming 'voter' role here, might need adjustment if admins can use this endpoint
     const newToken = authService.generateToken(userId, 'voter', '24h');
 
-    // Log the MFA verification
+    // Log the MFA verification success
     await auditService.createAuditLog(
       userId,
       AuditActionType.MFA_VERIFY,
@@ -159,17 +170,32 @@ export const verifyMfa = async (req: Request, res: Response, next: NextFunction)
       },
     });
   } catch (error) {
-    // Log failed MFA attempt
-    if (req.body.userId) {
-      await auditService.createAuditLog(
-        req.body.userId,
-        'mfa_verification_failed',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { error: (error as Error).message },
-      );
+    // Ensure failed attempts are logged even if other errors occur before the explicit log call
+    let shouldLogFailure = true;
+    // Check if the error is the specific ApiError for INVALID_MFA_TOKEN that we already logged
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'INVALID_MFA_TOKEN'
+    ) {
+      shouldLogFailure = false;
     }
 
+    // Log failure if it wasn't the specific INVALID_MFA_TOKEN error and userId exists
+    if (shouldLogFailure && req.body.userId) {
+      // Safely get error message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await auditService
+        .createAuditLog(
+          req.body.userId,
+          AuditActionType.MFA_VERIFY,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: errorMessage },
+        )
+        .catch(error => logError('Failed to log MFA failure', error)); // Prevent logging error from masking original error
+    }
     next(error);
   }
 };
@@ -194,10 +220,10 @@ export const refreshToken = async (
     // Log the token refresh
     await auditService.createAuditLog(
       userId,
-      'token_refresh',
+      AuditActionType.TOKEN_REFRESH,
       req.ip || '',
       req.headers['user-agent'] || '',
-      {},
+      { success: true },
     );
 
     res.status(200).json({
@@ -231,7 +257,7 @@ export const logout = async (req: Request, res: Response, next: NextFunction): P
       AuditActionType.LOGOUT,
       req.ip || '',
       req.headers['user-agent'] || '',
-      {},
+      { success: true },
     );
 
     res.status(200).json({
@@ -262,11 +288,11 @@ export const forgotPassword = async (
 
       // In a real implementation, you would send an email with the token
       // For now, we'll just log it
-      console.log(`Password reset token for ${email}: ${result.token}`);
+      logger.debug(`Password reset token for ${email}: ${result.token}`);
 
       // Log the password reset request
       await auditService.createAuditLog(
-        'unknown', // We don't know the user ID yet
+        'system',
         AuditActionType.PASSWORD_RESET,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -308,8 +334,8 @@ export const resetPassword = async (
 
       // Log the password reset
       await auditService.createAuditLog(
-        'unknown', // We don't know the user ID yet
-        'password_reset_complete',
+        'system',
+        AuditActionType.PASSWORD_CHANGE,
         req.ip || '',
         req.headers['user-agent'] || '',
         { success: true },
@@ -320,10 +346,13 @@ export const resetPassword = async (
         message: 'Password reset successful',
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Invalid or expired token');
-      apiError.statusCode = 400;
-      apiError.code = 'INVALID_TOKEN';
-      apiError.isOperational = true;
+      const apiError = new ApiError(
+        400,
+        'Invalid or expired token',
+        'INVALID_RESET_TOKEN',
+        undefined,
+        true,
+      );
       throw apiError;
     }
   } catch (error) {

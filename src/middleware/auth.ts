@@ -1,56 +1,48 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { ApiError } from './errorHandler';
+import AdminUser from '../db/models/AdminUser';
+import { config } from '../config/index';
 
 // Define custom Request interface with user
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    role?: string;
-    permissions?: string[];
-    [key: string]: any;
-  };
+  user?: AdminUser;
 }
-
-// Define role-based authorization types
-type RoleType = string | string[] | undefined;
 
 /**
  * Middleware to authenticate JWT token
  */
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
-    // Get token from header
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      const error: ApiError = new Error('No authentication token provided');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+    if (!authHeader) {
+      throw new ApiError(401, 'No authorization header', 'AUTH_HEADER_MISSING');
     }
 
     const token = authHeader.split(' ')[1];
 
-    // Verify token
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret-key') as {
-        id: string;
-        role?: string;
-        permissions?: string[];
-        [key: string]: any;
-      };
+    if (!token) {
+      throw new ApiError(401, 'No token provided', 'TOKEN_MISSING');
+    }
 
-      // Set user in request
-      req.user = decoded;
+    try {
+      const decoded = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
+      const user = await AdminUser.findByPk(decoded.id);
+
+      if (!user) {
+        throw new ApiError(401, 'User not found', 'USER_NOT_FOUND');
+      }
+
+      req.user = user;
       next();
     } catch (error) {
-      const err: ApiError = new Error('Invalid or expired token');
-      err.statusCode = 401;
-      err.code = 'INVALID_TOKEN';
-      err.isOperational = true;
-      throw err;
+      throw new ApiError(401, 'Invalid token', 'INVALID_TOKEN');
     }
   } catch (error) {
     next(error);
@@ -61,87 +53,91 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
  * Middleware to authorize based on user roles
  * @param roles Allowed roles
  */
-export const authorize = (roles: RoleType = undefined) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) {
-        const error: ApiError = new Error('User not authenticated');
-        error.statusCode = 401;
-        error.code = 'AUTHENTICATION_REQUIRED';
-        error.isOperational = true;
-        throw error;
-      }
-
-      // Allow access if no specific roles are required
-      if (!roles) {
-        return next();
-      }
-
-      // Convert roles to array for easier handling
-      const allowedRoles = Array.isArray(roles) ? roles : [roles];
-
-      // Check if user has required role
-      if (req.user.role && allowedRoles.includes(req.user.role)) {
-        return next();
-      }
-
-      // Deny access if user doesn't have required role
-      const error: ApiError = new Error('Access denied: insufficient permissions');
-      error.statusCode = 403;
-      error.code = 'ACCESS_DENIED';
-      error.isOperational = true;
-      throw error;
-    } catch (error) {
-      next(error);
+export const authorize = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new ApiError(401, 'No token provided');
     }
-  };
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
+    const user = await AdminUser.findByPk(decoded.id, {
+      include: ['roles', 'permissions'],
+    });
+
+    if (!user) {
+      throw new ApiError(401, 'User not found');
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    next(new ApiError(401, 'Invalid token'));
+  }
 };
 
 /**
  * Middleware to check specific permissions
  * @param requiredPermissions Required permissions
  */
-export const hasPermission = (requiredPermissions: string | string[]) => {
+export const hasPermission = (requiredPermission: string) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        const error: ApiError = new Error('User not authenticated');
-        error.statusCode = 401;
-        error.code = 'AUTHENTICATION_REQUIRED';
-        error.isOperational = true;
-        throw error;
+        throw new ApiError(401, 'User not authenticated');
       }
 
-      const permissions = Array.isArray(requiredPermissions)
-        ? requiredPermissions
-        : [requiredPermissions];
-
-      // If no permissions are set on the user, deny access
-      if (!req.user.permissions || !Array.isArray(req.user.permissions)) {
-        const error: ApiError = new Error('Access denied: no permissions set');
-        error.statusCode = 403;
-        error.code = 'ACCESS_DENIED';
-        error.isOperational = true;
-        throw error;
-      }
-
-      // Check if user has all required permissions
-      const hasAllPermissions = permissions.every(permission =>
-        req.user?.permissions?.includes(permission),
+      const hasPermission = req.user.permissions?.some(
+        permission => permission.permissionName === requiredPermission,
       );
 
-      if (hasAllPermissions) {
-        return next();
+      if (!hasPermission) {
+        throw new ApiError(403, 'Access denied');
       }
 
-      // Deny access if user doesn't have all required permissions
-      const error: ApiError = new Error('Access denied: insufficient permissions');
-      error.statusCode = 403;
-      error.code = 'ACCESS_DENIED';
-      error.isOperational = true;
-      throw error;
+      next();
     } catch (error) {
       next(error);
     }
   };
+};
+
+export const requireMfa = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'User not authenticated', 'AUTHENTICATION_REQUIRED');
+    }
+
+    if (!req.user.mfaEnabled) {
+      throw new ApiError(403, 'MFA not enabled', 'MFA_NOT_ENABLED');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const requireDeviceVerification = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'User not authenticated', 'AUTHENTICATION_REQUIRED');
+    }
+
+    const deviceId = req.headers['x-device-id'];
+
+    if (!deviceId) {
+      throw new ApiError(400, 'Device ID required', 'DEVICE_ID_REQUIRED');
+    }
+
+    // TODO: Implement device verification logic
+    next();
+  } catch (error) {
+    next(error);
+  }
 };

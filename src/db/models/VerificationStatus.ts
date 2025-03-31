@@ -3,12 +3,18 @@ import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 interface VerificationStatusAttributes {
   id: string;
   userId: string;
-  state: string;
+  isPhoneVerified: boolean;
+  isEmailVerified: boolean;
+  isIdentityVerified: boolean;
+  isAddressVerified: boolean;
+  isBiometricVerified: boolean;
+  verificationLevel: number;
+  lastVerifiedAt: Date | null;
   isVerified: boolean;
+  state: string;
   verifiedAt: Date | null;
-  verificationMethod: string | null;
-  verificationNotes: string | null;
-  verificationData: any | null;
+  verificationMethod: string;
+  verificationData: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,10 +23,17 @@ interface VerificationStatusCreationAttributes
   extends Optional<
     VerificationStatusAttributes,
     | 'id'
+    | 'isPhoneVerified'
+    | 'isEmailVerified'
+    | 'isIdentityVerified'
+    | 'isAddressVerified'
+    | 'isBiometricVerified'
+    | 'verificationLevel'
+    | 'lastVerifiedAt'
     | 'isVerified'
+    | 'state'
     | 'verifiedAt'
     | 'verificationMethod'
-    | 'verificationNotes'
     | 'verificationData'
     | 'createdAt'
     | 'updatedAt'
@@ -32,12 +45,18 @@ class VerificationStatus
 {
   public id!: string;
   public userId!: string;
-  public state!: string;
+  public isPhoneVerified!: boolean;
+  public isEmailVerified!: boolean;
+  public isIdentityVerified!: boolean;
+  public isAddressVerified!: boolean;
+  public isBiometricVerified!: boolean;
+  public verificationLevel!: number;
+  public lastVerifiedAt!: Date | null;
   public isVerified!: boolean;
+  public state!: string;
   public verifiedAt!: Date | null;
-  public verificationMethod!: string | null;
-  public verificationNotes!: string | null;
-  public verificationData!: any | null;
+  public verificationMethod!: string;
+  public verificationData!: any;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
@@ -65,6 +84,7 @@ class VerificationStatus
           type: DataTypes.UUID,
           allowNull: false,
           field: 'user_id',
+          unique: true,
           references: {
             model: 'voters',
             key: 'id',
@@ -72,12 +92,46 @@ class VerificationStatus
           onDelete: 'CASCADE',
           onUpdate: 'CASCADE',
         },
-        state: {
-          type: DataTypes.STRING(50),
+        isPhoneVerified: {
+          type: DataTypes.BOOLEAN,
           allowNull: false,
-          validate: {
-            notEmpty: true,
-          },
+          defaultValue: false,
+          field: 'is_phone_verified',
+        },
+        isEmailVerified: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          field: 'is_email_verified',
+        },
+        isIdentityVerified: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          field: 'is_identity_verified',
+        },
+        isAddressVerified: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          field: 'is_address_verified',
+        },
+        isBiometricVerified: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+          field: 'is_biometric_verified',
+        },
+        verificationLevel: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          field: 'verification_level',
+        },
+        lastVerifiedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+          field: 'last_verified_at',
         },
         isVerified: {
           type: DataTypes.BOOLEAN,
@@ -85,24 +139,24 @@ class VerificationStatus
           defaultValue: false,
           field: 'is_verified',
         },
+        state: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          field: 'state',
+        },
         verifiedAt: {
           type: DataTypes.DATE,
           allowNull: true,
           field: 'verified_at',
         },
         verificationMethod: {
-          type: DataTypes.STRING(100),
-          allowNull: true,
+          type: DataTypes.STRING,
+          allowNull: false,
           field: 'verification_method',
-        },
-        verificationNotes: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          field: 'verification_notes',
         },
         verificationData: {
           type: DataTypes.JSON,
-          allowNull: true,
+          allowNull: false,
           field: 'verification_data',
         },
         createdAt: {
@@ -121,22 +175,10 @@ class VerificationStatus
       {
         sequelize,
         modelName: 'VerificationStatus',
-        tableName: 'verification_status',
+        tableName: 'verification_statuses',
         underscored: false,
         timestamps: true,
-        indexes: [
-          { unique: true, fields: ['user_id'] },
-          { fields: ['state'] },
-          { fields: ['is_verified'] },
-        ],
-        hooks: {
-          beforeUpdate: async (verificationStatus: VerificationStatus) => {
-            // If status is changing to verified, set the verification time
-            if (verificationStatus.changed('isVerified') && verificationStatus.isVerified) {
-              verificationStatus.verifiedAt = new Date();
-            }
-          },
-        },
+        indexes: [{ unique: true, fields: ['user_id'] }],
       },
     );
   }

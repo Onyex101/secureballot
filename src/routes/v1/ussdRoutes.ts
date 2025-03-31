@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { body } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { ussdLimiter } from '../../middleware/rateLimiter';

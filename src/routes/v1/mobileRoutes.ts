@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { authenticate } from '../../middleware/auth';
@@ -48,6 +48,17 @@ const router = Router();
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: JWT token for authenticated requests
+ *                 verificationRequired:
+ *                   type: boolean
+ *                   description: Whether device verification is required
  *       401:
  *         description: Authentication failed
  *       403:
@@ -101,6 +112,17 @@ router.post(
  *     responses:
  *       200:
  *         description: Device verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: JWT token for authenticated requests
+ *                 verified:
+ *                   type: boolean
+ *                   description: Whether the device was verified
  *       400:
  *         description: Invalid verification code
  *       401:

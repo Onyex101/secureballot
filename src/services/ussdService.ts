@@ -1,11 +1,10 @@
-import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
 import UssdSession, { UssdSessionStatus } from '../db/models/UssdSession';
 import UssdVote from '../db/models/UssdVote';
 import Voter from '../db/models/Voter';
 import Election from '../db/models/Election';
 import Candidate from '../db/models/Candidate';
 import { Op } from 'sequelize';
+import { ApiError } from '../middleware/errorHandler';
 
 /**
  * Generate a random session code
@@ -18,9 +17,9 @@ const generateSessionCode = (): string => {
 /**
  * Generate a receipt code for vote verification
  */
-const generateReceiptCode = (): string => {
-  // Generate a 16-character alphanumeric code
-  return crypto.randomBytes(8).toString('hex');
+const generateConfirmationCode = (): string => {
+  // Generate a 6-digit random code for confirmation (example)
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 /**
@@ -41,7 +40,7 @@ export const startSession = async (
   });
 
   if (!voter) {
-    throw new Error('Invalid voter credentials');
+    throw new ApiError(401, 'Invalid voter credentials');
   }
 
   // Check if voter already has an active session
@@ -66,20 +65,17 @@ export const startSession = async (
   // Generate a new session code
   const sessionCode = generateSessionCode();
 
-  // Set expiration time (30 minutes from now)
+  // Set expiration time (e.g., 15 minutes from now - consistent with model hook?)
   const expiresAt = new Date();
-  expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+  expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
   // Create a new session
   const session = await UssdSession.create({
-    id: uuidv4(),
     userId: voter.id,
     sessionCode,
     phoneNumber,
     sessionStatus: UssdSessionStatus.AUTHENTICATED,
     expiresAt,
-    isActive: true,
-    lastActivity: new Date(),
   });
 
   return {
@@ -95,7 +91,7 @@ export const castVote = async (
   sessionCode: string,
   electionId: string,
   candidateId: string,
-): Promise<{ receiptCode: string }> => {
+): Promise<{ confirmationCode: string }> => {
   // Find the session
   const session = await UssdSession.findOne({
     where: {
@@ -107,14 +103,16 @@ export const castVote = async (
     },
   });
 
-  if (!session) {
-    throw new Error('Invalid or expired session');
+  if (!session || !session.userId) {
+    // Ensure session exists and has an associated user ID
+    throw new ApiError(404, 'Invalid or expired session, or user not found');
   }
+  const userId = session.userId; // Get userId from the session
 
   // Verify the election exists
   const election = await Election.findByPk(electionId);
   if (!election) {
-    throw new Error('Election not found');
+    throw new ApiError(404, 'Election not found');
   }
 
   // Verify the candidate exists and is part of the election
@@ -122,52 +120,50 @@ export const castVote = async (
     where: {
       id: candidateId,
       electionId,
+      isActive: true, // Check if candidate is active
     },
   });
 
   if (!candidate) {
-    throw new Error('Candidate not found or not part of this election');
+    throw new ApiError(400, 'Candidate not found or not active for this election');
   }
 
   // Check if voter has already voted in this election
   const existingVote = await UssdVote.findOne({
     where: {
-      sessionId: session.id,
+      userId: userId,
       electionId,
     },
   });
 
   if (existingVote) {
-    throw new Error('You have already voted in this election');
+    throw new ApiError(409, 'You have already voted in this election');
   }
 
-  // Generate a receipt code
-  const receiptCode = generateReceiptCode();
+  // Generate a confirmation code
+  const confirmationCode = generateConfirmationCode();
 
-  // Create the vote record
+  // Create the vote record - Ensure it matches the UssdVote model
   const vote = await UssdVote.create({
-    id: uuidv4(),
-    sessionId: session.id,
+    sessionCode: session.sessionCode,
+    userId: userId,
     electionId,
     candidateId,
-    voteTimestamp: new Date(),
-    isVerified: false,
-    isCounted: true,
+    confirmationCode,
   });
 
   // Update session status
   await session.update({
     sessionStatus: UssdSessionStatus.VOTE_CONFIRMED,
-    lastActivity: new Date(),
     sessionData: {
-      ...session.sessionData,
-      receiptCode,
+      ...(session.sessionData || {}),
+      confirmationCode,
       voteId: vote.id,
     },
   });
 
   return {
-    receiptCode,
+    confirmationCode,
   };
 };
 
@@ -177,7 +173,7 @@ export const castVote = async (
 export const getSessionStatus = async (
   sessionCode: string,
 ): Promise<{
-  status: string;
+  status: UssdSessionStatus;
   userId: string | null;
   expiresAt: Date;
   lastActivity: Date;
@@ -190,7 +186,7 @@ export const getSessionStatus = async (
   });
 
   if (!session) {
-    throw new Error('Session not found');
+    throw new ApiError(404, 'Session not found');
   }
 
   return {
@@ -202,54 +198,57 @@ export const getSessionStatus = async (
 };
 
 /**
- * Verify a vote using receipt code
+ * Verify a vote using confirmation code (Note: USSD votes might not be verifiable this way)
+ * This logic seems flawed as receiptCode was generated randomly and stored in sessionData
+ * A better approach might be to verify based on userId and electionId
  */
 export const verifyVote = async (
-  receiptCode: string,
+  confirmationCode: string,
   phoneNumber: string,
 ): Promise<{
-  isVerified: boolean;
+  isProcessed: boolean;
+  processedAt?: Date | null;
   electionName?: string;
   candidateName?: string;
   voteTimestamp?: Date;
 }> => {
-  // Find the session with this receipt code
+  // Find the session associated with the phone number where sessionData contains the code
   const session = await UssdSession.findOne({
     where: {
       phoneNumber,
       sessionData: {
-        receiptCode,
+        [Op.contains]: { confirmationCode },
       },
     },
   });
 
-  if (!session || !session.sessionData || !session.sessionData.voteId) {
-    throw new Error('Invalid receipt code or phone number');
+  if (!session || !session.sessionData?.voteId) {
+    throw new ApiError(404, 'No matching confirmed vote session found for this phone and code');
   }
 
-  // Get the vote
+  // Get the vote using the ID stored in the session
   const vote = await UssdVote.findByPk(session.sessionData.voteId);
   if (!vote) {
-    throw new Error('Vote not found');
+    throw new ApiError(500, 'Associated vote record not found');
   }
 
-  // Get election and candidate details
+  // Get election and candidate details (optional, based on return needs)
   const election = await Election.findByPk(vote.electionId);
   const candidate = await Candidate.findByPk(vote.candidateId);
 
-  if (!election || !candidate) {
-    throw new Error('Election or candidate not found');
+  // Mark vote as processed (if not already)
+  if (!vote.isProcessed) {
+    await vote.update({
+      isProcessed: true,
+      processedAt: new Date(),
+    });
   }
 
-  // Mark vote as verified
-  await vote.update({
-    isVerified: true,
-  });
-
   return {
-    isVerified: true,
-    electionName: election.electionName,
-    candidateName: candidate.fullName,
+    isProcessed: vote.isProcessed,
+    processedAt: vote.processedAt,
+    electionName: election?.electionName,
+    candidateName: candidate?.fullName,
     voteTimestamp: vote.voteTimestamp,
   };
 };
@@ -267,7 +266,7 @@ const ussdSessions: {
 /**
  * Create a USSD session
  */
-export const createUssdSession = async (userId: string, phoneNumber: string): Promise<string> => {
+export const createUssdSession = (userId: string, phoneNumber: string): Promise<string> => {
   // Generate a random 6-digit session code
   const sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -282,13 +281,13 @@ export const createUssdSession = async (userId: string, phoneNumber: string): Pr
     expiresAt,
   };
 
-  return sessionCode;
+  return Promise.resolve(sessionCode);
 };
 
 /**
  * Verify a USSD session
  */
-export const verifyUssdSession = async (sessionCode: string, phoneNumber: string) => {
+export const verifyUssdSession = (sessionCode: string, phoneNumber: string) => {
   const session = ussdSessions[sessionCode];
 
   if (!session) {
@@ -312,7 +311,7 @@ export const verifyUssdSession = async (sessionCode: string, phoneNumber: string
 /**
  * Process USSD request
  */
-export const processUssdRequest = async (
+export const processUssdRequest = (
   sessionId: string,
   serviceCode: string,
   phoneNumber: string,

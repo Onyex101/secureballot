@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
-import { validate, validationMessages, sanitize } from '../../middleware/validator';
+import { body } from 'express-validator';
+import { validate, validationMessages } from '../../middleware/validator';
 import * as authController from '../../controllers/auth/authController';
 import * as mfaController from '../../controllers/auth/mfaController';
-import * as ussdAuthController from '../../controllers/auth/ussdAuthContoller';
+import * as ussdAuthController from '../../controllers/ussd/ussdAuthController';
 import { authenticate } from '../../middleware/auth';
 import { authLimiter } from '../../middleware/rateLimiter';
 
@@ -91,7 +91,13 @@ router.post(
       .isLength({ min: 8 })
       .withMessage('Password must be at least 8 characters'),
   ]),
-  authController.register,
+  async (req, res, next) => {
+    try {
+      await authController.register(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -133,7 +139,13 @@ router.post(
 
     body('password').notEmpty().withMessage(validationMessages.required('Password')),
   ]),
-  authController.login,
+  async (req, res, next) => {
+    try {
+      await authController.login(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -192,7 +204,13 @@ router.post(
       .matches(/^\+?[0-9]{10,15}$/)
       .withMessage(validationMessages.phoneNumber()),
   ]),
-  ussdAuthController.authenticateViaUssd,
+  async (req, res, next) => {
+    try {
+      await ussdAuthController.authenticateViaUssd(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -231,7 +249,13 @@ router.post(
       .isLength({ min: 6, max: 10 })
       .withMessage('Session code must be 6-10 characters'),
   ]),
-  ussdAuthController.verifyUssdSession,
+  async (req, res, next) => {
+    try {
+      await ussdAuthController.verifyUssdSession(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -283,7 +307,13 @@ router.post(
       .isNumeric()
       .withMessage('MFA token must contain only numbers'),
   ]),
-  authController.verifyMfa,
+  async (req, res, next) => {
+    try {
+      await authController.verifyMfa(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -300,7 +330,13 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/setup-mfa', authenticate, mfaController.setupMfa);
+router.post('/setup-mfa', authenticate, async (req, res, next) => {
+  try {
+    await mfaController.setupMfa(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
@@ -343,7 +379,13 @@ router.post(
       .isNumeric()
       .withMessage('MFA token must contain only numbers'),
   ]),
-  mfaController.enableMfa,
+  async (req, res, next) => {
+    try {
+      await mfaController.enableMfa(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -387,7 +429,13 @@ router.post(
       .isNumeric()
       .withMessage('MFA token must contain only numbers'),
   ]),
-  mfaController.disableMfa,
+  async (req, res, next) => {
+    try {
+      await mfaController.disableMfa(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -404,7 +452,13 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/generate-backup-codes', authenticate, mfaController.generateBackupCodes);
+router.post('/generate-backup-codes', authenticate, async (req, res, next) => {
+  try {
+    await mfaController.generateBackupCodes(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
@@ -448,7 +502,13 @@ router.post(
 
     body('backupCode').notEmpty().withMessage(validationMessages.required('Backup code')),
   ]),
-  mfaController.verifyBackupCode,
+  async (req, res, next) => {
+    try {
+      await mfaController.verifyBackupCode(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -465,7 +525,13 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/refresh-token', authenticate, authController.refreshToken);
+router.post('/refresh-token', authenticate, async (req, res, next) => {
+  try {
+    await authController.refreshToken(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
@@ -481,7 +547,13 @@ router.post('/refresh-token', authenticate, authController.refreshToken);
  *       401:
  *         description: Unauthorized
  */
-router.post('/logout', authenticate, authController.logout);
+router.post('/logout', authenticate, async (req, res, next) => {
+  try {
+    await authController.logout(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
@@ -517,7 +589,13 @@ router.post(
       .isEmail()
       .withMessage(validationMessages.email()),
   ]),
-  authController.forgotPassword,
+  async (req, res, next) => {
+    try {
+      await authController.forgotPassword(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 /**
@@ -559,7 +637,13 @@ router.post(
       .isLength({ min: 8 })
       .withMessage('Password must be at least 8 characters'),
   ]),
-  authController.resetPassword,
+  async (req, res, next) => {
+    try {
+      await authController.resetPassword(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 export default router;

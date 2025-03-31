@@ -2,12 +2,14 @@ import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 
 interface UssdVoteAttributes {
   id: string;
-  sessionId: string;
+  sessionCode: string;
+  userId: string;
   electionId: string;
   candidateId: string;
   voteTimestamp: Date;
-  isVerified: boolean;
-  isCounted: boolean;
+  confirmationCode: string;
+  isProcessed: boolean;
+  processedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,7 +17,7 @@ interface UssdVoteAttributes {
 interface UssdVoteCreationAttributes
   extends Optional<
     UssdVoteAttributes,
-    'id' | 'voteTimestamp' | 'isVerified' | 'isCounted' | 'createdAt' | 'updatedAt'
+    'id' | 'voteTimestamp' | 'isProcessed' | 'processedAt' | 'createdAt' | 'updatedAt'
   > {}
 
 class UssdVote
@@ -23,12 +25,14 @@ class UssdVote
   implements UssdVoteAttributes
 {
   public id!: string;
-  public sessionId!: string;
+  public sessionCode!: string;
+  public userId!: string;
   public electionId!: string;
   public candidateId!: string;
   public voteTimestamp!: Date;
-  public isVerified!: boolean;
-  public isCounted!: boolean;
+  public confirmationCode!: string;
+  public isProcessed!: boolean;
+  public processedAt!: Date | null;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
@@ -39,8 +43,14 @@ class UssdVote
   // Model associations
   public static associate(models: any): void {
     UssdVote.belongsTo(models.UssdSession, {
-      foreignKey: 'session_id',
+      foreignKey: 'session_code',
+      targetKey: 'sessionCode',
       as: 'session',
+    });
+
+    UssdVote.belongsTo(models.Voter, {
+      foreignKey: 'user_id',
+      as: 'voter',
     });
 
     UssdVote.belongsTo(models.Election, {
@@ -62,15 +72,26 @@ class UssdVote
           defaultValue: DataTypes.UUIDV4,
           primaryKey: true,
         },
-        sessionId: {
-          type: DataTypes.UUID,
+        sessionCode: {
+          type: DataTypes.STRING(10),
           allowNull: false,
-          field: 'session_id',
+          field: 'session_code',
           references: {
             model: 'ussd_sessions',
-            key: 'id',
+            key: 'session_code',
           },
           onDelete: 'CASCADE',
+          onUpdate: 'CASCADE',
+        },
+        userId: {
+          type: DataTypes.UUID,
+          allowNull: false,
+          field: 'user_id',
+          references: {
+            model: 'voters',
+            key: 'id',
+          },
+          onDelete: 'RESTRICT',
           onUpdate: 'CASCADE',
         },
         electionId: {
@@ -101,17 +122,21 @@ class UssdVote
           defaultValue: DataTypes.NOW,
           field: 'vote_timestamp',
         },
-        isVerified: {
-          type: DataTypes.BOOLEAN,
+        confirmationCode: {
+          type: DataTypes.STRING(10),
           allowNull: false,
-          defaultValue: false,
-          field: 'is_verified',
+          field: 'confirmation_code',
         },
-        isCounted: {
+        isProcessed: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,
-          field: 'is_counted',
+          field: 'is_processed',
+        },
+        processedAt: {
+          type: DataTypes.DATE,
+          allowNull: true,
+          field: 'processed_at',
         },
         createdAt: {
           type: DataTypes.DATE,
@@ -133,11 +158,11 @@ class UssdVote
         underscored: false,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ['session_id', 'election_id'] },
+          { unique: true, fields: ['session_code', 'election_id'] },
+          { fields: ['user_id'] },
           { fields: ['election_id'] },
           { fields: ['candidate_id'] },
-          { fields: ['is_verified'] },
-          { fields: ['is_counted'] },
+          { fields: ['is_processed'] },
         ],
       },
     );

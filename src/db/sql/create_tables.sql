@@ -41,14 +41,17 @@ CREATE TABLE IF NOT EXISTS admin_roles (
 CREATE TABLE IF NOT EXISTS admin_permissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   admin_id UUID NOT NULL,
-  permission_name VARCHAR(100) NOT NULL,
-  resource_type VARCHAR(50) NOT NULL,
-  resource_id VARCHAR(255),
-  actions JSONB NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  permission_name VARCHAR(50) NOT NULL,
+  resource_type VARCHAR(50),
+  resource_id UUID,
+  access_level VARCHAR(50) NOT NULL DEFAULT 'read',
+  granted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  granted_by UUID,
+  expires_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT fk_admin_permissions_admin_id FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT fk_admin_permissions_admin_id FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_admin_permissions_granted_by FOREIGN KEY (granted_by) REFERENCES admin_users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- Create admin_logs table
@@ -77,11 +80,12 @@ CREATE TABLE IF NOT EXISTS voters (
   recovery_token_expiry TIMESTAMP,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   last_login TIMESTAMP,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   mfa_secret VARCHAR(255),
   mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-  mfa_backup_codes TEXT[]
+  mfa_backup_codes TEXT[],
+  public_key TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Create failed_attempts table
@@ -105,6 +109,8 @@ CREATE TABLE IF NOT EXISTS polling_units (
   ward VARCHAR(100) NOT NULL,
   geolocation JSONB,
   address VARCHAR(255),
+  latitude FLOAT,
+  longitude FLOAT,
   registered_voters INTEGER NOT NULL DEFAULT 0,
   assigned_officer UUID,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -161,6 +167,10 @@ CREATE TABLE IF NOT EXISTS elections (
   created_by UUID NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  results_published BOOLEAN DEFAULT FALSE,
+  results_published_at TIMESTAMP,
+  preliminary_results_published BOOLEAN DEFAULT FALSE,
+  preliminary_results_published_at TIMESTAMP,
   CONSTRAINT fk_elections_created_by FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -209,6 +219,7 @@ CREATE TABLE IF NOT EXISTS votes (
   vote_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
   vote_source VARCHAR(50) NOT NULL,
   is_counted BOOLEAN NOT NULL DEFAULT FALSE,
+  receipt_code VARCHAR(255) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT fk_votes_user_id FOREIGN KEY (user_id) REFERENCES voters(id) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -221,13 +232,13 @@ CREATE TABLE IF NOT EXISTS votes (
 -- Create ussd_sessions table
 CREATE TABLE IF NOT EXISTS ussd_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id VARCHAR(100) NOT NULL UNIQUE,
+  session_code VARCHAR(10) NOT NULL UNIQUE,
   user_id UUID,
   phone_number VARCHAR(15) NOT NULL,
   session_data JSONB,
-  current_state VARCHAR(50) NOT NULL,
-  start_time TIMESTAMP NOT NULL DEFAULT NOW(),
-  last_access_time TIMESTAMP NOT NULL DEFAULT NOW(),
+  session_status VARCHAR(50) NOT NULL,
+  last_activity TIMESTAMP NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMP NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -237,7 +248,7 @@ CREATE TABLE IF NOT EXISTS ussd_sessions (
 -- Create ussd_votes table
 CREATE TABLE IF NOT EXISTS ussd_votes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id VARCHAR(100) NOT NULL,
+  session_code VARCHAR(10) NOT NULL,
   user_id UUID NOT NULL,
   election_id UUID NOT NULL,
   candidate_id UUID NOT NULL,
@@ -247,7 +258,7 @@ CREATE TABLE IF NOT EXISTS ussd_votes (
   processed_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT fk_ussd_votes_session_id FOREIGN KEY (session_id) REFERENCES ussd_sessions(session_id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ussd_votes_session_code FOREIGN KEY (session_code) REFERENCES ussd_sessions(session_code) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_ussd_votes_user_id FOREIGN KEY (user_id) REFERENCES voters(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT fk_ussd_votes_election_id FOREIGN KEY (election_id) REFERENCES elections(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT fk_ussd_votes_candidate_id FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -257,15 +268,17 @@ CREATE TABLE IF NOT EXISTS ussd_votes (
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID,
+  admin_id UUID,
   action_type VARCHAR(50) NOT NULL,
   action_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
-  ip_address VARCHAR(255) NOT NULL,
-  user_agent VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(50) NOT NULL,
+  user_agent TEXT NOT NULL,
   action_details JSONB,
   is_suspicious BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT fk_audit_logs_user_id FOREIGN KEY (user_id) REFERENCES voters(id) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT fk_audit_logs_user_id FOREIGN KEY (user_id) REFERENCES voters(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_audit_logs_admin_id FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- Create observer_reports table
@@ -275,11 +288,13 @@ CREATE TABLE IF NOT EXISTS observer_reports (
   election_id UUID NOT NULL,
   polling_unit_id UUID NOT NULL,
   report_type VARCHAR(50) NOT NULL,
-  report_content TEXT NOT NULL,
-  attachments JSONB,
-  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  report_details TEXT NOT NULL,
+  severity VARCHAR(50) NOT NULL DEFAULT 'info',
+  media_urls JSONB,
+  reported_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+  official_response TEXT,
   reviewed_by UUID,
-  review_notes TEXT,
   reviewed_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),

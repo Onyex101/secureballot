@@ -4,9 +4,7 @@ interface AdminRoleAttributes {
   id: string;
   adminId: string;
   roleName: string;
-  roleScope: any | null;
-  assignedAt: Date;
-  assignedBy: string | null;
+  description: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -15,7 +13,7 @@ interface AdminRoleAttributes {
 interface AdminRoleCreationAttributes
   extends Optional<
     AdminRoleAttributes,
-    'id' | 'roleScope' | 'assignedAt' | 'assignedBy' | 'isActive' | 'createdAt' | 'updatedAt'
+    'id' | 'description' | 'isActive' | 'createdAt' | 'updatedAt'
   > {}
 
 class AdminRole
@@ -25,9 +23,7 @@ class AdminRole
   public id!: string;
   public adminId!: string;
   public roleName!: string;
-  public roleScope!: any | null;
-  public assignedAt!: Date;
-  public assignedBy!: string | null;
+  public description!: string | null;
   public isActive!: boolean;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
@@ -41,11 +37,6 @@ class AdminRole
     AdminRole.belongsTo(models.AdminUser, {
       foreignKey: 'admin_id',
       as: 'admin',
-    });
-
-    AdminRole.belongsTo(models.AdminUser, {
-      foreignKey: 'assigned_by',
-      as: 'assigner',
     });
   }
 
@@ -76,27 +67,10 @@ class AdminRole
             notEmpty: true,
           },
         },
-        roleScope: {
-          type: DataTypes.JSONB,
+        description: {
+          type: DataTypes.TEXT,
           allowNull: true,
-          field: 'role_scope',
-        },
-        assignedAt: {
-          type: DataTypes.DATE,
-          allowNull: false,
-          field: 'assigned_at',
-          defaultValue: DataTypes.NOW,
-        },
-        assignedBy: {
-          type: DataTypes.UUID,
-          allowNull: true,
-          field: 'assigned_by',
-          references: {
-            model: 'admin_users',
-            key: 'id',
-          },
-          onDelete: 'SET NULL',
-          onUpdate: 'CASCADE',
+          field: 'description',
         },
         isActive: {
           type: DataTypes.BOOLEAN,
@@ -123,12 +97,7 @@ class AdminRole
         tableName: 'admin_roles',
         underscored: true,
         timestamps: true,
-        indexes: [
-          { fields: ['admin_id'] },
-          { fields: ['role_name'] },
-          { fields: ['assigned_by'] },
-          { fields: ['is_active'] },
-        ],
+        indexes: [{ fields: ['admin_id'] }, { fields: ['role_name'] }, { fields: ['is_active'] }],
       },
     );
   }

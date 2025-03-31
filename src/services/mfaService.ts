@@ -1,8 +1,10 @@
 import speakeasy from 'speakeasy';
 import qrcode from 'qrcode';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import Voter from '../db/models/Voter';
 import AdminUser from '../db/models/AdminUser';
+import { ApiError } from '../middleware/errorHandler';
+import { Model } from 'sequelize';
 
 /**
  * Generate MFA secret for a user
@@ -15,38 +17,28 @@ export const generateMfaSecret = async (
   otpAuthUrl: string;
   qrCodeUrl: string;
 }> => {
-  // Generate a new secret
   const secret = speakeasy.generateSecret({
-    name: `INEC E-Voting${isAdmin ? ' Admin' : ''}`,
-    issuer: 'INEC',
+    name: `SecureBallot${isAdmin ? ' Admin' : ''}`,
+    issuer: 'SecureBallot',
   });
 
-  // Store the secret in the user's record
+  let user: Voter | AdminUser | null;
   if (isAdmin) {
-    const admin = await AdminUser.findByPk(userId);
-    if (!admin) {
-      throw new Error('Admin user not found');
-    }
-
-    // Update admin with MFA secret
-    await admin.update({
-      mfaSecret: secret.base32,
-      mfaEnabled: false, // Not enabled until verified
-    });
+    user = await AdminUser.findByPk(userId);
   } else {
-    const voter = await Voter.findByPk(userId);
-    if (!voter) {
-      throw new Error('Voter not found');
-    }
-
-    // Update voter with MFA secret
-    await voter.update({
-      mfaSecret: secret.base32,
-      mfaEnabled: false, // Not enabled until verified
-    });
+    user = await Voter.findByPk(userId);
   }
 
-  // Generate QR code
+  if (!user) {
+    throw new ApiError(404, `${isAdmin ? 'Admin user' : 'Voter'} not found`);
+  }
+
+  await (user as Model).update({
+    mfaSecret: secret.base32,
+    mfaEnabled: false,
+    mfaBackupCodes: null,
+  });
+
   const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url || '');
 
   return {
@@ -64,48 +56,30 @@ export const verifyMfaToken = async (
   token: string,
   isAdmin: boolean = false,
 ): Promise<boolean> => {
-  // Get the user's MFA secret
-  let mfaSecret: string | null = null;
-
+  let user: Voter | AdminUser | null;
   if (isAdmin) {
-    const admin = await AdminUser.findByPk(userId);
-    if (!admin) {
-      throw new Error('Admin user not found');
-    }
-    mfaSecret = admin.mfaSecret;
+    user = await AdminUser.findByPk(userId);
   } else {
-    const voter = await Voter.findByPk(userId);
-    if (!voter) {
-      throw new Error('Voter not found');
-    }
-    mfaSecret = voter.mfaSecret;
+    user = await Voter.findByPk(userId);
   }
 
-  if (!mfaSecret) {
-    throw new Error('MFA not set up for this user');
+  if (!user) {
+    throw new ApiError(404, `${isAdmin ? 'Admin user' : 'Voter'} not found`);
   }
 
-  // Verify the token
+  if (!user.mfaSecret) {
+    throw new ApiError(400, 'MFA not set up for this user');
+  }
+
   const verified = speakeasy.totp.verify({
-    secret: mfaSecret,
+    secret: user.mfaSecret,
     encoding: 'base32',
     token,
-    window: 1, // Allow 1 step before and after current time
+    window: 1,
   });
 
-  // If this is the first verification, enable MFA
-  if (verified) {
-    if (isAdmin) {
-      const admin = await AdminUser.findByPk(userId);
-      if (admin && !admin.mfaEnabled) {
-        await admin.update({ mfaEnabled: true });
-      }
-    } else {
-      const voter = await Voter.findByPk(userId);
-      if (voter && !voter.mfaEnabled) {
-        await voter.update({ mfaEnabled: true });
-      }
-    }
+  if (verified && !user.mfaEnabled) {
+    await (user as Model).update({ mfaEnabled: true });
   }
 
   return verified;
@@ -119,37 +93,34 @@ export const disableMfa = async (
   token: string,
   isAdmin: boolean = false,
 ): Promise<boolean> => {
-  // Verify the token first
   const verified = await verifyMfaToken(userId, token, isAdmin);
 
   if (!verified) {
-    throw new Error('Invalid MFA token');
+    throw new ApiError(401, 'Invalid MFA token');
   }
 
-  // Disable MFA
+  let user: Voter | AdminUser | null;
   if (isAdmin) {
-    const admin = await AdminUser.findByPk(userId);
-    if (!admin) {
-      throw new Error('Admin user not found');
-    }
-
-    await admin.update({
-      mfaSecret: null,
-      mfaEnabled: false,
-    });
+    user = await AdminUser.findByPk(userId);
   } else {
-    const voter = await Voter.findByPk(userId);
-    if (!voter) {
-      throw new Error('Voter not found');
-    }
-
-    await voter.update({
-      mfaSecret: null,
-      mfaEnabled: false,
-    });
+    user = await Voter.findByPk(userId);
   }
+
+  if (!user) {
+    throw new ApiError(404, `${isAdmin ? 'Admin user' : 'Voter'} not found`);
+  }
+
+  await (user as Model).update({
+    mfaSecret: null,
+    mfaEnabled: false,
+    mfaBackupCodes: null,
+  });
 
   return true;
+};
+
+const hashBackupCode = (code: string): string => {
+  return crypto.createHash('sha256').update(code).digest('hex');
 };
 
 /**
@@ -159,36 +130,31 @@ export const generateBackupCodes = async (
   userId: string,
   isAdmin: boolean = false,
 ): Promise<string[]> => {
-  // Generate 10 random backup codes
-  const backupCodes = Array.from({ length: 10 }, () =>
-    Math.random().toString(36).substring(2, 8).toUpperCase(),
-  );
-
-  // Hash the backup codes before storing
-  const hashedCodes = backupCodes.map(code => speakeasy.generateSecret({ length: 20 }).base32);
-
-  // Store the hashed codes
+  let user: Voter | AdminUser | null;
   if (isAdmin) {
-    const admin = await AdminUser.findByPk(userId);
-    if (!admin) {
-      throw new Error('Admin user not found');
-    }
-
-    await admin.update({
-      mfaBackupCodes: hashedCodes,
-    });
+    user = await AdminUser.findByPk(userId);
   } else {
-    const voter = await Voter.findByPk(userId);
-    if (!voter) {
-      throw new Error('Voter not found');
-    }
-
-    await voter.update({
-      mfaBackupCodes: hashedCodes,
-    });
+    user = await Voter.findByPk(userId);
   }
 
-  // Return the plain text codes to the user
+  if (!user) {
+    throw new ApiError(404, `${isAdmin ? 'Admin user' : 'Voter'} not found`);
+  }
+
+  if (!user.mfaEnabled) {
+    throw new ApiError(400, 'MFA must be enabled to generate backup codes');
+  }
+
+  const backupCodes = Array.from({ length: 10 }, () =>
+    crypto.randomBytes(4).toString('hex').toUpperCase(),
+  );
+
+  const hashedCodes = backupCodes.map(hashBackupCode);
+
+  await (user as Model).update({
+    mfaBackupCodes: hashedCodes,
+  });
+
   return backupCodes;
 };
 
@@ -200,45 +166,29 @@ export const verifyBackupCode = async (
   backupCode: string,
   isAdmin: boolean = false,
 ): Promise<boolean> => {
-  let backupCodes: string[] = [];
-
-  // Get the user's backup codes
+  let user: Voter | AdminUser | null;
   if (isAdmin) {
-    const admin = await AdminUser.findByPk(userId);
-    if (!admin || !admin.mfaBackupCodes) {
-      throw new Error('Backup codes not found');
-    }
-    backupCodes = admin.mfaBackupCodes;
+    user = await AdminUser.findByPk(userId);
   } else {
-    const voter = await Voter.findByPk(userId);
-    if (!voter || !voter.mfaBackupCodes) {
-      throw new Error('Backup codes not found');
-    }
-    backupCodes = voter.mfaBackupCodes;
+    user = await Voter.findByPk(userId);
   }
 
-  // Check if the provided code matches any of the backup codes
-  const codeIndex = backupCodes.findIndex(code => code === backupCode);
+  if (!user || !user.mfaBackupCodes || user.mfaBackupCodes.length === 0) {
+    throw new ApiError(404, 'Backup codes not set up or already used');
+  }
+
+  const hashedBackupCode = hashBackupCode(backupCode);
+  const currentCodes = user.mfaBackupCodes;
+
+  const codeIndex = currentCodes.findIndex(storedHash => storedHash === hashedBackupCode);
 
   if (codeIndex === -1) {
     return false;
   }
 
-  // Remove the used backup code
-  backupCodes.splice(codeIndex, 1);
+  const updatedCodes = [...currentCodes.slice(0, codeIndex), ...currentCodes.slice(codeIndex + 1)];
 
-  // Update the user's backup codes
-  if (isAdmin) {
-    const admin = await AdminUser.findByPk(userId);
-    if (admin) {
-      await admin.update({ mfaBackupCodes: backupCodes });
-    }
-  } else {
-    const voter = await Voter.findByPk(userId);
-    if (voter) {
-      await voter.update({ mfaBackupCodes: backupCodes });
-    }
-  }
+  await (user as Model).update({ mfaBackupCodes: updatedCodes });
 
   return true;
 };

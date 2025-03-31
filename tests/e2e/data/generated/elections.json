@@ -1,0 +1,32 @@
+[
+  {
+    "id": "66246457-2182-4a60-a0fd-e6d4ae2e1ce4",
+    "title": "presidential Election 2025",
+    "type": "presidential",
+    "status": "cancelled",
+    "startDate": "2025-04-19T18:25:50.219Z",
+    "endDate": "2025-04-20T18:25:50.219Z",
+    "description": "Clementia inflammatio vero ullus sursum cuppedia attonbitus confero voveo. Absorbeo sequi cupiditate conventus cena. Tener ulterius corona unde.",
+    "isNational": true
+  },
+  {
+    "id": "1ffbc966-8d1c-4f38-94da-11265ce0a188",
+    "title": "presidential Election 2025",
+    "type": "presidential",
+    "status": "completed",
+    "startDate": "2025-04-02T18:25:50.219Z",
+    "endDate": "2025-04-03T18:25:50.219Z",
+    "description": "Atrocitas illum vere amor. Aduro excepturi cribro contigo dedecor cogo tot adaugeo stabilis. Catena deripio dolorum.",
+    "isNational": true
+  },
+  {
+    "id": "54432e46-d013-4916-8d97-fa923cd97329",
+    "title": "Nasarawa State Gubernatorial Election 2025",
+    "type": "gubernatorial",
+    "status": "ongoing",
+    "startDate": "2025-04-12T18:25:50.219Z",
+    "endDate": "2025-04-13T18:25:50.219Z",
+    "description": "Suggero tenus turba quas desipio eos barba. Approbo adstringo decens delego facere cubo aequitas vulgivagus pauci. Voco tibi tot.",
+    "isNational": false
+  }
+]

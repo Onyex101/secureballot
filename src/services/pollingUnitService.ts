@@ -1,12 +1,13 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Op } from 'sequelize';
+import { Op, WhereOptions } from 'sequelize';
 import PollingUnit from '../db/models/PollingUnit';
+import { ApiError } from '../middleware/errorHandler';
+import { logWarn } from '../utils/logger';
 
 /**
  * Get all polling units with pagination and filtering
  */
 export const getPollingUnits = async (
-  regionId?: string,
+  filters: { state?: string; lga?: string; ward?: string },
   search?: string,
   page: number = 1,
   limit: number = 50,
@@ -20,17 +21,18 @@ export const getPollingUnits = async (
   };
 }> => {
   // Build filter conditions
-  const whereConditions: any = {};
+  const whereConditions: WhereOptions = {};
 
-  if (regionId) {
-    whereConditions.regionId = regionId;
-  }
+  // Apply region filters
+  if (filters.state) whereConditions.state = filters.state;
+  if (filters.lga) whereConditions.lga = filters.lga;
+  if (filters.ward) whereConditions.ward = filters.ward;
 
   if (search) {
-    whereConditions[Op.or] = [
-      { name: { [Op.like]: `%${search}%` } },
-      { code: { [Op.like]: `%${search}%` } },
-      { address: { [Op.like]: `%${search}%` } },
+    (whereConditions as any)[Op.or] = [
+      { pollingUnitName: { [Op.iLike]: `%${search}%` } },
+      { pollingUnitCode: { [Op.iLike]: `%${search}%` } },
+      { address: { [Op.iLike]: `%${search}%` } },
     ];
   }
 
@@ -42,7 +44,7 @@ export const getPollingUnits = async (
     where: whereConditions,
     limit,
     offset,
-    order: [['name', 'ASC']],
+    order: [['pollingUnitName', 'ASC']],
   });
 
   // Calculate pagination metadata
@@ -66,7 +68,7 @@ export const getPollingUnitById = async (id: string): Promise<PollingUnit> => {
   const pollingUnit = await PollingUnit.findByPk(id);
 
   if (!pollingUnit) {
-    throw new Error('Polling unit not found');
+    throw new ApiError(404, 'Polling unit not found');
   }
 
   return pollingUnit;
@@ -75,44 +77,50 @@ export const getPollingUnitById = async (id: string): Promise<PollingUnit> => {
 /**
  * Get polling unit by code
  */
-export const getPollingUnitByCode = async (code: string): Promise<PollingUnit | null> => {
-  return await PollingUnit.findOne({
+export const getPollingUnitByCode = async (code: string): Promise<PollingUnit> => {
+  const pollingUnit = await PollingUnit.findOne({
     where: { pollingUnitCode: code },
   });
+  if (!pollingUnit) {
+    throw new ApiError(404, 'Polling unit not found');
+  }
+  return pollingUnit;
 };
 
 /**
  * Create a new polling unit
  */
 export const createPollingUnit = async (
-  name: string,
-  code: string,
-  address: string,
-  regionId: string,
+  pollingUnitName: string,
+  pollingUnitCode: string,
+  address: string | null,
+  state: string,
+  lga: string,
+  ward: string,
   latitude?: number,
   longitude?: number,
+  registeredVoters?: number,
 ): Promise<PollingUnit> => {
   // Check if polling unit with same code already exists
   const existingUnit = await PollingUnit.findOne({
-    where: { pollingUnitCode: code },
+    where: { pollingUnitCode },
   });
 
   if (existingUnit) {
-    throw new Error('Polling unit with this code already exists');
+    throw new ApiError(409, 'Polling unit with this code already exists');
   }
 
   // Create new polling unit
   const pollingUnit = await PollingUnit.create({
-    id: uuidv4(),
-    pollingUnitName: name,
-    pollingUnitCode: code,
+    pollingUnitName,
+    pollingUnitCode,
     address,
-    state: regionId.split('-')[0], // Assuming regionId format is "state-lga-ward"
-    lga: regionId.split('-')[1] || '',
-    ward: regionId.split('-')[2] || '',
+    state,
+    lga,
+    ward,
     latitude,
     longitude,
-    registeredVoters: 0,
+    registeredVoters: registeredVoters || 0,
   });
 
   return pollingUnit;
@@ -124,16 +132,19 @@ export const createPollingUnit = async (
 export const updatePollingUnit = async (
   id: string,
   updates: {
-    name?: string;
+    pollingUnitName?: string;
     address?: string;
     latitude?: number;
     longitude?: number;
+    registeredVoters?: number;
+    isActive?: boolean;
+    assignedOfficer?: string | null;
   },
 ): Promise<PollingUnit> => {
   const pollingUnit = await PollingUnit.findByPk(id);
 
   if (!pollingUnit) {
-    throw new Error('Polling unit not found');
+    throw new ApiError(404, 'Polling unit not found');
   }
 
   // Update fields
@@ -184,7 +195,7 @@ export const getNearbyPollingUnits = async (
 /**
  * Get voter's assigned polling unit
  */
-export const getVoterPollingUnit = async (voterId: string) => {
+export const getVoterPollingUnit = (voterId: string) => {
   // In a real implementation, this would fetch the voter's assigned polling unit from the database
   // For now, returning mock data
   return {
@@ -207,28 +218,51 @@ export const getVoterPollingUnit = async (voterId: string) => {
 /**
  * Count polling units by region
  */
-export const countPollingUnitsByRegion = async (regionId: string): Promise<number> => {
-  // In a real implementation, this would count polling units in the region
-  // For now, returning mock data
-  return 25;
+export const countPollingUnitsByRegion = (filters: {
+  state?: string;
+  lga?: string;
+  ward?: string;
+}): Promise<number> => {
+  // TODO: Implement actual counting logic
+  const whereConditions: WhereOptions = {};
+  if (filters.state) whereConditions.state = filters.state;
+  if (filters.lga) whereConditions.lga = filters.lga;
+  if (filters.ward) whereConditions.ward = filters.ward;
+  return PollingUnit.count({ where: whereConditions }); // Example implementation
+  // return Promise.resolve(25);
 };
 
 /**
  * Count registered voters by region
  */
-export const countRegisteredVotersByRegion = async (regionId: string): Promise<number> => {
-  // In a real implementation, this would sum registered voters in the region
-  // For now, returning mock data
-  return 15000;
+export const countRegisteredVotersByRegion = async (filters: {
+  state?: string;
+  lga?: string;
+  ward?: string;
+}): Promise<number> => {
+  logWarn('countRegisteredVotersByRegion is using mock data');
+  // TODO: Implement actual counting logic (summing registeredVoters)
+  const whereConditions: WhereOptions = {};
+  if (filters.state) whereConditions.state = filters.state;
+  if (filters.lga) whereConditions.lga = filters.lga;
+  if (filters.ward) whereConditions.ward = filters.ward;
+  const result = await PollingUnit.sum('registeredVoters', { where: whereConditions });
+  return result || 0; // Example implementation
+  // return Promise.resolve(15000);
 };
 
 /**
  * Get active elections by region
  */
-export const getActiveElectionsByRegion = async (regionId: string): Promise<any[]> => {
-  // In a real implementation, this would fetch active elections for the region
-  // For now, returning mock data
-  return [
+export const getActiveElectionsByRegion = (_filters: {
+  state?: string;
+  lga?: string;
+  ward?: string;
+}): Promise<any[]> => {
+  logWarn('getActiveElectionsByRegion is using mock data');
+  // TODO: Implement actual fetching logic (This is complex, depends on how elections map to regions)
+  // Might involve checking election eligibility rules against region filters.
+  return Promise.resolve([
     {
       id: 'election-1',
       electionName: 'Presidential Election 2023',
@@ -243,5 +277,5 @@ export const getActiveElectionsByRegion = async (regionId: string): Promise<any[
       startDate: new Date('2023-03-11'),
       endDate: new Date('2023-03-11'),
     },
-  ];
+  ]);
 };

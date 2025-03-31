@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { pollingUnitService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
@@ -18,7 +18,7 @@ export const getPollingUnits = async (
 
     // Get polling units
     const result = await pollingUnitService.getPollingUnits(
-      regionId as string,
+      { state: regionId as string },
       search as string,
       Number(page),
       Number(limit),
@@ -73,11 +73,7 @@ export const getPollingUnitById = async (
         data: pollingUnit,
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Polling unit not found');
-      apiError.statusCode = 404;
-      apiError.code = 'POLLING_UNIT_NOT_FOUND';
-      apiError.isOperational = true;
-      throw apiError;
+      throw new ApiError(404, 'Polling unit not found', 'POLLING_UNIT_NOT_FOUND');
     }
   } catch (error) {
     next(error);
@@ -98,11 +94,7 @@ export const getNearbyPollingUnits = async (
     const { latitude, longitude, radius = 5, limit = 10 } = req.query;
 
     if (!latitude || !longitude) {
-      const error: ApiError = new Error('Latitude and longitude are required');
-      error.statusCode = 400;
-      error.code = 'MISSING_COORDINATES';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(400, 'Latitude and longitude are required', 'MISSING_COORDINATES');
     }
 
     // Get nearby polling units

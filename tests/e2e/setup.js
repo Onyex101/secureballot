@@ -9,6 +9,19 @@ const config = require('./config');
 const testDataGenerator = require('./utils/testDataGenerator');
 const apiClient = require('./utils/apiClient');
 
+// Initialize global.testState if it doesn't exist
+if (!global.testState) {
+  global.testState = {
+    authToken: null,
+    userId: null,
+    testData: {
+      voters: [],
+      elections: [],
+      candidates: []
+    }
+  };
+}
+
 // Ensure the screenshots directory exists
 if (config.testSettings.screenshots.enabled) {
   const screenshotsDir = config.testSettings.screenshots.path;
@@ -18,21 +31,13 @@ if (config.testSettings.screenshots.enabled) {
   }
 }
 
-// Setup global test state
-global.testState = {
-  // Store test state across tests
-  authToken: null,
-  userId: null,
-  testData: {
-    // Will be populated during setup
-    voters: [],
-    elections: [],
-    candidates: []
-  }
-};
-
 console.log(`Setting up E2E tests for environment: ${config.environment}`);
-console.log(`API Base URL: ${config.environments[config.environment].apiBaseURL}`);
+console.log(`API Base URL: ${config.apiConfig.baseURL}`);
+console.log(`API Prefix: ${config.apiPrefix}`);
+
+if (process.env.E2E_API_BASE_URL) {
+  console.log(`Using API Base URL from environment variable: ${process.env.E2E_API_BASE_URL}`);
+}
 
 // Generate test data if needed
 async function setupTestData() {
@@ -47,6 +52,10 @@ async function setupTestData() {
     });
     
     // Store in global state for tests to use
+    if (!global.testState) {
+      global.testState = {};
+    }
+    
     global.testState.testData = testData;
     
     console.log(`Generated ${testData.voters.length} voters, ${testData.elections.length} elections, and ${testData.candidates.length} candidates.`);
@@ -59,6 +68,19 @@ async function setupTestData() {
 // Main setup function
 async function setup() {
   try {
+    // Make sure testState is initialized
+    if (!global.testState) {
+      global.testState = {
+        authToken: null,
+        userId: null,
+        testData: {
+          voters: [],
+          elections: [],
+          candidates: []
+        }
+      };
+    }
+    
     // Set up test data
     await setupTestData();
     

@@ -2,26 +2,29 @@ import Election, { ElectionStatus } from '../db/models/Election';
 import Candidate from '../db/models/Candidate';
 import Voter from '../db/models/Voter';
 import PollingUnit from '../db/models/PollingUnit';
-import Vote from '../db/models/Vote';
+import Vote, { VoteSource } from '../db/models/Vote';
+import VoterCard from '../db/models/VoterCard';
 import { v4 as uuidv4 } from 'uuid';
-import { Op } from 'sequelize';
+import { Op, WhereOptions } from 'sequelize';
+import crypto from 'crypto';
+import { decrypt } from 'eciesjs';
+import { ApiError } from '../middleware/errorHandler';
+import db from '../db/models';
+import { logError, logWarn } from '../utils/logger';
 
-// Define extended interfaces with needed properties
-interface VoterWithAssociations extends Voter {
-  polling_unit?: PollingUnitWithProperties;
-}
+// --- IMPORTANT: Load the server's private key securely ---
+// This should come from a secure source like environment variables or a secret manager
+// NEVER hardcode private keys!
+// Example: Using environment variable
+const serverPrivateKeyPem = process.env.SERVER_ECC_PRIVATE_KEY_PEM;
+const VOTE_DATA_ENCODING = 'utf-8';
 
-interface PollingUnitWithProperties extends PollingUnit {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface ElectionWithPublishProperties extends Election {
-  resultsPublished?: boolean;
-  resultsPublishedAt?: Date;
-  preliminaryResultsPublished?: boolean;
-  preliminaryResultsPublishedAt?: Date;
+interface DecryptedVoteData {
+  // Define the structure of the actual decrypted vote
+  // e.g., { candidateId: string, timestamp: number, validityToken?: string }
+  candidateId: string;
+  timestamp: number; // Example: Unix timestamp from client
+  // Add any other fields expected within the decrypted vote payload
 }
 
 /**
@@ -67,14 +70,14 @@ export const createElection = async (
 ) => {
   // Create new election
   const newElection = await Election.create({
-    id: uuidv4(),
+    // id: uuidv4(), // Let default handle it
     electionName,
     electionType,
     startDate: new Date(startDate),
     endDate: new Date(endDate),
     description: description || null,
-    isActive: false,
-    status: ElectionStatus.DRAFT,
+    // isActive: false, // Default handled by model
+    // status: ElectionStatus.DRAFT, // Default handled by model
     eligibilityRules: eligibilityRules || null,
     createdBy,
   });
@@ -85,17 +88,17 @@ export const createElection = async (
 /**
  * Get election by ID
  */
-export const getElectionById = async (electionId: string) => {
-  return await Election.findByPk(electionId);
+export const getElectionById = (electionId: string) => {
+  return Election.findByPk(electionId);
 };
 
 /**
  * Get elections by status
  */
-export const getElections = async (statusFilter: string) => {
+export const getElections = (statusFilter: string) => {
   const statuses = statusFilter.split(',');
 
-  return await Election.findAll({
+  return Election.findAll({
     where: {
       status: {
         [Op.in]: statuses,
@@ -114,26 +117,22 @@ export const getElectionCandidates = async (
   limit: number = 50,
   search?: string,
 ) => {
-  // Validate the election exists
   const election = await Election.findByPk(electionId);
   if (!election) {
-    throw new Error('Election not found');
+    throw new ApiError(404, 'Election not found');
   }
 
-  // Calculate offset for pagination
   const offset = (page - 1) * limit;
-
-  // Build query conditions
-  const whereClause: any = { electionId };
+  const whereClause: WhereOptions = { electionId };
 
   if (search) {
-    whereClause[Op.or] = [
+    (whereClause as any)[Op.or] = [
       { fullName: { [Op.iLike]: `%${search}%` } },
-      { partyAffiliation: { [Op.iLike]: `%${search}%` } },
+      { partyName: { [Op.iLike]: `%${search}%` } },
+      { partyCode: { [Op.iLike]: `%${search}%` } },
     ];
   }
 
-  // Fetch candidates with pagination
   const { count, rows: candidates } = await Candidate.findAndCountAll({
     where: whereClause,
     limit,
@@ -141,7 +140,6 @@ export const getElectionCandidates = async (
     order: [['fullName', 'ASC']],
   });
 
-  // Calculate total pages
   const totalPages = Math.ceil(count / limit);
 
   return {
@@ -162,70 +160,79 @@ export const getElectionCandidates = async (
 };
 
 /**
- * Get voter details
+ * Get voter details including polling unit
  */
 export const getVoterDetails = async (userId: string) => {
-  const voter = (await Voter.findByPk(userId, {
+  const voter = await Voter.findByPk(userId, {
     include: [
       {
-        model: PollingUnit,
-        as: 'polling_unit',
-        attributes: ['id', 'name', 'code'],
+        model: db.VoterCard,
+        as: 'voterCard',
+        required: false,
+        include: [
+          {
+            model: db.PollingUnit,
+            as: 'polling_unit',
+            required: false,
+            attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
+          },
+        ],
       },
     ],
-  })) as unknown as VoterWithAssociations;
+  });
 
   if (!voter) {
-    throw new Error('Voter not found');
+    throw new ApiError(404, 'Voter not found');
   }
+
+  const voterCard = voter.get('voterCard') as VoterCard | undefined;
+  const pollingUnit = voterCard?.get('polling_unit') as PollingUnit | undefined;
 
   return {
     id: voter.id,
     nin: voter.nin,
     vin: voter.vin,
     phoneNumber: voter.phoneNumber,
-    pollingUnit: voter.polling_unit
+    pollingUnit: pollingUnit
       ? {
-          id: voter.polling_unit.id,
-          name: voter.polling_unit.name,
-          code: voter.polling_unit.code,
+          id: pollingUnit.id,
+          name: pollingUnit.pollingUnitName,
+          code: pollingUnit.pollingUnitCode,
         }
       : null,
   };
 };
 
 /**
- * Get polling units by region
+ * Get polling units by state/lga/ward
  */
-export const getPollingUnitsByRegion = async (
-  regionId: string,
+export const getPollingUnits = async (
+  filters: { state?: string; lga?: string; ward?: string },
   page: number = 1,
   limit: number = 50,
   search?: string,
 ) => {
-  // Build query conditions
-  const whereClause: any = { regionId };
+  const whereClause: WhereOptions = {};
+  if (filters.state) whereClause.state = filters.state;
+  if (filters.lga) whereClause.lga = filters.lga;
+  if (filters.ward) whereClause.ward = filters.ward;
 
   if (search) {
-    whereClause[Op.or] = [
-      { name: { [Op.iLike]: `%${search}%` } },
-      { code: { [Op.iLike]: `%${search}%` } },
+    (whereClause as any)[Op.or] = [
+      { pollingUnitName: { [Op.iLike]: `%${search}%` } },
+      { pollingUnitCode: { [Op.iLike]: `%${search}%` } },
       { address: { [Op.iLike]: `%${search}%` } },
     ];
   }
 
-  // Calculate offset for pagination
   const offset = (page - 1) * limit;
-
-  // Fetch polling units with pagination
   const { count, rows: pollingUnits } = await PollingUnit.findAndCountAll({
     where: whereClause,
     limit,
     offset,
-    order: [['name', 'ASC']],
+    order: [['pollingUnitName', 'ASC']],
   });
 
-  // Calculate total pages
   const totalPages = Math.ceil(count / limit);
 
   return {
@@ -240,36 +247,121 @@ export const getPollingUnitsByRegion = async (
 };
 
 /**
- * Check voter eligibility for an election
+ * Decrypts vote data using the server's private key.
+ *
+ * @param encryptedDataHex - The encrypted data as a hex string.
+ * @returns The decrypted vote data object.
+ * @throws ApiError if decryption fails or private key is missing.
  */
-export const checkVoterEligibility = async (userId: string, electionId: string) => {
-  // Get the voter
-  const voter = await Voter.findByPk(userId);
-  if (!voter) {
-    return {
-      isEligible: false,
-      reason: 'Voter not found',
-    };
+const decryptVoteData = (encryptedDataHex: string): DecryptedVoteData => {
+  if (!serverPrivateKeyPem) {
+    logError('SERVER_ECC_PRIVATE_KEY_PEM is not set');
+    throw new ApiError(500, 'Server configuration error: Missing private key.');
   }
 
-  // Get the election
+  try {
+    const encryptedDataBuffer = Buffer.from(encryptedDataHex, 'hex');
+    // Note: ECIES decryption needs the private key in Buffer format
+    const serverPrivateKeyBuffer = Buffer.from(serverPrivateKeyPem);
+    const decryptedDataBuffer = decrypt(serverPrivateKeyBuffer, encryptedDataBuffer);
+    const decryptedJson = decryptedDataBuffer.toString(VOTE_DATA_ENCODING);
+    const decryptedData: DecryptedVoteData = JSON.parse(decryptedJson);
+
+    // Basic validation of decrypted data structure
+    if (!decryptedData || typeof decryptedData.candidateId !== 'string') {
+      throw new Error('Invalid decrypted vote structure.');
+    }
+
+    return decryptedData;
+  } catch (error: any) {
+    logError('Decryption failed', error);
+    throw new ApiError(400, `Vote decryption failed: ${error.message}`);
+  }
+};
+
+/**
+ * Check if a voter is eligible for a specific election.
+ */
+export const checkVoterEligibility = async (
+  userId: string,
+  electionId: string,
+): Promise<boolean> => {
+  const voter = await Voter.findByPk(userId, {
+    include: [
+      {
+        model: db.VoterCard,
+        as: 'voterCard',
+        required: true,
+      },
+    ],
+  });
+
   const election = await Election.findByPk(electionId);
-  if (!election) {
-    return {
-      isEligible: false,
-      reason: 'Election not found',
-    };
+
+  if (!voter || !election) {
+    return false;
   }
 
-  // Check if the election is active
+  if (!voter.isActive) {
+    return false;
+  }
+
   if (election.status !== ElectionStatus.ACTIVE) {
-    return {
-      isEligible: false,
-      reason: `Election is ${election.status.toLowerCase()}, not active`,
-    };
+    return false;
   }
 
-  // Check if voter has already voted in this election
+  const now = new Date();
+  if (now < election.startDate || now > election.endDate) {
+    return false;
+  }
+
+  const voterCard = voter.get('voterCard') as VoterCard | undefined;
+  if (!voterCard) {
+    return false;
+  }
+
+  if (election.eligibilityRules) {
+    // --- Placeholder for eligibility rules check ---
+    logWarn(`Eligibility rules check not fully implemented for election ${electionId}`);
+  }
+
+  return true;
+};
+
+/**
+ * Cast a vote for an election.
+ */
+export const castVote = async (
+  userId: string,
+  electionId: string,
+  encryptedVoteDataHex: string,
+  voteSource: VoteSource,
+  clientPublicKey?: string,
+): Promise<Vote> => {
+  const voter = await Voter.findByPk(userId, {
+    include: [
+      {
+        model: db.VoterCard,
+        as: 'voterCard',
+        required: true,
+      },
+    ],
+  });
+
+  if (!voter) {
+    throw new ApiError(404, 'Voter not found.');
+  }
+
+  const voterCard = voter.get('voterCard') as VoterCard | undefined;
+  if (!voterCard) {
+    throw new ApiError(400, 'Voter registration incomplete (missing voter card).');
+  }
+
+  const isEligible = await checkVoterEligibility(userId, electionId);
+  if (!isEligible) {
+    throw new ApiError(403, 'Voter is not eligible for this election.');
+  }
+
   const existingVote = await Vote.findOne({
     where: {
       userId,
@@ -278,101 +370,147 @@ export const checkVoterEligibility = async (userId: string, electionId: string) 
   });
 
   if (existingVote) {
-    return {
-      isEligible: false,
-      reason: 'Voter has already cast a vote in this election',
-    };
+    throw new ApiError(409, 'Voter has already cast a vote in this election.');
   }
 
-  // Check election-specific eligibility rules if they exist
-  if (election.eligibilityRules) {
-    // Apply eligibility rules based on the rules object
-    // This would be a more complex implementation based on specific requirements
-    // For example, checking age, region, voter category, etc.
-
-    // For now, assuming all voters are eligible if they haven't voted yet
-    return {
-      isEligible: true,
-      reason: null,
-    };
+  const decryptedData = decryptVoteData(encryptedVoteDataHex);
+  const { candidateId } = decryptedData;
+  const candidate = await Candidate.findOne({
+    where: {
+      id: candidateId,
+      electionId: electionId,
+      status: 'approved',
+      isActive: true,
+    },
+  });
+  if (!candidate) {
+    throw new ApiError(400, 'Invalid or ineligible candidate ID.');
   }
 
-  // Default to eligible if no specific rules
-  return {
-    isEligible: true,
-    reason: null,
-  };
+  const pollingUnit = await PollingUnit.findOne({
+    where: { pollingUnitCode: voterCard.pollingUnitCode },
+    attributes: ['id'],
+  });
+
+  if (!pollingUnit) {
+    throw new ApiError(500, 'Could not find polling unit associated with voter.');
+  }
+  const pollingUnitId = pollingUnit.id;
+
+  const voteDataToHash = `${userId}-${electionId}-${candidateId}-${Date.now()}`;
+  const voteHash = crypto.createHash('sha256').update(voteDataToHash).digest('hex');
+  const receiptCode = uuidv4();
+
+  const vote = await db.sequelize.transaction(async t => {
+    const newVote = await Vote.create(
+      {
+        userId,
+        electionId,
+        candidateId,
+        pollingUnitId,
+        encryptedVoteData: Buffer.from(encryptedVoteDataHex, 'hex'),
+        voteHash,
+        voteSource,
+        receiptCode,
+      },
+      { transaction: t },
+    );
+
+    if (clientPublicKey && !voter.publicKey) {
+      await voter.update({ publicKey: clientPublicKey }, { transaction: t });
+    }
+
+    return newVote;
+  });
+
+  return vote;
 };
 
 /**
- * Cast a vote
+ * Process a batch of offline votes.
  */
-export const castVote = async (
-  userId: string,
+export const processOfflineVoteBatch = async (
+  offlineVotes: { userId: string; encryptedVote: string }[],
   electionId: string,
-  candidateId: string,
-  encryptedVote: string,
-) => {
-  // This would typically create a Vote record
-  // For now, returning mock data
-  return {
-    id: uuidv4(),
-    receiptCode: `VOTE${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-    timestamp: new Date(),
-  };
+): Promise<{ successful: number; failed: number; errors: string[] }> => {
+  let successful = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const voteData of offlineVotes) {
+    try {
+      await castVote(voteData.userId, electionId, voteData.encryptedVote, VoteSource.OFFLINE);
+      successful++;
+    } catch (error: any) {
+      failed++;
+      errors.push(`Vote for user ${voteData.userId} failed: ${error.message}`);
+      logError(`Offline vote processing failed for user ${voteData.userId}`, error);
+    }
+  }
+
+  return { successful, failed, errors };
 };
 
 /**
- * Update election status
+ * Update the status of an election.
  */
-export const updateElectionStatus = async (electionId: string, status: ElectionStatus) => {
+export const updateElectionStatus = async (
+  electionId: string,
+  newStatus: ElectionStatus,
+): Promise<Election> => {
   const election = await Election.findByPk(electionId);
-
   if (!election) {
-    return null;
+    throw new ApiError(404, 'Election not found');
   }
 
-  await election.update({ status });
+  if (election.status === ElectionStatus.COMPLETED && newStatus !== ElectionStatus.COMPLETED) {
+    // Allow changing from completed only under specific circumstances?
+    // throw new ApiError(400, 'Cannot change status of a completed election.');
+  }
+  if (election.status === ElectionStatus.CANCELLED && newStatus !== ElectionStatus.CANCELLED) {
+    throw new ApiError(400, 'Cannot change status of a cancelled election.');
+  }
+
+  await election.update({ status: newStatus });
+
+  // Potentially trigger side effects based on status change (e.g., notifications)
+
   return election;
 };
 
 /**
- * Publish election results
+ * Mark election results as published or preliminary published.
  */
 export const publishElectionResults = async (
   electionId: string,
-  publishLevel: 'preliminary' | 'final',
-) => {
-  const election = (await Election.findByPk(
-    electionId,
-  )) as unknown as ElectionWithPublishProperties;
-
+  type: 'preliminary' | 'final',
+): Promise<Election> => {
+  const election = await Election.findByPk(electionId);
   if (!election) {
-    return null;
+    throw new ApiError(404, 'Election not found');
   }
 
-  // For final results, update the election status
-  if (publishLevel === 'final') {
-    await election.update({
-      status: ElectionStatus.COMPLETED,
-      resultsPublished: true,
-      resultsPublishedAt: new Date(),
-    } as any);
-  } else {
-    // For preliminary results
-    await election.update({
-      preliminaryResultsPublished: true,
-      preliminaryResultsPublishedAt: new Date(),
-    } as any);
+  if (election.status !== ElectionStatus.COMPLETED) {
+    throw new ApiError(400, 'Election must be completed to publish results.');
   }
 
-  return {
-    electionId: election.id,
-    electionName: election.electionName,
-    publishLevel,
-    publishedAt:
-      publishLevel === 'final'
-        ? election.resultsPublishedAt
-        : election.preliminaryResultsPublishedAt,
-  };
+  const updateData: Partial<any> = {};
+  const now = new Date();
+
+  if (type === 'preliminary') {
+    updateData.preliminaryResultsPublished = true;
+    updateData.preliminaryResultsPublishedAt = now;
+  } else if (type === 'final') {
+    updateData.resultsPublished = true;
+    updateData.resultsPublishedAt = now;
+    // Optionally mark preliminary as published too if final is published
+    if (!election.preliminaryResultsPublished) {
+      updateData.preliminaryResultsPublished = true;
+      updateData.preliminaryResultsPublishedAt = now;
+    }
+  }
+
+  await election.update(updateData);
+
+  return election;
 };

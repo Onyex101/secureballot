@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
-import { authenticate, authorize } from '../../middleware/auth';
+import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/accessControl';
 import { UserRole } from '../../types';
 import { defaultLimiter, adminLimiter } from '../../middleware/rateLimiter';
@@ -13,6 +13,7 @@ import * as securityOfficerController from '../../controllers/admin/securityOffi
 import * as electoralCommissionerController from '../../controllers/admin/electoralCommissionerController';
 import * as resultVerificationController from '../../controllers/admin/resultVerificationController';
 import * as verificationController from '../../controllers/voter/verificationController';
+import * as authController from '../../controllers/auth/authController';
 
 // Controllers would be implemented based on admin dashboard needs
 const router = Router();
@@ -58,7 +59,7 @@ router.use(authenticate);
  */
 router.get(
   '/users',
-  authorize([UserRole.SYSTEM_ADMIN]),
+  requireRole([UserRole.SYSTEM_ADMIN]),
   adminLimiter,
   validate([
     query('role').optional(),
@@ -126,7 +127,7 @@ router.get(
  */
 router.post(
   '/users',
-  authorize([UserRole.SYSTEM_ADMIN]),
+  requireRole([UserRole.SYSTEM_ADMIN]),
   adminLimiter,
   validate([
     body('email')
@@ -478,7 +479,7 @@ router.post(
  */
 router.get(
   '/pending-verifications',
-  authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
+  requireRole([UserRole.VOTER_REGISTRATION_OFFICER]),
   adminLimiter,
   validate([
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
@@ -528,7 +529,7 @@ router.get(
  */
 router.post(
   '/approve-verification/:id',
-  authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
+  requireRole([UserRole.VOTER_REGISTRATION_OFFICER]),
   adminLimiter,
   validate([
     param('id')
@@ -582,7 +583,7 @@ router.post(
  */
 router.post(
   '/reject-verification/:id',
-  authorize([UserRole.VOTER_REGISTRATION_OFFICER]),
+  requireRole([UserRole.VOTER_REGISTRATION_OFFICER]),
   adminLimiter,
   validate([
     param('id')
@@ -595,6 +596,46 @@ router.post(
   ]),
   verificationController.rejectVerification,
 );
+
+router.post('/login', async (req, res, next) => {
+  try {
+    await authController.login(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/logout', async (req, res, next) => {
+  try {
+    await authController.logout(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/verify-results', async (req, res, next) => {
+  try {
+    await resultVerificationController.verifyAndPublishResults(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/publish-results', async (req, res, next) => {
+  try {
+    await resultVerificationController.publishResults(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/reject-results', async (req, res, next) => {
+  try {
+    await resultVerificationController.rejectResults(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Add more admin routes as needed...
 

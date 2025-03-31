@@ -5,12 +5,16 @@
 module.exports = {
   // API configuration
   apiConfig: {
-    baseURL: process.env.E2E_API_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.E2E_API_BASE_URL || 'http://localhost:5000',
     timeout: 10000,
     validateStatus: function (status) {
       return status < 500; // Resolve only if the status code is less than 500
     }
   },
+  
+  // API prefix for routes
+  apiPrefix: '/api',
+  apiVersion: 'v1',
   
   // Test data settings
   testDataSettings: {
@@ -36,7 +40,7 @@ module.exports = {
   // Environment specific configurations
   environments: {
     development: {
-      apiBaseURL: 'http://localhost:3000',
+      apiBaseURL: process.env.E2E_API_BASE_URL || 'http://localhost:5000',
       webAppURL: 'http://localhost:3001'
     },
     staging: {

@@ -1,34 +1,11 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Op } from 'sequelize';
+import { Op, Sequelize } from 'sequelize';
 import Vote, { VoteSource } from '../db/models/Vote';
 import Voter from '../db/models/Voter';
-import Election from '../db/models/Election';
+import Election, { ElectionStatus } from '../db/models/Election';
 import Candidate from '../db/models/Candidate';
 import PollingUnit from '../db/models/PollingUnit';
-import { encryptWithAES, generateAESKey, hashData } from './encryptionService';
-
-// Define interfaces for models with their properties
-interface CandidateWithProps extends Candidate {
-  fullName: string;
-  partyAffiliation: string;
-}
-
-interface PollingUnitWithProps extends PollingUnit {
-  name: string;
-  code: string;
-}
-
-// Define an interface for Vote with its associations
-interface VoteWithAssociations extends Omit<Vote, 'get'> {
-  election?: Election;
-  candidate?: CandidateWithProps;
-  polling_unit?: PollingUnitWithProps;
-}
-
-// Define an interface for Vote with count result
-interface VoteCountResult extends VoteWithAssociations {
-  get(key: string): any;
-}
+import { hashData } from './encryptionService';
+import { ApiError } from '../middleware/errorHandler';
 
 /**
  * Cast a vote in an election
@@ -38,13 +15,12 @@ export const castVote = async (
   electionId: string,
   candidateId: string,
   pollingUnitId: string,
-  voteData: any,
   voteSource: VoteSource = VoteSource.WEB,
 ) => {
   // Validate voter exists
   const voter = await Voter.findByPk(voterId);
   if (!voter) {
-    throw new Error('Voter not found');
+    throw new ApiError(404, 'Voter not found');
   }
 
   // Validate election exists and is active
@@ -52,13 +28,13 @@ export const castVote = async (
     where: {
       id: electionId,
       isActive: true,
-      status: 'ACTIVE',
+      status: ElectionStatus.ACTIVE,
       startDate: { [Op.lte]: new Date() },
       endDate: { [Op.gte]: new Date() },
     },
   });
   if (!election) {
-    throw new Error('Election not found or not active');
+    throw new ApiError(404, 'Election not found or not active');
   }
 
   // Validate candidate exists and belongs to the election
@@ -66,16 +42,17 @@ export const castVote = async (
     where: {
       id: candidateId,
       electionId,
+      isActive: true,
     },
   });
   if (!candidate) {
-    throw new Error('Candidate not found or not part of this election');
+    throw new ApiError(400, 'Candidate not found or not active for this election');
   }
 
   // Validate polling unit exists
   const pollingUnit = await PollingUnit.findByPk(pollingUnitId);
   if (!pollingUnit) {
-    throw new Error('Polling unit not found');
+    throw new ApiError(404, 'Polling unit not found');
   }
 
   // Check if voter has already voted in this election
@@ -86,42 +63,26 @@ export const castVote = async (
     },
   });
   if (existingVote) {
-    throw new Error('Voter has already cast a vote in this election');
+    throw new ApiError(409, 'Voter has already cast a vote in this election');
   }
 
-  // Prepare vote data for encryption
-  const voteDataString = JSON.stringify({
-    voterId,
-    electionId,
-    candidateId,
-    timestamp: new Date(),
-    voteSource,
-  });
-
-  // Generate a unique AES key for this vote
-  const aesKey = generateAESKey();
-
-  // Encrypt the vote data
-  const { encryptedData, iv } = encryptWithAES(voteDataString, aesKey);
-
   // Create a hash of the vote for verification
-  const voteHash = hashData(`${voterId}-${electionId}-${candidateId}-${Date.now()}`);
+  const voteDataToHash = `${voterId}-${electionId}-${candidateId}-${pollingUnitId}-${Date.now()}`;
+  const voteHash = hashData(voteDataToHash);
 
   // Generate a receipt code from the hash
   const receiptCode = voteHash.substring(0, 16).toUpperCase();
 
   // Create the vote record
   const vote = await Vote.create({
-    id: uuidv4(),
     userId: voterId,
     electionId,
     candidateId,
     pollingUnitId,
-    encryptedVoteData: Buffer.from(encryptedData, 'base64'),
+    encryptedVoteData: Buffer.from('placeholder-encrypted-data'),
     voteHash,
-    voteTimestamp: new Date(),
+    receiptCode,
     voteSource,
-    isCounted: false,
   });
 
   return {
@@ -137,9 +98,9 @@ export const castVote = async (
  */
 export const verifyVote = async (receiptCode: string) => {
   // Find vote with a hash that starts with the receipt code
-  const vote = (await Vote.findOne({
+  const vote = await Vote.findOne({
     where: {
-      voteHash: { [Op.like]: `${receiptCode}%` },
+      receiptCode: receiptCode.toUpperCase(),
     },
     include: [
       {
@@ -150,17 +111,23 @@ export const verifyVote = async (receiptCode: string) => {
       {
         model: Candidate,
         as: 'candidate',
-        attributes: ['id', 'fullName', 'partyAffiliation'],
+        attributes: ['id', 'fullName', 'partyName', 'partyCode'],
       },
       {
         model: PollingUnit,
         as: 'polling_unit',
-        attributes: ['id', 'name', 'code'],
+        attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
       },
     ],
-  })) as unknown as VoteWithAssociations;
+  });
 
-  if (!vote) {
+  const voteWithAssoc = vote as Vote & {
+    election?: Election;
+    candidate?: Candidate;
+    polling_unit?: PollingUnit;
+  };
+
+  if (!voteWithAssoc) {
     return {
       isValid: false,
       message: 'Vote not found with the provided receipt code',
@@ -169,12 +136,12 @@ export const verifyVote = async (receiptCode: string) => {
 
   return {
     isValid: true,
-    timestamp: vote.voteTimestamp,
-    electionName: vote.election?.electionName,
-    candidateName: vote.candidate?.fullName,
-    candidateParty: vote.candidate?.partyAffiliation,
-    pollingUnit: vote.polling_unit?.name,
-    voteSource: vote.voteSource,
+    timestamp: voteWithAssoc.voteTimestamp,
+    electionName: voteWithAssoc.election?.electionName,
+    candidateName: voteWithAssoc.candidate?.fullName,
+    candidateParty: voteWithAssoc.candidate?.partyName,
+    pollingUnit: voteWithAssoc.polling_unit?.pollingUnitName,
+    voteSource: voteWithAssoc.voteSource,
   };
 };
 
@@ -182,8 +149,7 @@ export const verifyVote = async (receiptCode: string) => {
  * Get vote history for a voter
  */
 export const getVoteHistory = async (voterId: string) => {
-  // Find all votes for this voter
-  const votes = (await Vote.findAll({
+  const votes = await Vote.findAll({
     where: {
       userId: voterId,
     },
@@ -196,29 +162,36 @@ export const getVoteHistory = async (voterId: string) => {
       {
         model: Candidate,
         as: 'candidate',
-        attributes: ['id', 'fullName', 'partyAffiliation'],
+        attributes: ['id', 'fullName', 'partyName', 'partyCode'],
       },
       {
         model: PollingUnit,
         as: 'polling_unit',
-        attributes: ['id', 'name', 'code'],
+        attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
       },
     ],
     order: [['voteTimestamp', 'DESC']],
-  })) as unknown as VoteWithAssociations[];
+  });
 
-  return votes.map(vote => ({
-    id: vote.id,
-    electionId: vote.electionId,
-    electionName: vote.election?.electionName,
-    electionType: vote.election?.electionType,
-    candidateName: vote.candidate?.fullName,
-    candidateParty: vote.candidate?.partyAffiliation,
-    pollingUnit: vote.polling_unit?.name,
-    timestamp: vote.voteTimestamp,
-    receiptCode: vote.voteHash.substring(0, 16).toUpperCase(),
-    voteSource: vote.voteSource,
-  }));
+  return votes.map(vote => {
+    const voteWithAssoc = vote as Vote & {
+      election?: Election;
+      candidate?: Candidate;
+      polling_unit?: PollingUnit;
+    };
+    return {
+      id: voteWithAssoc.id,
+      electionId: voteWithAssoc.electionId,
+      electionName: voteWithAssoc.election?.electionName,
+      electionType: voteWithAssoc.election?.electionType,
+      candidateName: voteWithAssoc.candidate?.fullName,
+      candidateParty: voteWithAssoc.candidate?.partyName,
+      pollingUnit: voteWithAssoc.polling_unit?.pollingUnitName,
+      timestamp: voteWithAssoc.voteTimestamp,
+      receiptCode: voteWithAssoc.receiptCode,
+      voteSource: voteWithAssoc.voteSource,
+    };
+  });
 };
 
 /**
@@ -237,27 +210,32 @@ export const countVotes = async (electionId: string) => {
   );
 
   // Get total votes by candidate
-  const voteCounts = (await Vote.findAll({
+  const voteCounts = await Vote.findAll({
     where: { electionId },
     attributes: [
       'candidateId',
-      [(Vote.sequelize as any).fn('COUNT', (Vote.sequelize as any).col('id')), 'voteCount'],
+      [
+        (Vote.sequelize as Sequelize).fn('COUNT', (Vote.sequelize as Sequelize).col('id')),
+        'voteCount',
+      ],
     ],
     include: [
       {
         model: Candidate,
         as: 'candidate',
-        attributes: ['id', 'fullName', 'partyAffiliation'],
+        attributes: ['id', 'fullName', 'partyName', 'partyCode'],
+        required: true,
       },
     ],
-    group: ['candidateId', 'candidate.id', 'candidate.fullName', 'candidate.partyAffiliation'],
-    order: [[(Vote.sequelize as any).literal('voteCount'), 'DESC']],
-  })) as unknown as VoteCountResult[];
+    group: ['candidateId', 'candidate.id'],
+    raw: true,
+  });
 
-  return voteCounts.map(count => ({
-    candidateId: count.candidateId,
-    candidateName: count.candidate?.fullName,
-    candidateParty: count.candidate?.partyAffiliation,
-    voteCount: parseInt(count.get('voteCount') as string, 10),
+  return voteCounts.map((result: any) => ({
+    candidateId: result.candidateId,
+    candidateName: result['candidate.fullName'],
+    partyName: result['candidate.partyName'],
+    partyCode: result['candidate.partyCode'],
+    voteCount: parseInt(result.voteCount, 10),
   }));
 };

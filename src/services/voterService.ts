@@ -1,10 +1,9 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Op } from 'sequelize';
 import Voter from '../db/models/Voter';
 import VoterCard from '../db/models/VoterCard';
 import VerificationStatus from '../db/models/VerificationStatus';
 import PollingUnit from '../db/models/PollingUnit';
 import Vote from '../db/models/Vote';
+import { ApiError } from '../middleware/errorHandler';
 
 /**
  * Get voter profile by ID
@@ -20,22 +19,32 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
       'isActive',
       'createdAt',
       'lastLogin',
+      'mfaEnabled',
+      'publicKey',
     ],
     include: [
       {
         model: VerificationStatus,
         as: 'verificationStatus',
-        attributes: ['isVerified', 'state', 'verificationDate'],
+        attributes: [
+          'isPhoneVerified',
+          'isEmailVerified',
+          'isIdentityVerified',
+          'isAddressVerified',
+          'isBiometricVerified',
+          'verificationLevel',
+          'lastVerifiedAt',
+        ],
       },
       {
         model: VoterCard,
         as: 'voterCard',
-        attributes: ['id', 'cardNumber', 'issueDate', 'expiryDate'],
+        attributes: ['id', 'vin', 'issuedDate', 'isValid', 'pollingUnitCode'],
         include: [
           {
             model: PollingUnit,
-            as: 'pollingUnit',
-            attributes: ['id', 'name', 'code', 'address'],
+            as: 'polling_unit',
+            attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address'],
           },
         ],
       },
@@ -43,10 +52,53 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
   });
 
   if (!voter) {
-    throw new Error('Voter not found');
+    throw new ApiError(404, 'Voter not found');
   }
 
-  return voter;
+  const verificationStatus = voter.get('verificationStatus') as VerificationStatus | undefined;
+  const voterCard = voter.get('voterCard') as VoterCard | undefined;
+  const pollingUnit = voterCard?.get('polling_unit') as PollingUnit | undefined;
+
+  return {
+    id: voter.id,
+    nin: voter.nin,
+    vin: voter.vin,
+    phoneNumber: voter.phoneNumber,
+    dateOfBirth: voter.dateOfBirth,
+    isActive: voter.isActive,
+    createdAt: voter.createdAt,
+    lastLogin: voter.lastLogin,
+    mfaEnabled: voter.mfaEnabled,
+    publicKey: voter.publicKey,
+    verification: verificationStatus
+      ? {
+          phoneVerified: verificationStatus.isPhoneVerified,
+          emailVerified: verificationStatus.isEmailVerified,
+          identityVerified: verificationStatus.isIdentityVerified,
+          addressVerified: verificationStatus.isAddressVerified,
+          biometricVerified: verificationStatus.isBiometricVerified,
+          level: verificationStatus.verificationLevel,
+          lastVerified: verificationStatus.lastVerifiedAt,
+        }
+      : null,
+    voterCard: voterCard
+      ? {
+          id: voterCard.id,
+          vin: voterCard.vin,
+          issued: voterCard.issuedDate,
+          valid: voterCard.isValid,
+          pollingUnitCode: voterCard.pollingUnitCode,
+          pollingUnit: pollingUnit
+            ? {
+                id: pollingUnit.id,
+                name: pollingUnit.pollingUnitName,
+                code: pollingUnit.pollingUnitCode,
+                address: pollingUnit.address,
+              }
+            : null,
+        }
+      : null,
+  };
 };
 
 /**
@@ -58,54 +110,40 @@ export const updateVoterProfile = async (
     phoneNumber?: string;
     dateOfBirth?: Date;
   },
-): Promise<any> => {
+): Promise<Voter> => {
   const voter = await Voter.findByPk(voterId);
 
   if (!voter) {
-    throw new Error('Voter not found');
+    throw new ApiError(404, 'Voter not found');
   }
 
-  // Update only allowed fields
-  if (updates.phoneNumber) {
-    voter.phoneNumber = updates.phoneNumber;
-  }
+  await voter.update(updates);
 
-  if (updates.dateOfBirth) {
-    voter.dateOfBirth = updates.dateOfBirth;
-  }
-
-  await voter.save();
-
-  return {
-    id: voter.id,
-    nin: voter.nin,
-    vin: voter.vin,
-    phoneNumber: voter.phoneNumber,
-    dateOfBirth: voter.dateOfBirth,
-    isActive: voter.isActive,
-    lastLogin: voter.lastLogin,
-  };
+  return voter;
 };
 
 /**
  * Get voter's assigned polling unit
  */
-export const getVoterPollingUnit = async (voterId: string): Promise<any> => {
+export const getVoterPollingUnit = async (voterId: string): Promise<PollingUnit> => {
   const voterCard = await VoterCard.findOne({
     where: { userId: voterId },
     include: [
       {
         model: PollingUnit,
-        as: 'pollingUnit',
+        as: 'polling_unit',
+        required: true,
       },
     ],
   });
 
-  if (!voterCard || !voterCard.get('pollingUnit')) {
-    throw new Error('Polling unit not assigned');
+  const pollingUnit = voterCard?.get('polling_unit') as PollingUnit | undefined;
+
+  if (!pollingUnit) {
+    throw new ApiError(404, 'Polling unit not assigned or found for voter');
   }
 
-  return voterCard.get('pollingUnit');
+  return pollingUnit;
 };
 
 /**
@@ -118,12 +156,12 @@ export const checkVoterEligibility = async (
   isEligible: boolean;
   reason?: string;
 }> => {
-  // Get voter
   const voter = await Voter.findByPk(voterId, {
     include: [
       {
         model: VerificationStatus,
         as: 'verificationStatus',
+        required: false,
       },
     ],
   });
@@ -135,7 +173,6 @@ export const checkVoterEligibility = async (
     };
   }
 
-  // Check if voter is active
   if (!voter.isActive) {
     return {
       isEligible: false,
@@ -143,19 +180,15 @@ export const checkVoterEligibility = async (
     };
   }
 
-  // Check if voter is verified
-  const verificationStatus = await VerificationStatus.findOne({
-    where: { userId: voterId },
-  });
+  const verificationStatus = voter.get('verificationStatus') as VerificationStatus | undefined;
 
-  if (!verificationStatus || !verificationStatus.isVerified) {
+  if (!verificationStatus || !verificationStatus.isIdentityVerified) {
     return {
       isEligible: false,
-      reason: 'Voter is not verified',
+      reason: 'Voter identity not verified',
     };
   }
 
-  // Check if voter has already voted in this election
   const hasVoted = await Vote.findOne({
     where: {
       userId: voterId,
@@ -178,49 +211,13 @@ export const checkVoterEligibility = async (
 /**
  * Request verification
  */
-export const requestVerification = async (
-  voterId: string,
-  documentType: string,
-  documentNumber: string,
-  documentImageUrl: string,
-): Promise<any> => {
-  // Find or create verification status
-  const [verificationStatus, created] = await VerificationStatus.findOrCreate({
+export const requestVerification = async (voterId: string): Promise<VerificationStatus> => {
+  const [_verificationStatus] = await VerificationStatus.findOrCreate({
     where: { userId: voterId },
-    defaults: {
-      id: uuidv4(),
-      userId: voterId,
-      isVerified: false,
-      state: 'pending',
-      verificationData: {
-        documentType,
-        documentNumber,
-        documentImageUrl,
-        submittedAt: new Date(),
-      },
-    },
+    defaults: { userId: voterId },
   });
 
-  // If verification status already exists, update it
-  if (!created) {
-    await verificationStatus.update({
-      state: 'pending',
-      verificationData: {
-        ...verificationStatus.verificationData,
-        documentType,
-        documentNumber,
-        documentImageUrl,
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  return {
-    id: verificationStatus.id,
-    state: verificationStatus.state,
-    isVerified: verificationStatus.isVerified,
-    submittedAt: created ? new Date() : verificationStatus.updatedAt,
-  };
+  throw new Error('requestVerification service not implemented for new VerificationStatus model');
 };
 
 /**
@@ -231,22 +228,34 @@ export const changePassword = async (
   currentPassword: string,
   newPassword: string,
 ): Promise<boolean> => {
-  // Find voter
   const voter = await Voter.findByPk(voterId);
 
   if (!voter) {
-    throw new Error('Voter not found');
+    throw new ApiError(404, 'Voter not found');
   }
 
-  // Validate current password
   const isPasswordValid = await voter.validatePassword(currentPassword);
 
   if (!isPasswordValid) {
-    throw new Error('Current password is incorrect');
+    throw new ApiError(401, 'Current password is incorrect');
   }
 
-  // Update password
-  await voter.updatePassword(newPassword);
+  await (voter as any).update({ password: newPassword });
 
   return true;
+};
+
+/**
+ * Get voter public key
+ */
+export const getVoterPublicKey = async (userId: string): Promise<string | null> => {
+  const voter = await Voter.findByPk(userId, {
+    attributes: ['publicKey'],
+  });
+
+  if (!voter) {
+    throw new ApiError(404, 'Voter not found');
+  }
+
+  return voter.publicKey ?? null;
 };

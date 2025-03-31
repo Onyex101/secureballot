@@ -29,7 +29,7 @@ interface ObserverReportAttributes {
   id: string;
   observerId: string;
   electionId: string;
-  pollingUnitCode: string;
+  pollingUnitId: string;
   reportType: ReportType;
   reportDetails: string;
   severity: ReportSeverity;
@@ -64,7 +64,7 @@ class ObserverReport
   public id!: string;
   public observerId!: string;
   public electionId!: string;
-  public pollingUnitCode!: string;
+  public pollingUnitId!: string;
   public reportType!: ReportType;
   public reportDetails!: string;
   public severity!: ReportSeverity;
@@ -94,8 +94,7 @@ class ObserverReport
     });
 
     ObserverReport.belongsTo(models.PollingUnit, {
-      foreignKey: 'polling_unit_code',
-      targetKey: 'pollingUnitCode',
+      foreignKey: 'polling_unit_id',
       as: 'polling_unit',
     });
 
@@ -135,13 +134,13 @@ class ObserverReport
           onDelete: 'CASCADE',
           onUpdate: 'CASCADE',
         },
-        pollingUnitCode: {
-          type: DataTypes.STRING(50),
+        pollingUnitId: {
+          type: DataTypes.UUID,
           allowNull: false,
-          field: 'polling_unit_code',
+          field: 'polling_unit_id',
           references: {
             model: 'polling_units',
-            key: 'polling_unit_code',
+            key: 'id',
           },
           onDelete: 'RESTRICT',
           onUpdate: 'CASCADE',
@@ -165,6 +164,7 @@ class ObserverReport
         severity: {
           type: DataTypes.STRING(50),
           allowNull: false,
+          field: 'severity',
           defaultValue: ReportSeverity.INFO,
           validate: {
             isIn: [Object.values(ReportSeverity)],
@@ -232,14 +232,14 @@ class ObserverReport
         indexes: [
           { fields: ['observer_id'] },
           { fields: ['election_id'] },
-          { fields: ['polling_unit_code'] },
+          { fields: ['polling_unit_id'] },
           { fields: ['report_type'] },
           { fields: ['severity'] },
           { fields: ['status'] },
           { fields: ['reported_at'] },
         ],
         hooks: {
-          beforeUpdate: async (report: ObserverReport) => {
+          beforeUpdate: (report: ObserverReport) => {
             // Set review timestamp when status changes from submitted
             if (
               report.changed('status') &&

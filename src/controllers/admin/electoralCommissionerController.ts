@@ -1,58 +1,67 @@
-import { Request, Response } from 'express';
-import { electionService, auditService } from '../../services';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../../middleware/auth';
+import * as electionService from '../../services/electionService';
+import * as auditService from '../../services/auditService';
+import { logger } from '../../config/logger';
+import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Create a new election
  */
-export const createElection = async (req: Request, res: Response): Promise<void> => {
+export const createElection = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { electionName, electionType, startDate, endDate, description, eligibilityRules } =
+    req.body;
+  const userId = req.user?.id;
+
   try {
-    const { electionName, electionType, startDate, endDate, description, eligibilityRules } =
-      req.body;
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
 
     // Validate that end date is after start date
     if (new Date(endDate) <= new Date(startDate)) {
-      res.status(400).json({
-        success: false,
-        message: 'End date must be after start date',
-        code: 'INVALID_DATE_RANGE',
-      });
-      return;
+      throw new ApiError(400, 'End date must be after start date', 'INVALID_DATE_RANGE');
     }
 
-    // Check for overlapping elections of the same type
+    // Check for overlapping elections of the same type - pass date strings
     const hasOverlap = await electionService.checkOverlappingElections(
       electionType,
-      startDate,
-      endDate,
+      startDate, // Pass string directly
+      endDate, // Pass string directly
     );
 
     if (hasOverlap) {
-      res.status(409).json({
-        success: false,
-        message: 'An election of this type already exists within the specified date range',
-        code: 'ELECTION_OVERLAP',
-      });
-      return;
+      throw new ApiError(
+        409,
+        'An election of this type already exists within the specified date range',
+        'ELECTION_OVERLAP',
+      );
     }
 
-    // Create new election
+    // Create new election - Pass individual arguments with date strings
     const newElection = await electionService.createElection(
       electionName,
       electionType,
-      startDate,
-      endDate,
-      (req as any).user.id,
+      startDate, // Pass string directly
+      endDate, // Pass string directly
+      userId,
       description,
       eligibilityRules,
     );
 
     // Log the action
     await auditService.createAuditLog(
-      (req as any).user.id,
-      'election_creation',
+      userId,
+      AuditActionType.ELECTION_CREATE,
       req.ip || '',
       req.headers['user-agent'] || '',
       {
+        success: true,
         electionId: newElection.id,
         electionName: newElection.electionName,
         electionType: newElection.electionType,
@@ -65,41 +74,49 @@ export const createElection = async (req: Request, res: Response): Promise<void>
       data: newElection,
     });
   } catch (error) {
-    console.error('Error creating election:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create election',
-      error: (error as Error).message,
-    });
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.ELECTION_CREATE,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, electionType, startDate, endDate, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log election creation error', logErr));
+    next(error);
   }
 };
 
 /**
  * Publish election results
  */
-export const publishResults = async (req: Request, res: Response): Promise<void> => {
+export const publishResults = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { electionId, publishLevel = 'preliminary' } = req.body;
+  const userId = req.user?.id;
+
   try {
-    const { electionId, publishLevel = 'preliminary' } = req.body;
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
 
     // Check if election exists
     const election = await electionService.getElectionById(electionId);
     if (!election) {
-      res.status(404).json({
-        success: false,
-        message: 'Election not found',
-        code: 'ELECTION_NOT_FOUND',
-      });
-      return;
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
     }
 
     // Check if election is completed
     if (election.status !== 'completed') {
-      res.status(400).json({
-        success: false,
-        message: 'Cannot publish results for an election that is not completed',
-        code: 'ELECTION_NOT_COMPLETED',
-      });
-      return;
+      throw new ApiError(
+        400,
+        'Cannot publish results for an election that is not completed',
+        'ELECTION_NOT_COMPLETED',
+      );
     }
 
     // Publish results
@@ -110,11 +127,12 @@ export const publishResults = async (req: Request, res: Response): Promise<void>
 
     // Log the action
     await auditService.createAuditLog(
-      (req as any).user.id,
-      'result_publication',
+      userId,
+      AuditActionType.RESULT_PUBLISH,
       req.ip || '',
       req.headers['user-agent'] || '',
       {
+        success: true,
         electionId: election.id,
         electionName: election.electionName,
         publishLevel,
@@ -127,11 +145,16 @@ export const publishResults = async (req: Request, res: Response): Promise<void>
       data: result,
     });
   } catch (error) {
-    console.error('Error publishing election results:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to publish election results',
-      error: (error as Error).message,
-    });
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.RESULT_PUBLISH,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, electionId, publishLevel, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log result publication error', logErr));
+    next(error);
   }
 };

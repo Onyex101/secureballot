@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { mfaService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
+import { UserRole } from '../../types';
 
 /**
  * Set up MFA for a user
@@ -15,13 +17,16 @@ export const setupMfa = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.id;
-    const isAdmin = req.user?.role !== 'voter';
+    const isAdmin = req.user?.adminType !== UserRole.VOTER;
 
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
+      const error = new ApiError(
+        401,
+        'User ID not found in request',
+        'AUTHENTICATION_REQUIRED',
+        undefined,
+        true,
+      );
       throw error;
     }
 
@@ -29,13 +34,13 @@ export const setupMfa = async (
       // Generate MFA secret
       const result = await mfaService.generateMfaSecret(userId, isAdmin);
 
-      // Log the action
+      // Log the action using enum
       await auditService.createAuditLog(
         userId,
-        'mfa_setup',
+        AuditActionType.MFA_SETUP,
         req.ip || '',
         req.headers['user-agent'] || '',
-        {},
+        { success: true },
       );
 
       res.status(200).json({
@@ -48,10 +53,13 @@ export const setupMfa = async (
         },
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to set up MFA');
-      apiError.statusCode = 400;
-      apiError.code = 'MFA_SETUP_FAILED';
-      apiError.isOperational = true;
+      const apiError = new ApiError(
+        400,
+        'Failed to set up MFA',
+        'MFA_SETUP_FAILED',
+        undefined,
+        true,
+      );
       throw apiError;
     }
   } catch (error) {
@@ -72,13 +80,16 @@ export const enableMfa = async (
   try {
     const userId = req.user?.id;
     const { token } = req.body;
-    const isAdmin = req.user?.role !== 'voter';
+    const isAdmin = req.user?.adminType !== UserRole.VOTER;
 
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
+      const error = new ApiError(
+        401,
+        'User ID not found in request',
+        'AUTHENTICATION_REQUIRED',
+        undefined,
+        true,
+      );
       throw error;
     }
 
@@ -87,20 +98,23 @@ export const enableMfa = async (
       const verified = await mfaService.verifyMfaToken(userId, token, isAdmin);
 
       if (!verified) {
-        const error: ApiError = new Error('Invalid MFA token');
-        error.statusCode = 401;
-        error.code = 'INVALID_MFA_TOKEN';
-        error.isOperational = true;
+        await auditService.createAuditLog(
+          userId,
+          AuditActionType.MFA_VERIFY,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: 'Invalid MFA token during enable' },
+        );
+        const error = new ApiError(401, 'Invalid MFA token', 'INVALID_MFA_TOKEN', undefined, true);
         throw error;
       }
 
-      // Log the action
       await auditService.createAuditLog(
         userId,
-        'mfa_enabled',
+        AuditActionType.MFA_ENABLED,
         req.ip || '',
         req.headers['user-agent'] || '',
-        {},
+        { success: true },
       );
 
       res.status(200).json({
@@ -108,11 +122,27 @@ export const enableMfa = async (
         message: 'MFA enabled successfully',
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to enable MFA');
-      apiError.statusCode = 400;
-      apiError.code = 'MFA_ENABLE_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      if (!(error instanceof ApiError && error.code === 'INVALID_MFA_TOKEN')) {
+        await auditService.createAuditLog(
+          userId,
+          AuditActionType.MFA_ENABLED,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: (error as Error).message },
+        );
+      }
+      if (error instanceof ApiError) {
+        throw error;
+      } else {
+        const apiError = new ApiError(
+          400,
+          'Failed to enable MFA',
+          'MFA_ENABLE_FAILED',
+          undefined,
+          true,
+        );
+        throw apiError;
+      }
     }
   } catch (error) {
     next(error);
@@ -132,35 +162,41 @@ export const disableMfa = async (
   try {
     const userId = req.user?.id;
     const { token } = req.body;
-    const isAdmin = req.user?.role !== 'voter';
+    const isAdmin = req.user?.adminType !== UserRole.VOTER;
 
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
+      const error = new ApiError(
+        401,
+        'User ID not found in request',
+        'AUTHENTICATION_REQUIRED',
+        undefined,
+        true,
+      );
       throw error;
     }
 
     try {
-      // Disable MFA
+      // Disable MFA - requires token verification implicitly
       const result = await mfaService.disableMfa(userId, token, isAdmin);
 
       if (!result) {
-        const error: ApiError = new Error('Invalid MFA token');
-        error.statusCode = 401;
-        error.code = 'INVALID_MFA_TOKEN';
-        error.isOperational = true;
+        await auditService.createAuditLog(
+          userId,
+          AuditActionType.MFA_DISABLED,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: 'Invalid MFA token during disable' },
+        );
+        const error = new ApiError(401, 'Invalid MFA token', 'INVALID_MFA_TOKEN', undefined, true);
         throw error;
       }
 
-      // Log the action
       await auditService.createAuditLog(
         userId,
-        'mfa_disabled',
+        AuditActionType.MFA_DISABLED,
         req.ip || '',
         req.headers['user-agent'] || '',
-        {},
+        { success: true },
       );
 
       res.status(200).json({
@@ -168,11 +204,27 @@ export const disableMfa = async (
         message: 'MFA disabled successfully',
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to disable MFA');
-      apiError.statusCode = 400;
-      apiError.code = 'MFA_DISABLE_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      if (!(error instanceof ApiError && error.code === 'INVALID_MFA_TOKEN')) {
+        await auditService.createAuditLog(
+          userId,
+          AuditActionType.MFA_DISABLED,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: (error as Error).message },
+        );
+      }
+      if (error instanceof ApiError) {
+        throw error;
+      } else {
+        const apiError = new ApiError(
+          400,
+          'Failed to disable MFA',
+          'MFA_DISABLE_FAILED',
+          undefined,
+          true,
+        );
+        throw apiError;
+      }
     }
   } catch (error) {
     next(error);
@@ -191,13 +243,16 @@ export const generateBackupCodes = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.id;
-    const isAdmin = req.user?.role !== 'voter';
+    const isAdmin = req.user?.adminType !== UserRole.VOTER;
 
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
+      const error = new ApiError(
+        401,
+        'User ID not found in request',
+        'AUTHENTICATION_REQUIRED',
+        undefined,
+        true,
+      );
       throw error;
     }
 
@@ -205,13 +260,13 @@ export const generateBackupCodes = async (
       // Generate backup codes
       const backupCodes = await mfaService.generateBackupCodes(userId, isAdmin);
 
-      // Log the action
+      // Log the action using enum
       await auditService.createAuditLog(
         userId,
-        'backup_codes_generated',
+        AuditActionType.BACKUP_CODES_GENERATED,
         req.ip || '',
         req.headers['user-agent'] || '',
-        {},
+        { success: true },
       );
 
       res.status(200).json({
@@ -222,10 +277,20 @@ export const generateBackupCodes = async (
         },
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to generate backup codes');
-      apiError.statusCode = 400;
-      apiError.code = 'BACKUP_CODES_GENERATION_FAILED';
-      apiError.isOperational = true;
+      await auditService.createAuditLog(
+        userId,
+        AuditActionType.BACKUP_CODES_GENERATED,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, error: (error as Error).message },
+      );
+      const apiError = new ApiError(
+        400,
+        'Failed to generate backup codes',
+        'BACKUP_CODES_GENERATION_FAILED',
+        undefined,
+        true,
+      );
       throw apiError;
     }
   } catch (error) {
@@ -249,23 +314,32 @@ export const verifyBackupCode = async (
 
     try {
       // Verify backup code
-      const verified = await mfaService.verifyBackupCode(userId, backupCode, isAdmin);
+      const isValid = await mfaService.verifyBackupCode(userId, backupCode, isAdmin);
 
-      if (!verified) {
-        const error: ApiError = new Error('Invalid backup code');
-        error.statusCode = 401;
-        error.code = 'INVALID_BACKUP_CODE';
-        error.isOperational = true;
+      if (!isValid) {
+        await auditService.createAuditLog(
+          userId,
+          AuditActionType.BACKUP_CODE_VERIFY,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: 'Invalid backup code' },
+        );
+        const error = new ApiError(
+          401,
+          'Invalid backup code',
+          'INVALID_BACKUP_CODE',
+          undefined,
+          true,
+        );
         throw error;
       }
 
-      // Log the action
       await auditService.createAuditLog(
         userId,
-        'backup_code_used',
+        AuditActionType.BACKUP_CODE_VERIFY,
         req.ip || '',
         req.headers['user-agent'] || '',
-        {},
+        { success: true },
       );
 
       res.status(200).json({
@@ -273,11 +347,27 @@ export const verifyBackupCode = async (
         message: 'Backup code verified successfully',
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to verify backup code');
-      apiError.statusCode = 400;
-      apiError.code = 'BACKUP_CODE_VERIFICATION_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      if (!(error instanceof ApiError && error.code === 'INVALID_BACKUP_CODE')) {
+        await auditService.createAuditLog(
+          userId,
+          AuditActionType.BACKUP_CODE_VERIFY,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          { success: false, error: (error as Error).message },
+        );
+      }
+      if (error instanceof ApiError) {
+        throw error;
+      } else {
+        const apiError = new ApiError(
+          400,
+          'Failed to verify backup code',
+          'BACKUP_CODE_VERIFICATION_FAILED',
+          undefined,
+          true,
+        );
+        throw apiError;
+      }
     }
   } catch (error) {
     next(error);

@@ -1,30 +1,42 @@
-import { Request, Response } from 'express';
-import { auditService } from '../../services';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../../middleware/auth';
+import * as auditService from '../../services/auditService';
+import { logger } from '../../config/logger';
+import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Get audit logs with filtering and pagination
  */
-export const getAuditLogs = async (req: Request, res: Response): Promise<void> => {
+export const getAuditLogs = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const requesterUserId = req.user?.id;
   try {
+    if (!requesterUserId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
     const { actionType, startDate, endDate, userId, page = 1, limit = 50 } = req.query;
 
     // Get audit logs from service
     const result = await auditService.getAuditLogs(
-      actionType as string,
-      startDate as string,
-      endDate as string,
-      userId as string,
+      actionType as string | undefined,
+      startDate as string | undefined,
+      endDate as string | undefined,
+      userId as string | undefined,
       Number(page),
       Number(limit),
     );
 
     // Log this audit log view
     await auditService.createAuditLog(
-      (req as any).user.id,
-      'audit_log_view',
+      requesterUserId,
+      AuditActionType.AUDIT_LOG_VIEW,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { query: req.query },
+      { query: req.query, success: true },
     );
 
     res.status(200).json({
@@ -32,11 +44,16 @@ export const getAuditLogs = async (req: Request, res: Response): Promise<void> =
       data: result,
     });
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch audit logs',
-      error: (error as Error).message,
-    });
+    // Log failure
+    await auditService
+      .createAuditLog(
+        requesterUserId || 'unknown',
+        AuditActionType.AUDIT_LOG_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { query: req.query, success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log audit log view error', logErr));
+    next(error);
   }
 };

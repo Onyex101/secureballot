@@ -17,6 +17,7 @@ interface VoterAttributes {
   mfaSecret: string | null;
   mfaEnabled: boolean;
   mfaBackupCodes: string[] | null;
+  publicKey?: string;
 }
 
 interface VoterCreationAttributes
@@ -32,6 +33,7 @@ interface VoterCreationAttributes
     | 'mfaSecret'
     | 'mfaEnabled'
     | 'mfaBackupCodes'
+    | 'publicKey'
   > {
   password: string;
 }
@@ -52,53 +54,50 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
   public mfaSecret!: string | null;
   public mfaEnabled!: boolean;
   public mfaBackupCodes!: string[] | null;
+  public publicKey?: string;
 
-  // Timestamps
   public static readonly createdAt = 'createdAt';
   public static readonly updatedAt = 'updatedAt';
 
-  // Method to validate password
-  public async validatePassword(password: string): Promise<boolean> {
+  public password?: string;
+
+  public validatePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.passwordHash);
   }
 
-  // Method to update password
-  public async updatePassword(password: string): Promise<void> {
-    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
-    this.passwordHash = await bcrypt.hash(password, saltRounds);
-    await this.save();
-  }
-
-  // Model associations
   public static associate(models: any): void {
     Voter.hasOne(models.VoterCard, {
-      foreignKey: 'user_id',
-      as: 'voter_card',
+      foreignKey: 'userId',
+      as: 'voterCard',
     });
 
     Voter.hasOne(models.VerificationStatus, {
-      foreignKey: 'user_id',
-      as: 'verification_status',
+      foreignKey: 'userId',
+      as: 'verificationStatus',
     });
 
     Voter.hasMany(models.Vote, {
-      foreignKey: 'user_id',
+      foreignKey: 'userId',
+      sourceKey: 'id',
       as: 'votes',
     });
 
     Voter.hasMany(models.AuditLog, {
-      foreignKey: 'user_id',
-      as: 'audit_logs',
+      foreignKey: 'userId',
+      sourceKey: 'id',
+      as: 'auditLogs',
     });
 
     Voter.hasMany(models.FailedAttempt, {
-      foreignKey: 'user_id',
-      as: 'failed_attempts',
+      foreignKey: 'userId',
+      sourceKey: 'id',
+      as: 'failedAttempts',
     });
 
     Voter.hasMany(models.UssdSession, {
-      foreignKey: 'user_id',
-      as: 'ussd_sessions',
+      foreignKey: 'userId',
+      sourceKey: 'id',
+      as: 'ussdSessions',
     });
   }
 
@@ -196,12 +195,17 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           type: DataTypes.ARRAY(DataTypes.STRING),
           allowNull: true,
         },
+        publicKey: {
+          field: 'public_key',
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
       },
       {
         sequelize,
         modelName: 'Voter',
         tableName: 'voters',
-        underscored: false,
+        underscored: true,
         timestamps: true,
         indexes: [
           { unique: true, fields: ['nin'] },
@@ -209,18 +213,18 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           { fields: ['phone_number'] },
         ],
         hooks: {
-          beforeCreate: async (voter: Voter & { password?: string }) => {
+          beforeCreate: async (voter: Voter) => {
             if (voter.password) {
               const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
               voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
-              delete voter.password; // Remove plain text password
+              voter.password = undefined;
             }
           },
-          beforeUpdate: async (voter: Voter & { password?: string }) => {
-            if (voter.password) {
+          beforeUpdate: async (voter: Voter) => {
+            if (voter.password && voter.changed('passwordHash') === false) {
               const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
               voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
-              delete voter.password; // Remove plain text password
+              voter.password = undefined;
             }
           },
         },

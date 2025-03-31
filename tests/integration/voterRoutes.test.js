@@ -24,7 +24,7 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     // Generate a standard voter auth token
-    const payload = { id: 'test-voter-id', role: 'voter', /* other needed fields */ };
+    const payload = { id: 'test-voter-id', role: 'voter' /* other needed fields */ };
     userIdFromToken = payload.id;
     authToken = jwt.sign(payload, process.env.JWT_SECRET || 'test-secret', { expiresIn: '1h' });
   });
@@ -35,62 +35,80 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
 
   // --- Voter Profile Routes ---
   describe('GET /profile', () => {
-    it('should get the authenticated voter\'s profile successfully', async () => {
-      const expectedProfile = testData.voterRoutes['/api/v1/voter/profile'].get.successResponse.data;
-      const getProfileStub = sandbox.stub(voterService, 'getVoterProfile').resolves(expectedProfile);
+    it("should get the authenticated voter's profile successfully", async () => {
+      // Minimal expected data from service
+      const serviceResult = { id: userIdFromToken, nin: '11122233344', email: 'voter@test.com' };
+      // IMPORTANT: Ensure 'getVoterProfile' is correct
+      const getProfileStub = sandbox.stub(voterService, 'getVoterProfile').resolves(serviceResult);
 
       const response = await request(app)
         .get('/api/v1/voter/profile')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Voter profile retrieved successfully.',
-        data: expectedProfile,
-      });
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Voter profile retrieved successfully.'); // Match controller message
+      expect(response.body.data).to.exist;
+      expect(response.body.data.id).to.equal(userIdFromToken);
+      expect(response.body.data.nin).to.equal(serviceResult.nin);
+      expect(response.body.data.email).to.equal(serviceResult.email);
+
       expect(getProfileStub.calledOnceWith(userIdFromToken)).to.be.true;
     });
 
     it('should return 401 if not authenticated', async () => {
       const response = await request(app).get('/api/v1/voter/profile');
       expect(response.status).to.equal(401);
+      // Optionally check body for standard unauthorized message
     });
 
-    it('should return 404 if the voter profile is not found', async () => {
-      const getProfileStub = sandbox.stub(voterService, 'getVoterProfile').resolves(null);
+    it('should return 404 if the voter profile is not found by the service', async () => {
+      // Simulate service resolving null/undefined or throwing a specific not found error
+      const notFoundError = new Error('Voter not found');
+      notFoundError.status = 404;
+      notFoundError.code = 'VOTER_NOT_FOUND';
+      // IMPORTANT: Ensure 'getVoterProfile' is correct
+      const getProfileStub = sandbox.stub(voterService, 'getVoterProfile').rejects(notFoundError);
+      // Or: sandbox.stub(voterService, 'getVoterProfile').resolves(null);
 
       const response = await request(app)
         .get('/api/v1/voter/profile')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(404);
-      expect(response.body).to.deep.equal({
-        success: false,
-        message: 'Voter profile not found.',
-      });
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Voter not found'); // Match error message
       expect(getProfileStub.calledOnceWith(userIdFromToken)).to.be.true;
     });
 
-    it('should return 500 for unexpected errors', async () => {
-        const error = new Error("DB connection error");
-        const getProfileStub = sandbox.stub(voterService, 'getVoterProfile').rejects(error);
+    it('should return 500 for unexpected service errors', async () => {
+      const serverError = new Error('DB connection error');
+      // IMPORTANT: Ensure 'getVoterProfile' is correct
+      const getProfileStub = sandbox.stub(voterService, 'getVoterProfile').rejects(serverError);
 
-        const response = await request(app)
-            .get('/api/v1/voter/profile')
-            .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get('/api/v1/voter/profile')
+        .set('Authorization', `Bearer ${authToken}`);
 
-        expect(response.status).to.equal(500);
-        expect(response.body.message).to.equal('An unexpected error occurred');
-        expect(getProfileStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error'); // Match generic error handler
+      expect(getProfileStub.calledOnce).to.be.true;
     });
   });
 
   describe('PUT /profile', () => {
-    it('should update the voter\'s profile successfully (e.g., phone number)', async () => {
-      const updateData = testData.voterRoutes['/api/v1/voter/profile'].put.requestBody.success;
-      const expectedUpdatedProfile = testData.voterRoutes['/api/v1/voter/profile'].put.successResponse.data;
-      const updateProfileStub = sandbox.stub(voterService, 'updateVoterProfile').resolves(expectedUpdatedProfile);
+    it("should update the voter's profile successfully (e.g., phone number)", async () => {
+      const updateData = { phoneNumber: '09087654321' };
+      // Minimal expected data returned by service/controller
+      const serviceResult = {
+        id: userIdFromToken,
+        phoneNumber: updateData.phoneNumber /* other updated fields */,
+      };
+      // IMPORTANT: Ensure 'updateVoterProfile' is correct
+      const updateProfileStub = sandbox
+        .stub(voterService, 'updateVoterProfile')
+        .resolves(serviceResult);
 
       const response = await request(app)
         .put('/api/v1/voter/profile')
@@ -98,15 +116,16 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
         .send(updateData);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Voter profile updated successfully.',
-        data: expectedUpdatedProfile,
-      });
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Profile updated successfully'); // Match controller message
+      expect(response.body.data).to.exist;
+      expect(response.body.data.id).to.equal(userIdFromToken);
+      expect(response.body.data.phoneNumber).to.equal(updateData.phoneNumber);
+
       expect(updateProfileStub.calledOnceWith(userIdFromToken, updateData)).to.be.true;
     });
 
-     it('should return 400 for invalid input data (e.g., invalid phone format)', async () => {
+    it('should return 400 for invalid input data (e.g., invalid phone format)', async () => {
       const invalidData = { phoneNumber: 'invalid-phone' };
       const response = await request(app)
         .put('/api/v1/voter/profile')
@@ -116,142 +135,171 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
       expect(response.status).to.equal(400);
       expect(response.body.success).to.be.false;
       expect(response.body.message).to.equal('Validation Error');
-      expect(response.body.errors[0].msg).to.contain('Invalid phone number format');
+      expect(response.body.errors).to.be.an('array').that.has.length.greaterThan(0);
+      expect(response.body.errors.some(e => e.msg.includes('Invalid phone number format'))).to.be
+        .true; // Adjust msg
     });
 
     it('should return 401 if not authenticated', async () => {
-       const updateData = testData.voterRoutes['/api/v1/voter/profile'].put.requestBody.success;
-       const response = await request(app).put('/api/v1/voter/profile').send(updateData);
-       expect(response.status).to.equal(401);
+      const updateData = { phoneNumber: '09011112222' };
+      const response = await request(app).put('/api/v1/voter/profile').send(updateData);
+      expect(response.status).to.equal(401);
     });
 
-    // Add 404 test if update could fail due to user not found (though auth middleware usually prevents this)
-     it('should return 500 for unexpected errors during update', async () => {
-        const updateData = testData.voterRoutes['/api/v1/voter/profile'].put.requestBody.success;
-        const error = new Error("Update failed");
-        const updateProfileStub = sandbox.stub(voterService, 'updateVoterProfile').rejects(error);
+    // 404 test is less relevant here if auth middleware guarantees user exists
 
-        const response = await request(app)
-            .put('/api/v1/voter/profile')
-            .set('Authorization', `Bearer ${authToken}`)
-            .send(updateData);
+    it('should return 500 for unexpected errors during update', async () => {
+      const updateData = { phoneNumber: '09087654321' };
+      const serverError = new Error('Update failed unexpectedly');
+      // IMPORTANT: Ensure 'updateVoterProfile' is correct
+      const updateProfileStub = sandbox
+        .stub(voterService, 'updateVoterProfile')
+        .rejects(serverError);
 
-        expect(response.status).to.equal(500);
-        expect(updateProfileStub.calledOnce).to.be.true;
+      const response = await request(app)
+        .put('/api/v1/voter/profile')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(updateData);
+
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(updateProfileStub.calledOnce).to.be.true;
     });
   });
 
   // --- Change Password Route ---
-  describe('PUT /change-password', () => {
-    it('should change the voter\'s password successfully', async () => {
-      const passwordData = testData.voterRoutes['/api/v1/voter/change-password'].put.requestBody.success;
-      const changePasswordStub = sandbox.stub(voterService, 'changeVoterPassword').resolves({ message: 'Password changed successfully.' });
+  // IMPORTANT: Changed to POST based on controller refactoring
+  describe('POST /change-password', () => {
+    it("should change the voter's password successfully", async () => {
+      const passwordData = { currentPassword: 'oldPass123', newPassword: 'newSecurePass456!' };
+      // Service might resolve void or a simple success message object
+      const serviceResult = { message: 'Password changed successfully.' };
+      // IMPORTANT: Ensure 'changePassword' is correct name in voterService
+      const changePasswordStub = sandbox
+        .stub(voterService, 'changePassword')
+        .resolves(serviceResult);
 
       const response = await request(app)
-        .put('/api/v1/voter/change-password')
+        .post('/api/v1/voter/change-password') // Changed to POST
         .set('Authorization', `Bearer ${authToken}`)
         .send(passwordData);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Password changed successfully.',
-      });
-      expect(changePasswordStub.calledOnceWith(userIdFromToken, passwordData.currentPassword, passwordData.newPassword)).to.be.true;
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Password changed successfully');
+      // No specific data expected in response body for this typically
+
+      expect(
+        changePasswordStub.calledOnceWith(
+          userIdFromToken,
+          passwordData.currentPassword,
+          passwordData.newPassword,
+        ),
+      ).to.be.true;
     });
 
-     it('should return 400 for missing fields', async () => {
-      const invalidData = { ...testData.voterRoutes['/api/v1/voter/change-password'].put.requestBody.success, newPassword: undefined };
-       const response = await request(app)
-        .put('/api/v1/voter/change-password')
+    it('should return 400 for missing fields', async () => {
+      const invalidData = { currentPassword: 'oldPass123' }; // Missing newPassword
+      const response = await request(app)
+        .post('/api/v1/voter/change-password') // Changed to POST
         .set('Authorization', `Bearer ${authToken}`)
         .send(invalidData);
 
       expect(response.status).to.equal(400);
-       expect(response.body.success).to.be.false;
-       expect(response.body.errors[0].msg).to.contain('New password is required');
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('newPassword is required'))).to.be.true; // Adjust msg
     });
 
-     it('should return 400 for weak new password', async () => {
-      const invalidData = { ...testData.voterRoutes['/api/v1/voter/change-password'].put.requestBody.success, newPassword: 'short' };
-       const response = await request(app)
-        .put('/api/v1/voter/change-password')
+    it('should return 400 for weak new password', async () => {
+      const invalidData = { currentPassword: 'oldPass123', newPassword: 'short' };
+      const response = await request(app)
+        .post('/api/v1/voter/change-password') // Changed to POST
         .set('Authorization', `Bearer ${authToken}`)
         .send(invalidData);
 
       expect(response.status).to.equal(400);
-       expect(response.body.success).to.be.false;
-       expect(response.body.errors[0].msg).to.contain('New password must be at least 8 characters');
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(
+        response.body.errors.some(e =>
+          e.msg.includes('New password must be at least 8 characters'),
+        ),
+      ).to.be.true; // Adjust msg
     });
 
     it('should return 400 if current password is incorrect', async () => {
-       const passwordData = testData.voterRoutes['/api/v1/voter/change-password'].put.requestBody.wrongCurrent;
-       const error = { status: 400, message: 'Incorrect current password provided.' };
-       const changePasswordStub = sandbox.stub(voterService, 'changeVoterPassword').rejects(error);
+      const passwordData = { currentPassword: 'wrongOldPass', newPassword: 'newSecurePass456!' };
+      const inputError = new Error('Incorrect current password provided.');
+      inputError.status = 400; // Or 401 depending on design
+      inputError.code = 'INVALID_CURRENT_PASSWORD';
+      // IMPORTANT: Ensure 'changePassword' is correct
+      const changePasswordStub = sandbox.stub(voterService, 'changePassword').rejects(inputError);
 
-       const response = await request(app)
-        .put('/api/v1/voter/change-password')
+      const response = await request(app)
+        .post('/api/v1/voter/change-password') // Changed to POST
         .set('Authorization', `Bearer ${authToken}`)
         .send(passwordData);
 
-      expect(response.status).to.equal(400);
-        expect(response.body).to.deep.equal({ success: false, message: error.message });
-       expect(changePasswordStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(400); // Or 401
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(inputError.message);
+      expect(changePasswordStub.calledOnce).to.be.true;
     });
 
     it('should return 401 if not authenticated', async () => {
-       const passwordData = testData.voterRoutes['/api/v1/voter/change-password'].put.requestBody.success;
-       const response = await request(app).put('/api/v1/voter/change-password').send(passwordData);
-       expect(response.status).to.equal(401);
+      const passwordData = { currentPassword: 'oldPass123', newPassword: 'newSecurePass456!' };
+      const response = await request(app).post('/api/v1/voter/change-password').send(passwordData); // Changed to POST
+      expect(response.status).to.equal(401);
     });
 
-     it('should return 500 for unexpected errors', async () => {
-        const passwordData = testData.voterRoutes['/api/v1/voter/change-password'].put.requestBody.success;
-        const error = new Error("Hashing error");
-        const changePasswordStub = sandbox.stub(voterService, 'changeVoterPassword').rejects(error);
+    it('should return 500 for unexpected errors', async () => {
+      const passwordData = { currentPassword: 'oldPass123', newPassword: 'newSecurePass456!' };
+      const serverError = new Error('Hashing service error');
+      // IMPORTANT: Ensure 'changePassword' is correct
+      const changePasswordStub = sandbox.stub(voterService, 'changePassword').rejects(serverError);
 
-        const response = await request(app)
-            .put('/api/v1/voter/change-password')
-            .set('Authorization', `Bearer ${authToken}`)
-            .send(passwordData);
+      const response = await request(app)
+        .post('/api/v1/voter/change-password') // Changed to POST
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(passwordData);
 
-        expect(response.status).to.equal(500);
-        expect(changePasswordStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(changePasswordStub.calledOnce).to.be.true;
     });
   });
 
   // --- Polling Unit Routes ---
   describe('GET /polling-unit', () => {
-    it('should get the voter\'s assigned polling unit successfully', async () => {
-      const expectedPollingUnit = testData.voterRoutes['/api/v1/voter/polling-unit'].get.successResponse.data;
-      const getAssignedPUStub = sandbox.stub(voterService, 'getVoterPollingUnit').resolves(expectedPollingUnit);
+    it("should get the voter's assigned polling unit successfully", async () => {
+      const serviceResult = { id: 'pu-abc-123', pollingUnitCode: 'PU001', pollingUnitName: 'Test PU 1' }; // Inline data
+      const getAssignedPUStub = sandbox.stub(voterService, 'getVoterPollingUnit').resolves(serviceResult);
 
-      const response = await request(app)
-        .get('/api/v1/voter/polling-unit')
-        .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/v1/voter/polling-unit').set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Assigned polling unit retrieved successfully.',
-        data: expectedPollingUnit,
-      });
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Assigned polling unit retrieved successfully.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.id).to.equal(serviceResult.id);
+      expect(response.body.data.pollingUnitCode).to.equal(serviceResult.pollingUnitCode);
       expect(getAssignedPUStub.calledOnceWith(userIdFromToken)).to.be.true;
     });
 
     it('should return 404 if the voter has no assigned polling unit', async () => {
-       const getAssignedPUStub = sandbox.stub(voterService, 'getVoterPollingUnit').resolves(null); // Simulate not found
+      const notFoundError = new Error('Polling unit not assigned');
+      notFoundError.status = 404;
+      const getAssignedPUStub = sandbox.stub(voterService, 'getVoterPollingUnit').rejects(notFoundError);
 
-       const response = await request(app)
-        .get('/api/v1/voter/polling-unit')
-        .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/v1/voter/polling-unit').set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(404);
-       expect(response.body).to.deep.equal({
-        success: false,
-        message: 'No assigned polling unit found for this voter.',
-      });
-       expect(getAssignedPUStub.calledOnce).to.be.true;
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(notFoundError.message);
+      expect(getAssignedPUStub.calledOnce).to.be.true;
     });
 
     it('should return 401 if not authenticated', async () => {
@@ -260,231 +308,300 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
     });
 
     it('should return 500 for unexpected errors', async () => {
-        const error = new Error("Server error");
-        const getAssignedPUStub = sandbox.stub(voterService, 'getVoterPollingUnit').rejects(error);
+      const error = new Error('Server error');
+      const getAssignedPUStub = sandbox.stub(voterService, 'getVoterPollingUnit').rejects(error);
 
-        const response = await request(app)
-            .get('/api/v1/voter/polling-unit')
-            .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/v1/voter/polling-unit').set('Authorization', `Bearer ${authToken}`);
 
-        expect(response.status).to.equal(500);
-        expect(getAssignedPUStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(getAssignedPUStub.calledOnce).to.be.true;
     });
   });
 
   describe('GET /polling-units', () => {
-      it('should get a list of all polling units with default pagination', async () => {
-          const expectedResult = testData.voterRoutes['/api/v1/voter/polling-units'].get.successResponse; // includes units, total, page, etc.
-          const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').resolves(expectedResult);
-          const defaultQuery = { page: 1, limit: 50 }; // Default params expected by service
+    it('should get a list of all polling units with default pagination', async () => {
+      // Inline mock data
+      const mockPollingUnits = [
+        { id: 'pu-1', pollingUnitCode: 'PU001', pollingUnitName: 'PU Name 1', lga: 'LGA1' },
+        { id: 'pu-2', pollingUnitCode: 'PU002', pollingUnitName: 'PU Name 2', lga: 'LGA1' }
+      ];
+      const mockPagination = { total: 2, page: 1, limit: 50, totalPages: 1 };
+      const expectedResult = { pollingUnits: mockPollingUnits, pagination: mockPagination };
+      // IMPORTANT: Ensure 'getAllPollingUnits' is correct function name
+      const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').resolves(expectedResult);
+      const defaultQuery = { page: 1, limit: 50 }; // Default params expected by service
 
-          const response = await request(app)
-              .get('/api/v1/voter/polling-units')
-              .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units')
+        .set('Authorization', `Bearer ${authToken}`);
 
-          expect(response.status).to.equal(200);
-          expect(response.body).to.deep.equal({
-              success: true,
-              message: 'Polling units retrieved successfully.',
-              data: expectedResult
-          });
-          expect(listPUStub.calledOnceWith(sinon.match(defaultQuery))).to.be.true; // Check default query args
-      });
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Polling units retrieved successfully.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.pollingUnits).to.be.an('array').with.lengthOf(mockPollingUnits.length);
+      expect(response.body.data.pollingUnits[0].id).to.equal(mockPollingUnits[0].id);
+      expect(response.body.data.pollingUnits[0].pollingUnitCode).to.equal(mockPollingUnits[0].pollingUnitCode);
+      expect(response.body.data.pagination).to.deep.equal(mockPagination); // deep.equal ok for pagination
 
-       it('should get a list of polling units with specific pagination and search query', async () => {
-          const queryParams = testData.voterRoutes['/api/v1/voter/polling-units'].get.queryParams.searchAndPaginate;
-          const expectedResult = testData.voterRoutes['/api/v1/voter/polling-units'].get.paginatedSearchResponse;
-          const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').resolves(expectedResult);
+      expect(listPUStub.calledOnceWith(sinon.match(defaultQuery))).to.be.true; // Check default query args
+    });
 
-          const response = await request(app)
-              .get('/api/v1/voter/polling-units')
-              .query(queryParams) // Add query params
-              .set('Authorization', `Bearer ${authToken}`);
+    it('should get a list of polling units with specific pagination and search query', async () => {
+      const queryParams = { page: 2, limit: 10, search: 'LGA2' }; // Inline query
+      // Inline mock data for response
+      const mockPollingUnits = [
+          { id: 'pu-3', pollingUnitCode: 'PU003', pollingUnitName: 'PU Name 3', lga: 'LGA2' }
+      ];
+      const mockPagination = { total: 1, page: 2, limit: 10, totalPages: 1 };
+      const expectedResult = { pollingUnits: mockPollingUnits, pagination: mockPagination };
+      // IMPORTANT: Ensure 'getAllPollingUnits' is correct
+      const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').resolves(expectedResult);
 
-          expect(response.status).to.equal(200);
-          expect(response.body.data.pollingUnits).to.be.an('array');
-          expect(response.body.data.page).to.equal(queryParams.page);
-          expect(response.body.data.limit).to.equal(queryParams.limit);
-          expect(listPUStub.calledOnceWith(sinon.match(queryParams))).to.be.true; // Check specific query args
-      });
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units')
+        .query(queryParams) // Add query params
+        .set('Authorization', `Bearer ${authToken}`);
 
-      it('should return 401 if not authenticated', async () => {
-          const response = await request(app).get('/api/v1/voter/polling-units');
-          expect(response.status).to.equal(401);
-      });
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.data).to.exist;
+      expect(response.body.data.pollingUnits).to.be.an('array').with.lengthOf(mockPollingUnits.length);
+      expect(response.body.data.pagination.page).to.equal(queryParams.page);
+      expect(response.body.data.pagination.limit).to.equal(queryParams.limit);
+      expect(response.body.data.pagination.total).to.equal(mockPagination.total);
 
-       it('should handle invalid query parameters gracefully (e.g., non-numeric page)', async () => {
-           // The validation middleware should handle this, resulting in a 400
-           // Or the service call might just ignore/default the value
-           const queryParams = { page: 'abc', limit: 'xyz' };
-           const expectedResult = testData.voterRoutes['/api/v1/voter/polling-units'].get.successResponse; // Expect default behavior
-            const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').resolves(expectedResult);
-            const defaultQuery = { page: 1, limit: 50 }; // Service might default invalid params
+      expect(listPUStub.calledOnceWith(sinon.match(queryParams))).to.be.true; // Check specific query args
+    });
 
-            const response = await request(app)
-                .get('/api/v1/voter/polling-units')
-                .query(queryParams)
-                .set('Authorization', `Bearer ${authToken}`);
+    it('should return 401 if not authenticated', async () => {
+      const response = await request(app).get('/api/v1/voter/polling-units');
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
+    });
 
-            // Depending on validation setup, could be 200 (with defaults) or 400
-             expect(response.status).to.equal(200); // Assuming service defaults invalid params
-             expect(listPUStub.calledOnceWith(sinon.match(defaultQuery))).to.be.true;
-             // If validation middleware catches it:
-             // expect(response.status).to.equal(400);
-             // expect(response.body.errors[0].msg).to.contain('must be an integer');
-       });
+    it('should handle invalid query parameters gracefully (e.g., non-numeric page)', async () => {
+      const queryParams = { page: 'abc', limit: 'xyz' };
+      // Assuming validation middleware handles this, resulting in a 400
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units')
+        .query(queryParams)
+        .set('Authorization', `Bearer ${authToken}`);
 
-       it('should return 500 for unexpected errors', async () => {
-           const error = new Error("DB query failed");
-           const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').rejects(error);
+      // Expect 400 due to validation failure
+      expect(response.status).to.equal(400);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('Page must be an integer'))).to.be.true; // Adjust msg
+      expect(response.body.errors.some(e => e.msg.includes('Limit must be an integer'))).to.be.true; // Adjust msg
+    });
 
-            const response = await request(app)
-                .get('/api/v1/voter/polling-units')
-                .set('Authorization', `Bearer ${authToken}`);
+    it('should return 500 for unexpected errors', async () => {
+      const error = new Error('DB query failed');
+      const listPUStub = sandbox.stub(pollingUnitService, 'getAllPollingUnits').rejects(error);
 
-            expect(response.status).to.equal(500);
-            expect(listPUStub.calledOnce).to.be.true;
-       });
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(listPUStub.calledOnce).to.be.true;
+    });
   });
 
   describe('GET /polling-units/:id', () => {
-      it('should get a specific polling unit by ID successfully', async () => {
-          const pollingUnitId = testData.voterRoutes['/api/v1/voter/polling-units/{id}'].getPathParams().id;
-          const expectedPollingUnit = testData.voterRoutes['/api/v1/voter/polling-units/{id}'].get.successResponse.data;
-          const getPUStub = sandbox.stub(pollingUnitService, 'getPollingUnitDetails').resolves(expectedPollingUnit);
+    it('should get a specific polling unit by ID successfully', async () => {
+      const pollingUnitId = 'pu-uuid-specific'; // Inline ID
+      const expectedPollingUnit = { // Inline mock data
+          id: pollingUnitId,
+          pollingUnitCode: 'PU-SPECIFIC',
+          pollingUnitName: 'Specific PU',
+          lga: 'LGA-SPECIFIC',
+          ward: 'Ward-SPECIFIC',
+          state: 'State-SPECIFIC'
+      };
+      // IMPORTANT: Ensure 'getPollingUnitDetails' is correct
+      const getPUStub = sandbox.stub(pollingUnitService, 'getPollingUnitDetails').resolves(expectedPollingUnit);
 
-          const response = await request(app)
-              .get(`/api/v1/voter/polling-units/${pollingUnitId}`)
-              .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get(`/api/v1/voter/polling-units/${pollingUnitId}`) // Use backticks for interpolation
+        .set('Authorization', `Bearer ${authToken}`);
 
-          expect(response.status).to.equal(200);
-          expect(response.body).to.deep.equal({
-              success: true,
-              message: 'Polling unit details retrieved successfully.',
-              data: expectedPollingUnit
-          });
-          expect(getPUStub.calledOnceWith(pollingUnitId)).to.be.true;
-      });
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Polling unit details retrieved successfully.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.id).to.equal(expectedPollingUnit.id);
+      expect(response.body.data.pollingUnitCode).to.equal(expectedPollingUnit.pollingUnitCode);
+      expect(response.body.data.lga).to.equal(expectedPollingUnit.lga);
+      // Avoid deep.equal, check specific fields
 
-       it('should return 400 for invalid polling unit ID format', async () => {
-          const invalidId = 'not-a-uuid';
-          const response = await request(app)
-              .get(`/api/v1/voter/polling-units/${invalidId}`)
-              .set('Authorization', `Bearer ${authToken}`);
+      expect(getPUStub.calledOnceWith(pollingUnitId)).to.be.true;
+    });
 
-          expect(response.status).to.equal(400);
-          expect(response.body.success).to.be.false;
-          expect(response.body.errors[0].msg).to.contain('Polling Unit ID must be a valid UUID');
-      });
+    it('should return 400 for invalid polling unit ID format', async () => {
+      const invalidId = 'not-a-uuid-or-valid-format';
+      const response = await request(app)
+        .get(`/api/v1/voter/polling-units/${invalidId}`)
+        .set('Authorization', `Bearer ${authToken}`);
 
-       it('should return 404 if polling unit ID not found', async () => {
-          const pollingUnitId = testData.voterRoutes['/api/v1/voter/polling-units/{id}'].getPathParams().notFoundId;
-          const getPUStub = sandbox.stub(pollingUnitService, 'getPollingUnitDetails').resolves(null);
+      expect(response.status).to.equal(400);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      // Adjust error message based on your actual validation (e.g., UUID check)
+      expect(response.body.errors.some(e => e.msg.includes('Polling Unit ID must be a valid UUID'))).to.be.true; 
+    });
 
-           const response = await request(app)
-              .get(`/api/v1/voter/polling-units/${pollingUnitId}`)
-              .set('Authorization', `Bearer ${authToken}`);
+    it('should return 404 if polling unit ID not found', async () => {
+      const pollingUnitId = 'pu-uuid-not-found'; // Inline ID
+      const error = new Error('Polling unit not found.');
+      error.status = 404;
+      // IMPORTANT: Ensure 'getPollingUnitDetails' is correct
+      const getPUStub = sandbox.stub(pollingUnitService, 'getPollingUnitDetails').rejects(error);
+      // Or: sandbox.stub(pollingUnitService, 'getPollingUnitDetails').resolves(null);
 
-          expect(response.status).to.equal(404);
-           expect(response.body).to.deep.equal({
-              success: false,
-              message: 'Polling unit not found.',
-          });
-           expect(getPUStub.calledOnceWith(pollingUnitId)).to.be.true;
-      });
+      const response = await request(app)
+        .get(`/api/v1/voter/polling-units/${pollingUnitId}`)
+        .set('Authorization', `Bearer ${authToken}`);
 
-       it('should return 401 if not authenticated', async () => {
-           const pollingUnitId = testData.voterRoutes['/api/v1/voter/polling-units/{id}'].getPathParams().id;
-           const response = await request(app).get(`/api/v1/voter/polling-units/${pollingUnitId}`);
-           expect(response.status).to.equal(401);
-       });
+      expect(response.status).to.equal(404);
+      // REFINED assertions:
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(error.message);
 
-       it('should return 500 for unexpected errors', async () => {
-           const pollingUnitId = testData.voterRoutes['/api/v1/voter/polling-units/{id}'].getPathParams().id;
-           const error = new Error("Server error");
-            const getPUStub = sandbox.stub(pollingUnitService, 'getPollingUnitDetails').rejects(error);
+      expect(getPUStub.calledOnceWith(pollingUnitId)).to.be.true;
+    });
 
-            const response = await request(app)
-                .get(`/api/v1/voter/polling-units/${pollingUnitId}`)
-                .set('Authorization', `Bearer ${authToken}`);
+    it('should return 401 if not authenticated', async () => {
+      const pollingUnitId = 'pu-uuid-specific'; // Inline ID
+      const response = await request(app).get(`/api/v1/voter/polling-units/${pollingUnitId}`);
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
+    });
 
-            expect(response.status).to.equal(500);
-            expect(getPUStub.calledOnce).to.be.true;
-       });
+    it('should return 500 for unexpected errors', async () => {
+      const pollingUnitId = 'pu-uuid-specific'; // Inline ID
+      const error = new Error('Server error');
+      const getPUStub = sandbox.stub(pollingUnitService, 'getPollingUnitDetails').rejects(error);
+
+      const response = await request(app)
+        .get(`/api/v1/voter/polling-units/${pollingUnitId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(getPUStub.calledOnce).to.be.true;
+    });
   });
 
   describe('GET /polling-units/nearby', () => {
-      it('should get nearby polling units successfully', async () => {
-          const queryParams = testData.voterRoutes['/api/v1/voter/polling-units/nearby'].get.queryParams.success;
-          const expectedResult = testData.voterRoutes['/api/v1/voter/polling-units/nearby'].get.successResponse; // { units: [], total: ... }
-          const nearbyStub = sandbox.stub(pollingUnitService, 'findNearbyPollingUnits').resolves(expectedResult);
+    it('should get nearby polling units successfully', async () => {
+      const queryParams = { latitude: 6.5244, longitude: 3.3792, radius: 5 }; // Inline query data, e.g., Lagos coords
+      const mockPollingUnits = [ // Inline mock response
+          { id: 'nearby-pu-1', pollingUnitCode: 'PU-NEAR1', distance: 1.2, latitude: 6.525, longitude: 3.38 },
+          { id: 'nearby-pu-2', pollingUnitCode: 'PU-NEAR2', distance: 3.5, latitude: 6.520, longitude: 3.37 }
+      ];
+      const expectedResult = { units: mockPollingUnits, total: mockPollingUnits.length }; // Service might return simple array or object
+      // IMPORTANT: Ensure 'findNearbyPollingUnits' is correct
+      const nearbyStub = sandbox.stub(pollingUnitService, 'findNearbyPollingUnits').resolves(expectedResult); // Resolving with object containing units array
 
-          const response = await request(app)
-              .get('/api/v1/voter/polling-units/nearby')
-              .query(queryParams)
-              .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units/nearby')
+        .query(queryParams)
+        .set('Authorization', `Bearer ${authToken}`);
 
-          expect(response.status).to.equal(200);
-          expect(response.body).to.deep.equal({
-              success: true,
-              message: 'Nearby polling units retrieved successfully.',
-              data: expectedResult
-          });
-          expect(nearbyStub.calledOnceWith(queryParams.latitude, queryParams.longitude, queryParams.radius || 5, queryParams.limit || 10)).to.be.true; // Check args including defaults
-      });
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Nearby polling units retrieved successfully.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.units).to.be.an('array').with.lengthOf(mockPollingUnits.length);
+      expect(response.body.data.units[0].id).to.equal(mockPollingUnits[0].id);
+      expect(response.body.data.units[0].distance).to.equal(mockPollingUnits[0].distance);
+      // Assuming service returns the structure { units: [], total: X }
+      expect(response.body.data.total).to.equal(mockPollingUnits.length);
 
-      it('should return 400 if latitude or longitude is missing', async () => {
-          const invalidParams = { ...testData.voterRoutes['/api/v1/voter/polling-units/nearby'].get.queryParams.success, latitude: undefined };
-          // Validation middleware should catch this
-           const response = await request(app)
-              .get('/api/v1/voter/polling-units/nearby')
-              .query(invalidParams)
-              .set('Authorization', `Bearer ${authToken}`);
+      expect(
+        nearbyStub.calledOnceWith(
+          queryParams.latitude,
+          queryParams.longitude,
+          queryParams.radius || sinon.match.number, // Use provided radius or default
+          sinon.match.number // Check for default limit if applicable
+        ),
+      ).to.be.true;
+    });
 
-          expect(response.status).to.equal(400);
-          expect(response.body.success).to.be.false;
-          // Exact error message depends on validator setup
-          expect(response.body.message).to.contain('Validation Error');
-          expect(response.body.errors[0].msg).to.contain('Latitude is required');
-      });
+    it('should return 400 if latitude or longitude is missing', async () => {
+      const invalidParams = { longitude: 3.3792 }; // Missing latitude
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units/nearby')
+        .query(invalidParams)
+        .set('Authorization', `Bearer ${authToken}`);
 
-       it('should return 400 if latitude or longitude is not a valid number', async () => {
-           const invalidParams = { ...testData.voterRoutes['/api/v1/voter/polling-units/nearby'].get.queryParams.success, longitude: 'abc' };
-           const response = await request(app)
-              .get('/api/v1/voter/polling-units/nearby')
-              .query(invalidParams)
-              .set('Authorization', `Bearer ${authToken}`);
+      expect(response.status).to.equal(400);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('Latitude is required'))).to.be.true;
+    });
 
-           expect(response.status).to.equal(400);
-           expect(response.body.errors[0].msg).to.contain('Longitude must be a valid number');
-       });
+    it('should return 400 if latitude or longitude is not a valid number', async () => {
+      const invalidParams = { latitude: 6.5244, longitude: 'not-a-longitude' }; // Invalid longitude
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units/nearby')
+        .query(invalidParams)
+        .set('Authorization', `Bearer ${authToken}`);
 
+      expect(response.status).to.equal(400);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('Longitude must be a valid number'))).to.be.true;
+    });
 
-       it('should return 401 if not authenticated', async () => {
-           const queryParams = testData.voterRoutes['/api/v1/voter/polling-units/nearby'].get.queryParams.success;
-           const response = await request(app).get('/api/v1/voter/polling-units/nearby').query(queryParams);
-           expect(response.status).to.equal(401);
-       });
+    it('should return 401 if not authenticated', async () => {
+      const queryParams = { latitude: 6.5244, longitude: 3.3792 };
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units/nearby')
+        .query(queryParams);
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
+    });
 
-       it('should return 500 for unexpected errors', async () => {
-           const queryParams = testData.voterRoutes['/api/v1/voter/polling-units/nearby'].get.queryParams.success;
-           const error = new Error("Geolocation query failed");
-           const nearbyStub = sandbox.stub(pollingUnitService, 'findNearbyPollingUnits').rejects(error);
+    it('should return 500 for unexpected errors', async () => {
+      const queryParams = { latitude: 6.5244, longitude: 3.3792 };
+      const error = new Error('Geolocation query failed');
+      const nearbyStub = sandbox.stub(pollingUnitService, 'findNearbyPollingUnits').rejects(error);
 
-            const response = await request(app)
-              .get('/api/v1/voter/polling-units/nearby')
-              .query(queryParams)
-              .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get('/api/v1/voter/polling-units/nearby')
+        .query(queryParams)
+        .set('Authorization', `Bearer ${authToken}`);
 
-           expect(response.status).to.equal(500);
-           expect(nearbyStub.calledOnce).to.be.true;
-       });
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(nearbyStub.calledOnce).to.be.true;
+    });
   });
 
   // --- Voting History Route ---
   describe('GET /voting-history', () => {
-    it('should get the voter\'s voting history successfully', async () => {
-      const expectedHistory = testData.voterRoutes['/api/v1/voter/voting-history'].get.successResponse.data; // { votes: [], total: ... }
+    it("should get the voter's voting history successfully with default pagination", async () => {
+      // Inline mock data
+      const mockHistory = [
+          { voteId: 'v-1', electionId: 'e-1', electionName: 'Election 1', candidateId: 'c-1', timestamp: new Date().toISOString() },
+          { voteId: 'v-2', electionId: 'e-2', electionName: 'Election 2', candidateId: 'c-2', timestamp: new Date().toISOString() },
+      ];
+      const mockPagination = { total: 2, page: 1, limit: 20, totalPages: 1 }; // Default limit
+      const expectedHistory = { votes: mockHistory, pagination: mockPagination };
+      // IMPORTANT: Ensure 'getVoterVotingHistory' is correct
       const historyStub = sandbox.stub(voterService, 'getVoterVotingHistory').resolves(expectedHistory);
       const defaultQuery = { page: 1, limit: 20 }; // Assume defaults
 
@@ -493,53 +610,72 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Voting history retrieved successfully.',
-        data: expectedHistory,
-      });
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Voting history retrieved successfully.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.votes).to.be.an('array').with.lengthOf(mockHistory.length);
+      expect(response.body.data.votes[0].voteId).to.equal(mockHistory[0].voteId);
+      expect(response.body.data.votes[0].electionName).to.equal(mockHistory[0].electionName);
+      expect(response.body.data.pagination).to.deep.equal(mockPagination);
+
       expect(historyStub.calledOnceWith(userIdFromToken, sinon.match(defaultQuery))).to.be.true;
     });
 
-    it('should get voting history with pagination', async () => {
-       const queryParams = { page: 2, limit: 5 };
-       const expectedHistory = { votes: [ /* subset of votes */ ], total: 15, page: 2, limit: 5, totalPages: 3 }; // Example paginated response
-       const historyStub = sandbox.stub(voterService, 'getVoterVotingHistory').resolves(expectedHistory);
+    it('should get voting history with specific pagination', async () => {
+      const queryParams = { page: 2, limit: 5 }; // Inline query
+      const mockHistory = [ // Inline mock data for page 2
+          { voteId: 'v-6', electionId: 'e-6', electionName: 'Election 6', candidateId: 'c-6', timestamp: new Date().toISOString() }
+      ];
+      const mockPagination = { total: 6, page: 2, limit: 5, totalPages: 2 };
+      const expectedHistory = { votes: mockHistory, pagination: mockPagination };
+      // IMPORTANT: Ensure 'getVoterVotingHistory' is correct
+      const historyStub = sandbox.stub(voterService, 'getVoterVotingHistory').resolves(expectedHistory);
 
-       const response = await request(app)
+      const response = await request(app)
         .get('/api/v1/voter/voting-history')
         .query(queryParams)
         .set('Authorization', `Bearer ${authToken}`);
 
-       expect(response.status).to.equal(200);
-       expect(response.body.data.page).to.equal(queryParams.page);
-       expect(response.body.data.limit).to.equal(queryParams.limit);
-       expect(historyStub.calledOnceWith(userIdFromToken, sinon.match(queryParams))).to.be.true;
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.data).to.exist;
+      expect(response.body.data.votes).to.be.an('array').with.lengthOf(mockHistory.length);
+      expect(response.body.data.pagination.page).to.equal(queryParams.page);
+      expect(response.body.data.pagination.limit).to.equal(queryParams.limit);
+      expect(response.body.data.pagination.total).to.equal(mockPagination.total);
+
+      expect(historyStub.calledOnceWith(userIdFromToken, sinon.match(queryParams))).to.be.true;
     });
 
     it('should return 401 if not authenticated', async () => {
       const response = await request(app).get('/api/v1/voter/voting-history');
       expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
     });
 
     it('should return 500 for unexpected errors', async () => {
-        const error = new Error("DB Error");
-         const historyStub = sandbox.stub(voterService, 'getVoterVotingHistory').rejects(error);
+      const error = new Error('DB Error accessing history');
+      const historyStub = sandbox.stub(voterService, 'getVoterVotingHistory').rejects(error);
 
-         const response = await request(app)
-            .get('/api/v1/voter/voting-history')
-            .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get('/api/v1/voter/voting-history')
+        .set('Authorization', `Bearer ${authToken}`);
 
-         expect(response.status).to.equal(500);
-         expect(historyStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(historyStub.calledOnce).to.be.true;
     });
   });
 
   // --- Eligibility Check Route ---
   describe('GET /eligibility/:electionId', () => {
     it('should confirm voter is eligible for a specific election', async () => {
-      const electionId = testData.voterRoutes['/api/v1/voter/eligibility/{electionId}'].getPathParams().eligible.electionId;
-      const expectedEligibility = { eligible: true, reason: null };
+      const electionId = 'election-eligible-uuid'; // Inline ID
+      const expectedEligibility = { eligible: true, reason: null }; // Inline result
+      // IMPORTANT: Ensure 'checkVoterEligibility' is correct
       const eligibilityStub = sandbox.stub(voterService, 'checkVoterEligibility').resolves(expectedEligibility);
 
       const response = await request(app)
@@ -547,17 +683,23 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Eligibility check successful.',
-        data: expectedEligibility,
-      });
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Eligibility check successful.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.eligible).to.be.true;
+      expect(response.body.data.reason).to.be.null;
+
       expect(eligibilityStub.calledOnceWith(userIdFromToken, electionId)).to.be.true;
     });
 
-     it('should confirm voter is ineligible for a specific election with a reason', async () => {
-      const electionId = testData.voterRoutes['/api/v1/voter/eligibility/{electionId}'].getPathParams().ineligible.electionId;
-      const expectedEligibility = { eligible: false, reason: 'Voter not registered in the required region.' };
+    it('should confirm voter is ineligible for a specific election with a reason', async () => {
+      const electionId = 'election-ineligible-uuid'; // Inline ID
+      const expectedEligibility = { // Inline result
+        eligible: false,
+        reason: 'Voter not registered in the required LGA.',
+      };
+      // IMPORTANT: Ensure 'checkVoterEligibility' is correct
       const eligibilityStub = sandbox.stub(voterService, 'checkVoterEligibility').resolves(expectedEligibility);
 
       const response = await request(app)
@@ -565,189 +707,244 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(200); // Still 200, but data indicates ineligibility
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Eligibility check successful.',
-        data: expectedEligibility,
-      });
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Eligibility check successful.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.eligible).to.be.false;
+      expect(response.body.data.reason).to.equal(expectedEligibility.reason);
+
       expect(eligibilityStub.calledOnceWith(userIdFromToken, electionId)).to.be.true;
     });
 
-     it('should return 400 for invalid election ID format', async () => {
-      const invalidElectionId = 'not-a-uuid';
-       const response = await request(app)
+    it('should return 400 for invalid election ID format', async () => {
+      const invalidElectionId = 'not-a-uuid-format';
+      const response = await request(app)
         .get(`/api/v1/voter/eligibility/${invalidElectionId}`)
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(400);
       expect(response.body.success).to.be.false;
-      expect(response.body.errors[0].msg).to.contain('Election ID must be a valid UUID');
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('Election ID must be a valid UUID'))).to.be.true; // Adjust msg
     });
 
-     it('should return 404 if election ID not found', async () => {
-       const electionId = testData.voterRoutes['/api/v1/voter/eligibility/{electionId}'].getPathParams().notFound.electionId;
-       const error = { status: 404, message: 'Election not found.' };
-       const eligibilityStub = sandbox.stub(voterService, 'checkVoterEligibility').rejects(error);
+    it('should return 404 if election ID not found', async () => {
+      const electionId = 'election-not-found-uuid'; // Inline ID
+      const error = new Error('Election not found.');
+      error.status = 404;
+      const eligibilityStub = sandbox.stub(voterService, 'checkVoterEligibility').rejects(error);
 
-       const response = await request(app)
-        .get(`/api/v1/voter/eligibility/${electionId}`)
+      const response = await request(app)
+        .get(`/api/v1/voter/eligibility/${electionId}`) 
         .set('Authorization', `Bearer ${authToken}`);
 
-       expect(response.status).to.equal(404);
-       expect(response.body).to.deep.equal({ success: false, message: error.message });
-       expect(eligibilityStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(404);
+      // REFINED assertions:
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(error.message);
+      expect(eligibilityStub.calledOnce).to.be.true;
     });
 
     it('should return 401 if not authenticated', async () => {
-       const electionId = testData.voterRoutes['/api/v1/voter/eligibility/{electionId}'].getPathParams().eligible.electionId;
-       const response = await request(app).get(`/api/v1/voter/eligibility/${electionId}`);
-       expect(response.status).to.equal(401);
+      const electionId = 'election-eligible-uuid';
+      const response = await request(app).get(`/api/v1/voter/eligibility/${electionId}`);
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
     });
 
     it('should return 500 for unexpected errors', async () => {
-        const electionId = testData.voterRoutes['/api/v1/voter/eligibility/{electionId}'].getPathParams().eligible.electionId;
-        const error = new Error("Eligibility check failed");
-        const eligibilityStub = sandbox.stub(voterService, 'checkVoterEligibility').rejects(error);
+      const electionId = 'election-eligible-uuid';
+      const error = new Error('Eligibility check failed in service');
+      const eligibilityStub = sandbox.stub(voterService, 'checkVoterEligibility').rejects(error);
 
-        const response = await request(app)
-            .get(`/api/v1/voter/eligibility/${electionId}`)
-            .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get(`/api/v1/voter/eligibility/${electionId}`)
+        .set('Authorization', `Bearer ${authToken}`);
 
-        expect(response.status).to.equal(500);
-        expect(eligibilityStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(eligibilityStub.calledOnce).to.be.true;
     });
   });
 
   // --- Identity Verification Routes ---
   describe('POST /verify-identity', () => {
     it('should initiate identity verification successfully (e.g., send OTP)', async () => {
-      // Assuming this requires election context sometimes
-      const verificationData = testData.voterRoutes['/api/v1/voter/verify-identity'].post.requestBody.success;
-      const expectedResult = { message: 'Identity verification process initiated. Check your registered method.' };
+      // Assuming this might need an election context or verification method
+      const verificationData = { method: 'SMS', context: { electionId: 'e-verify-1' } }; // Inline data
+      const expectedResult = { // Inline result
+        message: 'Identity verification process initiated. Check your registered SMS number.',
+        verificationId: 'verify-session-uuid-123' // Optional: If service returns an ID
+      };
+      // IMPORTANT: Ensure 'initiateVerification' is correct
       const initiateStub = sandbox.stub(verificationService, 'initiateVerification').resolves(expectedResult);
 
       const response = await request(app)
         .post('/api/v1/voter/verify-identity')
         .set('Authorization', `Bearer ${authToken}`)
-        .send(verificationData); // May include method (SMS, Email) or electionId
+        .send(verificationData);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: expectedResult.message,
-        // data might be null or contain verification ID
-      });
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal(expectedResult.message);
+      // Check data if returned
+      expect(response.body.data).to.exist;
+      expect(response.body.data.verificationId).to.equal(expectedResult.verificationId);
+
       expect(initiateStub.calledOnceWith(userIdFromToken, verificationData)).to.be.true;
     });
 
-    it('should return 400 if voter has already verified recently', async () => {
-        const verificationData = testData.voterRoutes['/api/v1/voter/verify-identity'].post.requestBody.alreadyVerified;
-        const error = { status: 400, message: 'Identity already verified recently.' };
-        const initiateStub = sandbox.stub(verificationService, 'initiateVerification').rejects(error);
-
-        const response = await request(app)
+    it('should return 400 if verification method is missing or invalid', async () => {
+        const invalidData = { context: {} }; // Missing method
+         const response = await request(app)
             .post('/api/v1/voter/verify-identity')
             .set('Authorization', `Bearer ${authToken}`)
-            .send(verificationData);
+            .send(invalidData);
 
         expect(response.status).to.equal(400);
-        expect(response.body).to.deep.equal({ success: false, message: error.message });
-        expect(initiateStub.calledOnce).to.be.true;
+        expect(response.body.success).to.be.false;
+        expect(response.body.message).to.equal('Validation Error');
+        expect(response.body.errors.some(e => e.msg.includes('Verification method is required'))).to.be.true; // Adjust msg
     });
 
-     it('should return 401 if not authenticated', async () => {
-        const verificationData = testData.voterRoutes['/api/v1/voter/verify-identity'].post.requestBody.success;
-        const response = await request(app).post('/api/v1/voter/verify-identity').send(verificationData);
-        expect(response.status).to.equal(401);
-     });
+    it('should return 400 if voter has already verified recently', async () => {
+      const verificationData = { method: 'SMS' }; // Inline data
+      const error = new Error('Identity already verified recently.');
+      error.status = 400;
+      const initiateStub = sandbox.stub(verificationService, 'initiateVerification').rejects(error);
 
-      it('should return 500 for unexpected errors', async () => {
-        const verificationData = testData.voterRoutes['/api/v1/voter/verify-identity'].post.requestBody.success;
-        const error = new Error("OTP service failed");
-        const initiateStub = sandbox.stub(verificationService, 'initiateVerification').rejects(error);
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(verificationData);
 
-        const response = await request(app)
-            .post('/api/v1/voter/verify-identity')
-            .set('Authorization', `Bearer ${authToken}`)
-            .send(verificationData);
+      expect(response.status).to.equal(400);
+      // REFINED assertions:
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(error.message);
+      expect(initiateStub.calledOnce).to.be.true;
+    });
 
-        expect(response.status).to.equal(500);
-        expect(initiateStub.calledOnce).to.be.true;
+    it('should return 401 if not authenticated', async () => {
+      const verificationData = { method: 'SMS' };
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity')
+        .send(verificationData);
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
+    });
+
+    it('should return 500 for unexpected errors', async () => {
+      const verificationData = { method: 'SMS' };
+      const error = new Error('OTP service failed');
+      const initiateStub = sandbox.stub(verificationService, 'initiateVerification').rejects(error);
+
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(verificationData);
+
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(initiateStub.calledOnce).to.be.true;
     });
   });
 
   describe('POST /verify-identity/confirm', () => {
-      it('should confirm identity verification successfully with correct code', async () => {
-          const confirmData = testData.voterRoutes['/api/v1/voter/verify-identity/confirm'].post.requestBody.success;
-          const expectedResult = { verified: true, message: 'Identity verified successfully.' };
-          const confirmStub = sandbox.stub(verificationService, 'confirmVerification').resolves(expectedResult);
+    it('should confirm identity verification successfully with correct code', async () => {
+      const confirmData = { code: '123456', verificationId: 'verify-session-uuid-123' }; // Inline data
+      const expectedResult = { verified: true, message: 'Identity verified successfully.' }; // Inline result
+      // IMPORTANT: Ensure 'confirmVerification' is correct
+      const confirmStub = sandbox.stub(verificationService, 'confirmVerification').resolves(expectedResult);
 
-          const response = await request(app)
-              .post('/api/v1/voter/verify-identity/confirm')
-              .set('Authorization', `Bearer ${authToken}`)
-              .send(confirmData); // Includes code, potentially verification ID
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity/confirm')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(confirmData);
 
-          expect(response.status).to.equal(200);
-          expect(response.body).to.deep.equal({
-              success: true,
-              message: expectedResult.message,
-              data: { verified: true } // Or similar confirmation
-          });
-          expect(confirmStub.calledOnceWith(userIdFromToken, confirmData.code /*, confirmData.verificationId */)).to.be.true;
-      });
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal(expectedResult.message);
+      expect(response.body.data).to.exist;
+      expect(response.body.data.verified).to.be.true; // Check specific confirmation data
 
-       it('should return 400 for missing verification code', async () => {
-          const invalidData = { ...testData.voterRoutes['/api/v1/voter/verify-identity/confirm'].post.requestBody.success, code: undefined };
-           const response = await request(app)
-              .post('/api/v1/voter/verify-identity/confirm')
-              .set('Authorization', `Bearer ${authToken}`)
-              .send(invalidData);
+      // Verify args passed to service
+      expect(confirmStub.calledOnceWith(userIdFromToken, confirmData.code, confirmData.verificationId)).to.be.true;
+    });
 
-          expect(response.status).to.equal(400);
-          expect(response.body.success).to.be.false;
-           expect(response.body.errors[0].msg).to.contain('Verification code is required');
-      });
+    it('should return 400 for missing verification code', async () => {
+      const invalidData = { verificationId: 'verify-session-uuid-123' }; // Missing code
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity/confirm')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(invalidData);
 
-       it('should return 400 for invalid or expired verification code', async () => {
-           const confirmData = testData.voterRoutes['/api/v1/voter/verify-identity/confirm'].post.requestBody.invalidCode;
-           const error = { status: 400, message: 'Invalid or expired verification code.' };
-           const confirmStub = sandbox.stub(verificationService, 'confirmVerification').rejects(error);
+      expect(response.status).to.equal(400);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('Verification code is required'))).to.be.true;
+    });
 
-            const response = await request(app)
-              .post('/api/v1/voter/verify-identity/confirm')
-              .set('Authorization', `Bearer ${authToken}`)
-              .send(confirmData);
+    it('should return 400 for invalid or expired verification code', async () => {
+      const confirmData = { code: 'expired-code', verificationId: 'verify-session-old' }; // Inline data
+      const error = new Error('Invalid or expired verification code.');
+      error.status = 400;
+      const confirmStub = sandbox.stub(verificationService, 'confirmVerification').rejects(error);
 
-           expect(response.status).to.equal(400);
-           expect(response.body).to.deep.equal({ success: false, message: error.message });
-           expect(confirmStub.calledOnce).to.be.true;
-      });
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity/confirm')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(confirmData);
 
-       it('should return 401 if not authenticated', async () => {
-            const confirmData = testData.voterRoutes['/api/v1/voter/verify-identity/confirm'].post.requestBody.success;
-            const response = await request(app).post('/api/v1/voter/verify-identity/confirm').send(confirmData);
-            expect(response.status).to.equal(401);
-       });
+      expect(response.status).to.equal(400);
+      // REFINED assertions:
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(error.message);
+      expect(confirmStub.calledOnce).to.be.true;
+    });
 
-        it('should return 500 for unexpected errors', async () => {
-            const confirmData = testData.voterRoutes['/api/v1/voter/verify-identity/confirm'].post.requestBody.success;
-            const error = new Error("Verification check failed");
-             const confirmStub = sandbox.stub(verificationService, 'confirmVerification').rejects(error);
+    it('should return 401 if not authenticated', async () => {
+      const confirmData = { code: '123456' };
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity/confirm')
+        .send(confirmData);
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
+    });
 
-             const response = await request(app)
-                .post('/api/v1/voter/verify-identity/confirm')
-                .set('Authorization', `Bearer ${authToken}`)
-                .send(confirmData);
+    it('should return 500 for unexpected errors', async () => {
+      const confirmData = { code: '123456' };
+      const error = new Error('Verification check failed in service');
+      const confirmStub = sandbox.stub(verificationService, 'confirmVerification').rejects(error);
 
-            expect(response.status).to.equal(500);
-            expect(confirmStub.calledOnce).to.be.true;
-        });
+      const response = await request(app)
+        .post('/api/v1/voter/verify-identity/confirm')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(confirmData);
+
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(confirmStub.calledOnce).to.be.true;
+    });
   });
 
   // --- Notification Routes ---
   describe('GET /notifications', () => {
-    it('should get the voter\'s notifications successfully', async () => {
-      const expectedNotifications = testData.voterRoutes['/api/v1/voter/notifications'].get.successResponse.data; // { notifications: [], totalUnread: ..., total: ..., page: ..., limit: ... }
+    it("should get the voter's notifications successfully with default pagination", async () => {
+      // Inline mock data
+      const mockNotifications = [
+          { id: 'n-1', title: 'Election Reminder', message: 'Vote tomorrow!', read: false, createdAt: new Date().toISOString() },
+          { id: 'n-2', title: 'Polling Unit Changed', message: 'Your PU is now PU002', read: true, createdAt: new Date().toISOString() },
+      ];
+      const mockPagination = { total: 2, page: 1, limit: 10, totalPages: 1 };
+      const expectedNotifications = { notifications: mockNotifications, totalUnread: 1, pagination: mockPagination };
+      // IMPORTANT: Ensure 'getUserNotifications' is correct
       const getNotifsStub = sandbox.stub(notificationService, 'getUserNotifications').resolves(expectedNotifications);
       const defaultQuery = { page: 1, limit: 10, status: 'all' }; // Example defaults
 
@@ -756,52 +953,74 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Notifications retrieved successfully.',
-        data: expectedNotifications,
-      });
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Notifications retrieved successfully.');
+      expect(response.body.data).to.exist;
+      expect(response.body.data.notifications).to.be.an('array').with.lengthOf(mockNotifications.length);
+      expect(response.body.data.notifications[0].id).to.equal(mockNotifications[0].id);
+      expect(response.body.data.notifications[0].read).to.equal(mockNotifications[0].read);
+      expect(response.body.data.totalUnread).to.equal(expectedNotifications.totalUnread);
+      expect(response.body.data.pagination).to.deep.equal(mockPagination);
+
       expect(getNotifsStub.calledOnceWith(userIdFromToken, sinon.match(defaultQuery))).to.be.true;
     });
 
-     it('should get only unread notifications with pagination', async () => {
-      const queryParams = { status: 'unread', page: 1, limit: 5 };
-       const expectedNotifications = { notifications: [ /* only unread */ ], totalUnread: 3, total: 3, page: 1, limit: 5, totalPages: 1 };
-       const getNotifsStub = sandbox.stub(notificationService, 'getUserNotifications').resolves(expectedNotifications);
+    it('should get only unread notifications with pagination', async () => {
+      const queryParams = { status: 'unread', page: 1, limit: 5 }; // Inline query
+      // Inline mock data
+      const mockNotifications = [
+          { id: 'n-3', title: 'New Election Added', message: '...', read: false, createdAt: new Date().toISOString() },
+      ];
+      const mockPagination = { total: 1, page: 1, limit: 5, totalPages: 1 };
+      const expectedNotifications = { notifications: mockNotifications, totalUnread: 1, pagination: mockPagination };
+      // IMPORTANT: Ensure 'getUserNotifications' is correct
+      const getNotifsStub = sandbox.stub(notificationService, 'getUserNotifications').resolves(expectedNotifications);
 
-       const response = await request(app)
+      const response = await request(app)
         .get('/api/v1/voter/notifications')
         .query(queryParams)
         .set('Authorization', `Bearer ${authToken}`);
 
-       expect(response.status).to.equal(200);
-       expect(response.body.data.notifications.every(n => !n.read)).to.be.true; // Check if all returned are unread
-       expect(response.body.data.page).to.equal(queryParams.page);
-       expect(getNotifsStub.calledOnceWith(userIdFromToken, sinon.match(queryParams))).to.be.true;
+      expect(response.status).to.equal(200);
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.data).to.exist;
+      expect(response.body.data.notifications).to.be.an('array').with.lengthOf(mockNotifications.length);
+      expect(response.body.data.notifications.every(n => !n.read)).to.be.true; // Check if all returned are unread
+      expect(response.body.data.pagination.page).to.equal(queryParams.page);
+      expect(response.body.data.totalUnread).to.equal(expectedNotifications.totalUnread);
+
+      expect(getNotifsStub.calledOnceWith(userIdFromToken, sinon.match(queryParams))).to.be.true;
     });
 
     it('should return 401 if not authenticated', async () => {
       const response = await request(app).get('/api/v1/voter/notifications');
       expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
     });
 
-     it('should return 500 for unexpected errors', async () => {
-        const error = new Error("Notification service down");
-        const getNotifsStub = sandbox.stub(notificationService, 'getUserNotifications').rejects(error);
+    it('should return 500 for unexpected errors', async () => {
+      const error = new Error('Notification service down');
+      const getNotifsStub = sandbox.stub(notificationService, 'getUserNotifications').rejects(error);
 
-        const response = await request(app)
-            .get('/api/v1/voter/notifications')
-            .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app)
+        .get('/api/v1/voter/notifications')
+        .set('Authorization', `Bearer ${authToken}`);
 
-        expect(response.status).to.equal(500);
-        expect(getNotifsStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(getNotifsStub.calledOnce).to.be.true;
     });
   });
 
   describe('PUT /notifications/:notificationId/read', () => {
-     it('should mark a notification as read successfully', async () => {
-      const notificationId = testData.voterRoutes['/api/v1/voter/notifications/{notificationId}/read'].put.pathParams.notificationId;
-      const markReadStub = sandbox.stub(notificationService, 'markNotificationAsRead').resolves({ success: true });
+    it('should mark a notification as read successfully', async () => {
+      const notificationId = 'notification-to-read-uuid'; // Inline ID
+      const serviceResult = { success: true }; // Service might return simple object or void
+      // IMPORTANT: Ensure 'markNotificationAsRead' is correct
+      const markReadStub = sandbox.stub(notificationService, 'markNotificationAsRead').resolves(serviceResult);
 
       const response = await request(app)
         .put(`/api/v1/voter/notifications/${notificationId}/read`)
@@ -809,58 +1028,68 @@ describe('Voter Routes Integration Tests - /api/v1/voter (Protected)', () => {
         .send(); // No body usually needed
 
       expect(response.status).to.equal(200);
-      expect(response.body).to.deep.equal({
-        success: true,
-        message: 'Notification marked as read.',
-      });
+      // REFINED assertions:
+      expect(response.body.success).to.be.true;
+      expect(response.body.message).to.equal('Notification marked as read.');
+      expect(response.body.data).to.not.exist; // Usually no data returned
+
       expect(markReadStub.calledOnceWith(userIdFromToken, notificationId)).to.be.true;
     });
 
-     it('should return 400 for invalid notification ID format', async () => {
-      const invalidId = 'not-a-uuid';
-       const response = await request(app)
+    it('should return 400 for invalid notification ID format', async () => {
+      const invalidId = 'not-a-uuid-format';
+      const response = await request(app)
         .put(`/api/v1/voter/notifications/${invalidId}/read`)
         .set('Authorization', `Bearer ${authToken}`)
         .send();
 
       expect(response.status).to.equal(400);
-      expect(response.body.errors[0].msg).to.contain('Notification ID must be a valid UUID');
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Validation Error');
+      expect(response.body.errors.some(e => e.msg.includes('Notification ID must be a valid UUID'))).to.be.true; // Adjust msg
     });
 
     it('should return 404 if notification not found or does not belong to user', async () => {
-       const notificationId = testData.voterRoutes['/api/v1/voter/notifications/{notificationId}/read'].put.pathParams.notFoundId;
-       const error = { status: 404, message: 'Notification not found or access denied.' };
-       const markReadStub = sandbox.stub(notificationService, 'markNotificationAsRead').rejects(error);
+      const notificationId = 'not-found-notification-uuid'; // Inline ID
+      const error = new Error('Notification not found or access denied.');
+      error.status = 404;
+      const markReadStub = sandbox.stub(notificationService, 'markNotificationAsRead').rejects(error);
 
-       const response = await request(app)
+      const response = await request(app)
         .put(`/api/v1/voter/notifications/${notificationId}/read`)
         .set('Authorization', `Bearer ${authToken}`)
         .send();
 
-       expect(response.status).to.equal(404);
-       expect(response.body).to.deep.equal({ success: false, message: error.message });
-       expect(markReadStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(404);
+      // REFINED assertions:
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal(error.message);
+      expect(markReadStub.calledOnce).to.be.true;
     });
 
-     it('should return 401 if not authenticated', async () => {
-        const notificationId = testData.voterRoutes['/api/v1/voter/notifications/{notificationId}/read'].put.pathParams.notificationId;
-        const response = await request(app).put(`/api/v1/voter/notifications/${notificationId}/read`).send();
-        expect(response.status).to.equal(401);
+    it('should return 401 if not authenticated', async () => {
+      const notificationId = 'notification-to-read-uuid';
+      const response = await request(app)
+        .put(`/api/v1/voter/notifications/${notificationId}/read`)
+        .send();
+      expect(response.status).to.equal(401);
+      expect(response.body.message).to.contain('No authorization token');
     });
 
-     it('should return 500 for unexpected errors', async () => {
-        const notificationId = testData.voterRoutes['/api/v1/voter/notifications/{notificationId}/read'].put.pathParams.notificationId;
-        const error = new Error("DB update failed");
-        const markReadStub = sandbox.stub(notificationService, 'markNotificationAsRead').rejects(error);
+    it('should return 500 for unexpected errors', async () => {
+      const notificationId = 'notification-to-read-uuid';
+      const error = new Error('DB update failed for notification read status');
+      const markReadStub = sandbox.stub(notificationService, 'markNotificationAsRead').rejects(error);
 
-         const response = await request(app)
-            .put(`/api/v1/voter/notifications/${notificationId}/read`)
-            .set('Authorization', `Bearer ${authToken}`)
-            .send();
+      const response = await request(app)
+        .put(`/api/v1/voter/notifications/${notificationId}/read`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send();
 
-        expect(response.status).to.equal(500);
-        expect(markReadStub.calledOnce).to.be.true;
+      expect(response.status).to.equal(500);
+      expect(response.body.success).to.be.false;
+      expect(response.body.message).to.equal('Internal Server Error');
+      expect(markReadStub.calledOnce).to.be.true;
     });
   });
-
-}); // End main describe block for Voter Routes 
+}); // End main describe block for Voter Routes

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Sequelize, DataTypes } from 'sequelize';
+import { Sequelize } from 'sequelize';
 import { logger } from '../../config/logger';
 import config from '../../config/database';
 
@@ -41,6 +41,7 @@ const modelFiles = fs.readdirSync(__dirname).filter(file => {
 // First pass: Load and initialize all models
 for (const file of modelFiles) {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const modelModule = require(path.join(__dirname, file));
     const model = modelModule.default;
 

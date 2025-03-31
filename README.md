@@ -620,6 +620,50 @@ For production environments, you might want to customize the `docker-compose.yml
 - Implement proper IP blocking for suspicious activities
 - Keep all dependencies updated
 
+### Cryptographic Signature Verification (Mobile Voting)
+
+To ensure the integrity and authenticity of votes submitted via the mobile application, SecureBallot employs ECDSA (Elliptic Curve Digital Signature Algorithm) signatures.
+
+The process works as follows:
+
+1.  **Key Pair Generation:** During registration or a dedicated setup phase on the mobile app, an ECC key pair (using a standard curve like secp256k1) is generated for the voter. The public key is securely transmitted to the server and stored associated with the voter's record (in the `publicKey` field of the `voters` table).
+2.  **Data Signing (Client-Side):** When the voter casts a vote using the mobile app, the app constructs a canonical representation of the critical vote data (e.g., a JSON string containing `electionId`, `candidateId`, and the `encryptedVote` payload).
+3.  **Signature Creation:** The mobile app uses the voter's *private* key to sign the hash (e.g., SHA-256) of this canonical data string. This creates a digital signature.
+4.  **Data Transmission:** The mobile app sends the original vote data (`electionId`, `candidateId`, `encryptedVote`) along with the generated `signature` to the appropriate API endpoint (e.g., `/api/v1/mobile/vote/:electionId`).
+5.  **Verification (Server-Side):**
+    *   The server receives the request.
+    *   It retrieves the voter's *public* key from the database using the authenticated user's ID (`voterService.getVoterPublicKey`).
+    *   It reconstructs the exact same canonical data string that the client signed.
+    *   Using the Node.js `crypto` module, it verifies the received `signature` against the reconstructed data string and the voter's public key.
+6.  **Processing:** If the signature is valid, the server proceeds with decrypting the `encryptedVote` payload and recording the vote. If the signature is invalid, the request is rejected with an error (e.g., 400 Bad Request with code `INVALID_SIGNATURE`), indicating potential tampering or an incorrect key.
+
+This process ensures that only the legitimate holder of the private key (the voter's device) could have generated the signature for that specific vote data, and that the data wasn't altered in transit.
+
+### Hybrid Encryption (Vote Secrecy)
+
+To protect the secrecy of the vote itself during transmission from the mobile client to the server, SecureBallot uses a hybrid encryption scheme combining Elliptic Curve Integrated Encryption Scheme (ECIES) with AES-256-GCM.
+
+1.  **Server Key Pair:** The server maintains a static ECC key pair (e.g., secp256k1). The server's public key is securely distributed to the mobile clients.
+2.  **Client-Side Encryption:**
+    *   When a vote is cast, the client generates a random, single-use (ephemeral) symmetric AES-256 key and an Initialization Vector (IV).
+    *   The actual vote payload (containing `candidateId`, `timestamp`, etc.) is encrypted using AES-256 in GCM (Galois/Counter Mode). GCM provides both confidentiality and data authenticity.
+    *   The ephemeral AES key itself is then encrypted using ECIES with the *server's* public ECC key. ECIES typically involves:
+        *   Generating an ephemeral ECC key pair on the client.
+        *   Performing Elliptic Curve Diffie-Hellman (ECDH) key agreement between the client's ephemeral private key and the server's static public key to derive a shared secret.
+        *   Using a Key Derivation Function (KDF, like HKDF based on SHA-256) on the shared secret to generate the actual AES encryption key and potentially a MAC key.
+        *   Using the derived AES key and IV with AES-GCM to encrypt the payload.
+    *   Libraries like `eciesjs` handle the complexities of key agreement, derivation, and packaging.
+3.  **Data Packaging:** The client packages the necessary components for the server to decrypt: its ephemeral public key, the IV, the AES-GCM encrypted ciphertext, and the GCM authentication tag. This package forms the `encryptedVote` data, which is typically Base64 encoded for transmission.
+4.  **Server-Side Decryption (`electionService.decryptVoteData`):
+    *   The server receives the Base64 encoded `encryptedVote`.
+    *   It decodes the payload and extracts the components (ephemeral public key, IV, ciphertext, auth tag).
+    *   Using its *private* ECC key and the client's ephemeral public key, it performs the same ECDH key agreement and KDF to derive the same AES-256 key the client used.
+    *   It uses the derived AES key, the IV, and the authentication tag to decrypt the ciphertext using AES-256-GCM.
+    *   The GCM mode automatically verifies the authenticity tag during decryption. If the ciphertext or tag was tampered with, decryption fails.
+5.  **Processing:** If decryption and authentication succeed, the server obtains the plaintext vote payload and proceeds with recording the vote securely.
+
+This hybrid approach ensures that only the server (with its private key) can decrypt the vote content, while leveraging the efficiency of symmetric AES encryption for the potentially larger vote payload. The ECIES scheme handles the secure exchange of the symmetric key.
+
 ## Contributing
 
 1. Fork the repository

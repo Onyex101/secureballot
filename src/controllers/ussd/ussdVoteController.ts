@@ -1,90 +1,141 @@
-import { Request, Response } from 'express';
-import { ussdService } from '../../services';
-import { auditService } from '../../services';
+import { Request, Response, NextFunction } from 'express';
+import * as ussdService from '../../services/ussdService';
+import * as auditService from '../../services/auditService';
+import { logger } from '../../config/logger';
+import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Cast a vote via USSD
+ * @route POST /api/v1/ussd/vote (Example route)
+ * @access Public (requires valid sessionCode)
  */
-export const castVote = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { sessionCode, electionId, candidateId } = req.body;
+export const castVote = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { sessionCode, electionId, candidateId } = req.body;
+  const context = { sessionCode, electionId };
 
+  try {
+    if (!sessionCode || !electionId || !candidateId) {
+      throw new ApiError(
+        400,
+        'sessionCode, electionId, and candidateId are required',
+        'MISSING_VOTE_PARAMS',
+      );
+    }
     // Cast the vote
     const result = await ussdService.castVote(sessionCode, electionId, candidateId);
 
     // Log the action
     await auditService.createAuditLog(
-      'ussd_system', // We don't expose the user ID for security
-      'ussd_vote_cast',
+      'unknown',
+      AuditActionType.VOTE_CAST,
       req.ip || '',
       req.headers['user-agent'] || '',
       {
+        success: true,
+        channel: 'ussd',
         sessionCode,
         electionId,
-        // Don't log candidateId for vote secrecy
-        receiptCode: result.receiptCode,
+        confirmationCode: result.confirmationCode,
       },
     );
 
     res.status(200).json({
       success: true,
-      message: 'Vote cast successfully',
+      message: 'Vote cast successfully via USSD',
       data: {
-        receiptCode: result.receiptCode,
-        message: 'Please keep this receipt code to verify your vote later',
+        confirmationCode: result.confirmationCode,
       },
     });
   } catch (error) {
-    console.error('Error casting USSD vote:', error);
-
-    res.status(400).json({
-      success: false,
-      message: (error as Error).message || 'Failed to cast vote',
-      code: 'VOTE_ERROR',
-    });
+    await auditService
+      .createAuditLog(
+        'unknown',
+        AuditActionType.VOTE_CAST,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
+          success: false,
+          channel: 'ussd',
+          ...context,
+          candidateId,
+          error: (error as Error).message,
+        },
+      )
+      .catch(logErr => logger.error('Failed to log USSD vote cast error', logErr));
+    next(error);
   }
 };
 
 /**
- * Verify a vote using receipt code
+ * Verify a vote using receipt code (originating from USSD)
+ * @route POST /api/v1/ussd/verify-vote (Example route)
+ * @access Public
  */
-export const verifyVote = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { receiptCode, phoneNumber } = req.body;
+export const verifyVote = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { receiptCode, phoneNumber } = req.body;
+  const context = { receiptCode, phoneNumber };
 
-    // Verify the vote
+  try {
+    if (!receiptCode || !phoneNumber) {
+      throw new ApiError(400, 'receiptCode and phoneNumber are required', 'MISSING_VERIFY_PARAMS');
+    }
+    // Verify the vote using the specific USSD service verification
     const result = await ussdService.verifyVote(receiptCode, phoneNumber);
 
     // Log the action
     await auditService.createAuditLog(
-      'ussd_system', // We don't expose the user ID for security
-      'ussd_vote_verification',
+      'unknown',
+      AuditActionType.VOTE_VERIFY,
       req.ip || '',
       req.headers['user-agent'] || '',
       {
-        phoneNumber,
-        receiptCode,
-        isVerified: result.isVerified,
+        success: result.isProcessed,
+        channel: 'ussd',
+        ...context,
+        verifiedData: result,
       },
     );
 
+    if (!result.isProcessed) {
+      res.status(200).json({
+        success: false,
+        message: 'Vote found but not yet processed or verification failed.',
+        data: { isVerified: false },
+      });
+      return;
+    }
+
     res.status(200).json({
       success: true,
-      message: 'Vote verified successfully',
+      message: 'USSD Vote verified successfully',
       data: {
-        isVerified: result.isVerified,
+        isVerified: result.isProcessed,
         electionName: result.electionName,
         candidateName: result.candidateName,
         voteTimestamp: result.voteTimestamp,
+        processedAt: result.processedAt,
       },
     });
   } catch (error) {
-    console.error('Error verifying USSD vote:', error);
-
-    res.status(400).json({
-      success: false,
-      message: (error as Error).message || 'Failed to verify vote',
-      code: 'VERIFICATION_ERROR',
-    });
+    await auditService
+      .createAuditLog(
+        'unknown',
+        AuditActionType.VOTE_VERIFY,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
+          success: false,
+          channel: 'ussd',
+          ...context,
+          error: (error as Error).message,
+        },
+      )
+      .catch(logErr => logger.error('Failed to log USSD vote verification error', logErr));
+    next(error);
   }
 };

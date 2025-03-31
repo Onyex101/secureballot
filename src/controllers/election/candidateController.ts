@@ -1,7 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { candidateService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
+import { logger } from '../../config/logger';
 
 /**
  * Get all candidates for an election
@@ -13,43 +15,52 @@ export const getCandidates = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { electionId } = req.params;
+  const { search, page = 1, limit = 50 } = req.query;
+  const userId = req.user?.id || 'unknown';
+  const queryParams = { search, page, limit };
+
   try {
-    const { electionId } = req.params;
-    const { search, page = 1, limit = 50 } = req.query;
+    // Get candidates
+    const result = await candidateService.getCandidates(
+      electionId,
+      search as string | undefined,
+      Number(page),
+      Number(limit),
+    );
 
-    try {
-      // Get candidates
-      const result = await candidateService.getCandidates(
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.CANDIDATE_LIST_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
         electionId,
-        search as string,
-        Number(page),
-        Number(limit),
-      );
+        query: queryParams,
+        success: true,
+      },
+    );
 
-      // Log the action
-      await auditService.createAuditLog(
-        (req.user?.id as string) || 'anonymous',
-        'candidate_list_view',
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId,
+        AuditActionType.CANDIDATE_LIST_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
           electionId,
-          query: req.query,
+          query: queryParams,
+          success: false,
+          error: (error as Error).message,
         },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to get candidates');
-      apiError.statusCode = 400;
-      apiError.code = 'CANDIDATES_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+      )
+      .catch(logErr => logger.error('Failed to log candidate list view error', logErr));
     next(error);
   }
 };
@@ -64,34 +75,36 @@ export const getCandidateById = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { id } = req.params;
+  const userId = req.user?.id || 'unknown';
+
   try {
-    const { id } = req.params;
+    // Get candidate
+    const candidate = await candidateService.getCandidateById(id);
 
-    try {
-      // Get candidate
-      const candidate = await candidateService.getCandidateById(id);
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.CANDIDATE_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { candidateId: id, success: true },
+    );
 
-      // Log the action
-      await auditService.createAuditLog(
-        (req.user?.id as string) || 'anonymous',
-        'candidate_view',
+    res.status(200).json({
+      success: true,
+      data: candidate,
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId,
+        AuditActionType.CANDIDATE_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { candidateId: id },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: candidate,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Candidate not found');
-      apiError.statusCode = 404;
-      apiError.code = 'CANDIDATE_NOT_FOUND';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+        { candidateId: id, success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log candidate view error', logErr));
     next(error);
   }
 };
@@ -106,55 +119,66 @@ export const createCandidate = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const { electionId } = req.params;
-    const { fullName, partyAffiliation, position, biography, photoUrl } = req.body;
+  const { electionId } = req.params;
+  const { fullName, partyAffiliation, position, biography, photoUrl } = req.body;
+  const userId = req.user?.id;
 
+  try {
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
     if (!fullName || !partyAffiliation || !position) {
-      const error: ApiError = new Error('Missing required fields');
-      error.statusCode = 400;
-      error.code = 'MISSING_REQUIRED_FIELDS';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(
+        400,
+        'Missing required fields: fullName, partyAffiliation, position',
+        'MISSING_REQUIRED_FIELDS',
+      );
     }
 
-    try {
-      // Create candidate
-      const candidate = await candidateService.createCandidate(
-        fullName,
-        electionId,
-        partyAffiliation,
-        position,
-        biography,
-        photoUrl,
-      );
+    // Create candidate
+    const candidate = await candidateService.createCandidate(
+      fullName,
+      electionId,
+      partyAffiliation,
+      position,
+      biography,
+      photoUrl,
+    );
 
-      // Log the action
-      await auditService.createAuditLog(
-        req.user?.id as string,
-        'candidate_creation',
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.CANDIDATE_CREATE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
+        electionId,
+        candidateId: candidate.id,
+        candidateName: candidate.fullName,
+        success: true,
+      },
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Candidate created successfully',
+      data: candidate,
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.CANDIDATE_CREATE,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
           electionId,
-          candidateId: candidate.id,
-          candidateName: candidate.fullName,
+          candidateName: fullName,
+          success: false,
+          error: (error as Error).message,
         },
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'Candidate created successfully',
-        data: candidate,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to create candidate');
-      apiError.statusCode = 400;
-      apiError.code = 'CANDIDATE_CREATION_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+      )
+      .catch(logErr => logger.error('Failed to log candidate creation error', logErr));
     next(error);
   }
 };
@@ -169,45 +193,50 @@ export const updateCandidate = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { id } = req.params;
+  const updates = req.body;
+  const userId = req.user?.id;
+
   try {
-    const { id } = req.params;
-    const { fullName, partyAffiliation, position, biography, photoUrl } = req.body;
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+    // Update candidate
+    const candidate = await candidateService.updateCandidate(id, updates);
 
-    try {
-      // Update candidate
-      const candidate = await candidateService.updateCandidate(id, {
-        fullName,
-        partyAffiliation,
-        position,
-        biography,
-        photoUrl,
-      });
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.CANDIDATE_UPDATE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
+        candidateId: id,
+        updatedFields: Object.keys(updates),
+        success: true,
+      },
+    );
 
-      // Log the action
-      await auditService.createAuditLog(
-        req.user?.id as string,
-        'candidate_update',
+    res.status(200).json({
+      success: true,
+      message: 'Candidate updated successfully',
+      data: candidate,
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.CANDIDATE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
           candidateId: id,
-          updatedFields: Object.keys(req.body),
+          updatedFields: Object.keys(updates),
+          success: false,
+          error: (error as Error).message,
         },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Candidate updated successfully',
-        data: candidate,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to update candidate');
-      apiError.statusCode = 400;
-      apiError.code = 'CANDIDATE_UPDATE_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+      )
+      .catch(logErr => logger.error('Failed to log candidate update error', logErr));
     next(error);
   }
 };
@@ -222,34 +251,39 @@ export const deleteCandidate = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { id } = req.params;
+  const userId = req.user?.id;
+
   try {
-    const { id } = req.params;
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+    // Delete candidate
+    await candidateService.deleteCandidate(id);
 
-    try {
-      // Delete candidate
-      await candidateService.deleteCandidate(id);
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.CANDIDATE_DELETE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { candidateId: id, success: true },
+    );
 
-      // Log the action
-      await auditService.createAuditLog(
-        req.user?.id as string,
-        'candidate_deletion',
+    res.status(200).json({
+      success: true,
+      message: 'Candidate deleted successfully',
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.CANDIDATE_DELETE,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { candidateId: id },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Candidate deleted successfully',
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to delete candidate');
-      apiError.statusCode = 400;
-      apiError.code = 'CANDIDATE_DELETION_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+        { candidateId: id, success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log candidate deletion error', logErr));
     next(error);
   }
 };

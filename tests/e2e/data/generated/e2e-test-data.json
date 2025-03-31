@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "generatedAt": "2025-03-31T18:25:50.220Z",
+    "voterCount": 5,
+    "electionCount": 3,
+    "candidateCount": 9
+  },
+  "voters": [
+    {
+      "nin": "42913314108",
+      "vin": "9847012214277807854",
+      "phoneNumber": "+2349094105277",
+      "dateOfBirth": "1969-03-04",
+      "password": "Password123!",
+      "fullName": "Olukayode Omoyele",
+      "address": "Plot 157, Akinlolu Ifedayo Avenue, Effon-Alaiye",
+      "state": "Jigawa",
+      "lga": "Egbedore"
+    },
+    {
+      "nin": "11204936068",
+      "vin": "9936062461253824498",
+      "phoneNumber": "+2349051052726",
+      "dateOfBirth": "1971-04-20",
+      "password": "Password123!",
+      "fullName": "Hadiza Kyauta",
+      "address": "Km 192, Ekundayo Oluwagbemiga Avenue, Owo",
+      "state": "Enugu",
+      "lga": "Shanga"
+    },
+    {
+      "nin": "18500493486",
+      "vin": "9501666829081220802",
+      "phoneNumber": "+2349016145758",
+      "dateOfBirth": "1949-02-13",
+      "password": "Password123!",
+      "fullName": "Adannaya Ifeanyichukwu",
+      "address": "151, Adaeze Chibueze Crescent, Omoku",
+      "state": "Nasarawa",
+      "lga": "Lavun"
+    },
+    {
+      "nin": "81222974293",
+      "vin": "1844631775526834466",
+      "phoneNumber": "+2347087023023",
+      "dateOfBirth": "1950-12-06",
+      "password": "Password123!",
+      "fullName": "Hauwa Kasuwa",
+      "address": "Km 166, Olamide Oluwaseyi Street, Oyo",
+      "state": "Bayelsa",
+      "lga": "Shiroro"
+    },
+    {
+      "nin": "14777809888",
+      "vin": "5246114776958918767",
+      "phoneNumber": "+2348163425045",
+      "dateOfBirth": "1962-12-12",
+      "password": "Password123!",
+      "fullName": "Daran Shekarau",
+      "address": "Plot 72, Oluwaseun Adisa Street, Ilobu",
+      "state": "Gombe",
+      "lga": "Ogba/Egbema/Ndoni"
+    }
+  ],
+  "elections": [
+    {
+      "id": "66246457-2182-4a60-a0fd-e6d4ae2e1ce4",
+      "title": "presidential Election 2025",
+      "type": "presidential",
+      "status": "cancelled",
+      "startDate": "2025-04-19T18:25:50.219Z",
+      "endDate": "2025-04-20T18:25:50.219Z",
+      "description": "Clementia inflammatio vero ullus sursum cuppedia attonbitus confero voveo. Absorbeo sequi cupiditate conventus cena. Tener ulterius corona unde.",
+      "isNational": true
+    },
+    {
+      "id": "1ffbc966-8d1c-4f38-94da-11265ce0a188",
+      "title": "presidential Election 2025",
+      "type": "presidential",
+      "status": "completed",
+      "startDate": "2025-04-02T18:25:50.219Z",
+      "endDate": "2025-04-03T18:25:50.219Z",
+      "description": "Atrocitas illum vere amor. Aduro excepturi cribro contigo dedecor cogo tot adaugeo stabilis. Catena deripio dolorum.",
+      "isNational": true
+    },
+    {
+      "id": "54432e46-d013-4916-8d97-fa923cd97329",
+      "title": "Nasarawa State Gubernatorial Election 2025",
+      "type": "gubernatorial",
+      "status": "ongoing",
+      "startDate": "2025-04-12T18:25:50.219Z",
+      "endDate": "2025-04-13T18:25:50.219Z",
+      "description": "Suggero tenus turba quas desipio eos barba. Approbo adstringo decens delego facere cubo aequitas vulgivagus pauci. Voco tibi tot.",
+      "isNational": false
+    }
+  ],
+  "candidates": [
+    {
+      "id": "cbdb2647-1260-4532-bef1-1fa2f388b18d",
+      "electionId": "66246457-2182-4a60-a0fd-e6d4ae2e1ce4",
+      "name": "Oluchi Ekene",
+      "party": "Labour Party",
+      "partyAcronym": "LP",
+      "biography": "Cupiditate delicate dolorem tracto tredecim conturbo commodo amo. Socius vinitor audentia stips templum talis suadeo aggredior. Contra custodia utrum despecto amita desidero solvo vilicus condico.",
+      "manifesto": "Laudantium colo comis quasi clibanus delego. Campana vobis caute adamo tui adstringo reiciendis timidus tamisium. Soleo vel volaticus abeo tollo arcesso caterva dolorem.\nCommunis tardus defendo autus quibusdam vinum despecto tollo minus. Vesper vero adnuo ter amplus amaritudo. Adicio vado vaco sollicito vae.\nPecco beatus adhaero defungo sursum recusandae ustulo placeat conventus. Casso summa pax ventito. Vomer pauci aggredior.",
+      "imageUrl": "https://avatars.githubusercontent.com/u/65685013"
+    },
+    {
+      "id": "98ccf0c6-26a4-469b-8172-3dfee631947a",
+      "electionId": "66246457-2182-4a60-a0fd-e6d4ae2e1ce4",
+      "name": "Hadiza Ɗari",
+      "party": "African Action Congress",
+      "partyAcronym": "AAC",
+      "biography": "Depulso vesco appono. Antiquus bonus clamo summopere desolo volutabrum. Pecus ver ambitus sumo totam degenero ut nesciunt.",
+      "manifesto": "Dens porro compono eligendi alioqui. Temporibus amplitudo vulgaris vulnero. Studio canis eum sono abundans creta adnuo calco.\nSupplanto soluta alo audacia distinctio arto varietas villa barba volup. Aegre est defero turpis sodalitas. Comminor deprecator sed tersus aegrus.\nTaceo socius arcesso caelum usus. Molestiae tam cupio constans conventus amo alius. Officia est vaco amoveo comparo.",
+      "imageUrl": "https://cdn.jsdelivr.net/gh/faker-js/assets-person-portrait/female/512/97.jpg"
+    },
+    {
+      "id": "34def8c2-1186-4610-b712-c932404d0384",
+      "electionId": "66246457-2182-4a60-a0fd-e6d4ae2e1ce4",
+      "name": "Ogechi Chikamso",
+      "party": "Young Progressive Party",
+      "partyAcronym": "YPP",
+      "biography": "Acidus audacia conculco unus denuo coma cognatus deporto absconditus. Totus sol approbo vorax cubicularis. Cubicularis traho venio titulus aiunt constans summa.",
+      "manifesto": "In aqua quibusdam tot derideo trado. Cibo sumo assentator absum triduana condico canis. Caute armarium curo tabesco paulatim socius ea reprehenderit minima acer.\nSollers amitto dolores urbanus pecto angustus. Carcer tollo cum. Custodia vespillo tondeo colo iste comminor.\nTubineus curo velum averto audio averto. Amet adiuvo temporibus alter volutabrum. Video velit tyrannus xiphias audentia copiose nisi complectus natus deserunt.",
+      "imageUrl": "https://avatars.githubusercontent.com/u/5402839"
+    },
+    {
+      "id": "f244ed19-60bf-4b4c-bd95-392a6f38aa5f",
+      "electionId": "1ffbc966-8d1c-4f38-94da-11265ce0a188",
+      "name": "Alheri Imam",
+      "party": "Peoples Democratic Party",
+      "partyAcronym": "PDP",
+      "biography": "Comprehendo cedo arbor esse vorax decipio. Numquam rem cubicularis saepe demens bestia terga. Autus alo nesciunt adeptio verus.",
+      "manifesto": "Creo verecundia barba. Coerceo bene beatae tego. Conor deprimo commodo arguo carbo substantia decerno adduco depulso.\nEarum creber cibus atrocitas approbo delinquo. Caritas at adsuesco nam cornu teneo. Sophismata corrupti uxor ratione cubicularis utor articulus.\nViscus caput textus caritas verecundia conturbo. Torrens vitiosus centum dolorum ventito dens argentum terreo approbo cena. Voluntarius tabesco conor demens celo summopere dignissimos deripio.",
+      "imageUrl": "https://cdn.jsdelivr.net/gh/faker-js/assets-person-portrait/male/512/74.jpg"
+    },
+    {
+      "id": "50f82949-ba57-4a0b-b5bd-59fc10eabf43",
+      "electionId": "1ffbc966-8d1c-4f38-94da-11265ce0a188",
+      "name": "Nnamdi Okenna",
+      "party": "New Nigeria Peoples Party",
+      "partyAcronym": "NNPP",
+      "biography": "Constans volva minima decretum arto abeo super. Debeo crux auctor auditor. Explicabo debilito comedo abbas summa caelum tibi absorbeo.",
+      "manifesto": "Utpote laborum canis. Cuppedia canto convoco adamo repellat excepturi comis cui thymbra adinventitias. Verbera ducimus aedificium celer defetiscor ter torrens admoveo.\nAeneus id trado undique. Impedit aureus deprimo admiratio carpo bardus tutis curto ancilla. Cruentus adipisci sollicito audeo sublime dapifer cursim trado triduana terror.\nMolestiae occaecati sustineo adduco centum. Arcus tempore carbo rerum carmen admitto itaque constans tolero canto. Temporibus ars substantia casus caries doloremque thorax.",
+      "imageUrl": "https://avatars.githubusercontent.com/u/64071952"
+    },
+    {
+      "id": "c992dbea-3282-40c9-ad59-5ac9396848ad",
+      "electionId": "1ffbc966-8d1c-4f38-94da-11265ce0a188",
+      "name": "Adebayo Gbolahan",
+      "party": "All Progressives Congress",
+      "partyAcronym": "APC",
+      "biography": "Ter casus ocer delicate cresco ab. Infit utroque clementia titulus a. Voluptas spero cornu vilicus solitudo quidem clibanus vallum verbum adicio.",
+      "manifesto": "Deleo virtus adduco addo solvo territo delinquo vestigium excepturi. Voluptatem beneficium vespillo coniecto defaeco crux tabella curso laboriosam viscus. Comptus vulnus crux depereo vix curvo cupressus attero.\nArx thermae decipio repellendus. Theologus vir cubicularis valde numquam beatus nesciunt calcar. Aggredior enim voluptate ver laudantium.\nAstrum officiis statua sulum contabesco. Tametsi tergo thesaurus summa expedita adnuo fugit. Capillus currus viriliter texo undique cibus patrocinor aptus delectatio totus.",
+      "imageUrl": "https://avatars.githubusercontent.com/u/47392683"
+    },
+    {
+      "id": "06b8a953-c00a-4d5c-ae0f-a5d9ab683e04",
+      "electionId": "54432e46-d013-4916-8d97-fa923cd97329",
+      "name": "Chikamso Ifeanyi",
+      "party": "New Nigeria Peoples Party",
+      "partyAcronym": "NNPP",
+      "biography": "Deprecator virgo autem cunae. Defaeco vulpes abeo assumenda sophismata tergo. Ater degenero ver sint substantia.",
+      "manifesto": "Solitudo talio aestivus cubo rem. Voluptatem caritas stultus suscipit bestia. Utilis asperiores coniuratio cinis amita similique apostolus aranea aurum.\nVoco casus blandior. Tumultus id deporto cras. Antepono cubo perspiciatis vestigium aperte suasoria talus cauda.\nTollo dolorum celebrer venia alius. Tener vapulus alias infit vicinus tempus capio eaque alias astrum. Tolero iure tersus casso esse tutamen adsuesco.",
+      "imageUrl": "https://cdn.jsdelivr.net/gh/faker-js/assets-person-portrait/male/512/86.jpg"
+    },
+    {
+      "id": "a85c077e-15b7-4c94-81e2-6fcfb216f145",
+      "electionId": "54432e46-d013-4916-8d97-fa923cd97329",
+      "name": "Amina Bako",
+      "party": "All Progressives Congress",
+      "partyAcronym": "APC",
+      "biography": "Thermae adsum vespillo cometes decens amoveo aurum. Quisquam minima bonus spes blandior. Sonitus strenuus concido traho adulatio.",
+      "manifesto": "Officiis baiulus asperiores necessitatibus. Strues adfero consequuntur cultellus tutamen uterque vos. Abutor sed armarium atrox ducimus.\nUmerus aestivus similique vesica administratio vesica civitas sumptus. Creta concedo votum veniam quibusdam comis truculenter quo talis barba. Valde cubitum veritatis adicio versus pariatur recusandae decet.\nCribro ustilo confero celo iure facilis aliqua vulgus. Adficio minus baiulus peccatus ab sub delinquo avaritia derelinquo porro. Vergo iure coaegresco vallum quasi contabesco eveniet adsum.",
+      "imageUrl": "https://avatars.githubusercontent.com/u/10821128"
+    },
+    {
+      "id": "c354000e-d974-4aaa-b7cb-90e56e8fade1",
+      "electionId": "54432e46-d013-4916-8d97-fa923cd97329",
+      "name": "Tiwa Oyedele",
+      "party": "African Action Congress",
+      "partyAcronym": "AAC",
+      "biography": "Caput sub cariosus ager defendo. Tot adipiscor sapiente perspiciatis. Corpus volutabrum antea accusantium strenuus balbus dedico tandem derelinquo.",
+      "manifesto": "Comes verto vestigium voco verecundia viriliter conduco. Abduco voluptate cupressus admitto sono aequitas. Acquiro confero utilis.\nUltra uberrime conqueror alter vae tyrannus. Bestia charisma textor officia conduco. Suppono conscendo necessitatibus spiculum contigo atqui.\nTestimonium adipisci cogo tersus crux aegrotatio arbitro bellum. Dolores ocer sequi tum carbo adstringo clamo absorbeo. Verbera apto enim dolorem pecus.",
+      "imageUrl": "https://avatars.githubusercontent.com/u/63056382"
+    }
+  ]
+}

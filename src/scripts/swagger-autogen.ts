@@ -6,7 +6,7 @@ import swaggerSpec from '../config/swagger';
 /**
  * Generate Swagger specification JSON file
  */
-const generateSwaggerSpec = async () => {
+const generateSwaggerSpec = (): Promise<boolean> => {
   try {
     // Create docs directory if it doesn't exist
     const docsDir = path.join(__dirname, '..', 'docs');
@@ -19,10 +19,10 @@ const generateSwaggerSpec = async () => {
     fs.writeFileSync(swaggerFilePath, JSON.stringify(swaggerSpec, null, 2), 'utf8');
 
     logger.info(`Swagger specification written to ${swaggerFilePath}`);
-    return true;
+    return Promise.resolve(true);
   } catch (error) {
     logger.error('Error generating Swagger specification:', error);
-    return false;
+    return Promise.resolve(false);
   }
 };
 

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ussdService, authService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Authenticate a voter via USSD
@@ -21,11 +22,13 @@ export const authenticateViaUssd = async (
 
       // Log the action
       await auditService.createAuditLog(
-        'ussd_system', // No user ID yet
-        'ussd_authentication',
+        'ussd_system',
+        AuditActionType.USSD_SESSION,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
+          success: true,
+          context: 'authentication',
           phoneNumber,
           sessionCode: result.sessionCode,
         },
@@ -43,19 +46,24 @@ export const authenticateViaUssd = async (
       // Log failed authentication attempt
       await auditService.createAuditLog(
         'unknown',
-        'ussd_authentication_failed',
+        AuditActionType.USSD_SESSION,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
+          success: false,
+          context: 'authentication',
           phoneNumber,
           error: (error as Error).message,
         },
       );
 
-      const apiError: ApiError = new Error('Invalid credentials');
-      apiError.statusCode = 401;
-      apiError.code = 'INVALID_CREDENTIALS';
-      apiError.isOperational = true;
+      const apiError = new ApiError(
+        401,
+        'Invalid credentials',
+        'INVALID_CREDENTIALS',
+        undefined,
+        true,
+      );
       throw apiError;
     }
   } catch (error) {
@@ -89,20 +97,26 @@ export const verifyUssdSession = async (
       // Log the action
       await auditService.createAuditLog(
         result.userId || 'ussd_system',
-        'ussd_session_verification',
+        AuditActionType.USSD_SESSION,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
+          success: isValid,
+          context: 'verification',
           sessionCode,
           isValid,
+          ...(isValid ? { userId: result.userId } : { error: 'Invalid or expired session' }),
         },
       );
 
       if (!isValid) {
-        const error: ApiError = new Error('Invalid or expired session');
-        error.statusCode = 401;
-        error.code = 'INVALID_SESSION';
-        error.isOperational = true;
+        const error = new ApiError(
+          401,
+          'Invalid or expired session',
+          'INVALID_SESSION',
+          undefined,
+          true,
+        );
         throw error;
       }
 
@@ -119,11 +133,35 @@ export const verifyUssdSession = async (
         },
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to verify USSD session');
-      apiError.statusCode = 400;
-      apiError.code = 'SESSION_VERIFICATION_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      if (!(error instanceof ApiError && error.code === 'INVALID_SESSION')) {
+        await auditService.createAuditLog(
+          req.body.sessionCode
+            ? (await ussdService.getSessionStatus(req.body.sessionCode).catch(() => null))
+                ?.userId || 'ussd_system'
+            : 'ussd_system',
+          AuditActionType.USSD_SESSION,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          {
+            success: false,
+            context: 'verification',
+            sessionCode: req.body.sessionCode,
+            error: (error as Error).message,
+          },
+        );
+      }
+      if (error instanceof ApiError) {
+        throw error;
+      } else {
+        const apiError = new ApiError(
+          400,
+          'Failed to verify USSD session',
+          'SESSION_VERIFICATION_FAILED',
+          undefined,
+          true,
+        );
+        throw apiError;
+      }
     }
   } catch (error) {
     next(error);

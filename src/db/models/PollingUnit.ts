@@ -1,4 +1,7 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
+import AdminUser from './AdminUser';
+import VoterCard from './VoterCard';
+import Vote from './Vote';
 
 interface PollingUnitAttributes {
   id: string;
@@ -9,8 +12,8 @@ interface PollingUnitAttributes {
   ward: string;
   geolocation: any | null;
   address: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   registeredVoters: number;
   assignedOfficer: string | null;
   isActive: boolean;
@@ -26,6 +29,7 @@ interface PollingUnitCreationAttributes
     | 'address'
     | 'latitude'
     | 'longitude'
+    | 'registeredVoters'
     | 'assignedOfficer'
     | 'isActive'
     | 'createdAt'
@@ -44,33 +48,34 @@ class PollingUnit
   public ward!: string;
   public geolocation!: any | null;
   public address!: string | null;
-  public latitude!: number | null;
-  public longitude!: number | null;
+  public latitude?: number | null;
+  public longitude?: number | null;
   public registeredVoters!: number;
   public assignedOfficer!: string | null;
   public isActive!: boolean;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
-  // Timestamps
-  public static readonly createdAt = 'createdAt';
-  public static readonly updatedAt = 'updatedAt';
+  public officer?: AdminUser;
+  public voterCards?: VoterCard[];
+  public votes?: Vote[];
 
-  // Model associations
   public static associate(models: any): void {
     PollingUnit.hasMany(models.VoterCard, {
       sourceKey: 'pollingUnitCode',
-      foreignKey: 'polling_unit_code',
+      foreignKey: 'pollingUnitCode',
       as: 'voterCards',
     });
 
     PollingUnit.hasMany(models.Vote, {
-      foreignKey: 'polling_unit_id',
+      foreignKey: 'pollingUnitId',
+      sourceKey: 'id',
       as: 'votes',
     });
 
     PollingUnit.belongsTo(models.AdminUser, {
-      foreignKey: 'assigned_officer',
+      foreignKey: 'assignedOfficer',
+      targetKey: 'id',
       as: 'officer',
     });
   }

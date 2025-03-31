@@ -3,11 +3,11 @@ import v1Routes from './v1';
 
 const router = Router();
 
-// API version routes
-router.use('/v1', v1Routes);
+// API version routes - must be defined before the default route
+router.use('/', v1Routes);
 
-// Default route
-router.use('/', (_req, res) => {
+// Default route - should only respond to exact '/' path, not all routes
+router.get('/', (_req, res) => {
   res.status(200).json({
     status: 'success',
     message: 'Welcome to Nigeria E-Voting API',

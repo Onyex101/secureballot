@@ -1,11 +1,18 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import db from '../../db/models';
+import db from '../../db/models'; // Re-add db for direct access where needed
+// Import necessary services
+import {
+  electionService,
+  auditService,
+  voterService,
+  // voteService, // voteService has no checkIfVoted yet
+} from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { ElectionStatus } from '../../db/models/Election';
-import { logger } from '../../config/logger';
 import { Op } from 'sequelize';
+import { logger } from '../../config/logger';
 
 /**
  * Get all active elections
@@ -17,32 +24,28 @@ export const getElections = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { status = 'active', type, page = 1, limit = 10 } = req.query;
+  const userId = req.user?.id;
+  const queryParams = { status, type, page, limit };
+
   try {
-    const { status = 'active', type, page = 1, limit = 10 } = req.query;
-    const userId = req.user?.id;
-
-    // Calculate offset for pagination
+    // TODO: Refactor to use enhanced electionService.getElections when available
     const offset = (Number(page) - 1) * Number(limit);
-
-    // Prepare filters
     const whereClause: any = {};
-
-    // Filter by status
     if (status === 'active') {
-      whereClause.isActive = true;
       whereClause.status = ElectionStatus.ACTIVE;
     } else if (status === 'upcoming') {
       whereClause.startDate = { [Op.gt]: new Date() };
+      whereClause.status = ElectionStatus.SCHEDULED;
     } else if (status === 'past') {
       whereClause.endDate = { [Op.lt]: new Date() };
+      whereClause.status = { [Op.in]: [ElectionStatus.COMPLETED, ElectionStatus.CANCELLED] };
+    } else if (status) {
+      whereClause.status = status; // Allow filtering by specific status like DRAFT
     }
-
-    // Filter by election type
     if (type) {
       whereClause.electionType = type;
     }
-
-    // Get elections with pagination
     const { count, rows: elections } = await db.Election.findAndCountAll({
       where: whereClause,
       attributes: [
@@ -52,7 +55,6 @@ export const getElections = async (
         'startDate',
         'endDate',
         'description',
-        'isActive',
         'status',
       ],
       order: [['startDate', 'ASC']],
@@ -60,27 +62,25 @@ export const getElections = async (
       offset,
     });
 
-    // Get voter's verification status for eligibility check
-    let verificationStatus = null;
+    // Get voter profile using voterService
+    let voterProfile = null;
     if (userId) {
-      verificationStatus = await db.VerificationStatus.findOne({
-        where: { userId },
-        attributes: ['isVerified'],
-      });
+      try {
+        voterProfile = await voterService.getVoterProfile(userId);
+      } catch (voterError) {
+        logger.warn(`Failed to get profile for user ${userId}:`, voterError);
+      }
     }
 
-    // Log election view
+    // Log election view using auditService
     if (userId) {
-      await db.AuditLog.create({
+      await auditService.createAuditLog(
         userId,
-        actionType: AuditActionType.ELECTION_VIEW,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        actionDetails: {
-          filter: { status, type },
-          resultsCount: count,
-        },
-      });
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { filter: queryParams, resultsCount: count, success: true },
+      );
     }
 
     // Return paginated results
@@ -95,14 +95,23 @@ export const getElections = async (
           limit: Number(limit),
           pages: Math.ceil(count / Number(limit)),
         },
-        voterStatus: verificationStatus
-          ? {
-              isVerified: verificationStatus.isVerified,
-            }
+        // Extract verification status from profile
+        voterStatus: voterProfile?.verification
+          ? { isVerified: voterProfile.verification.identityVerified }
           : null,
       },
     });
   } catch (error) {
+    // Log failure using auditService
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { filter: queryParams, success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log election list view error', logErr));
     next(error);
   }
 };
@@ -117,101 +126,74 @@ export const getElectionById = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const { electionId } = req.params;
-    const userId = req.user?.id;
+  const { electionId } = req.params;
+  const userId = req.user?.id;
 
-    // Get election with candidates
-    const election = await db.Election.findByPk(electionId, {
-      attributes: [
-        'id',
-        'electionName',
-        'electionType',
-        'startDate',
-        'endDate',
-        'description',
-        'isActive',
-        'status',
-      ],
-      include: [
-        {
-          model: db.Candidate,
-          as: 'candidates',
-          attributes: [
-            'id',
-            'fullName',
-            'partyCode',
-            'partyName',
-            'bio',
-            'photoUrl',
-            'position',
-            'isActive',
-          ],
-          where: { isActive: true },
-          required: false,
-        },
-      ],
-    });
+  try {
+    // Get election using electionService
+    const election = await electionService.getElectionById(electionId);
 
     if (!election) {
-      const error: ApiError = new Error('Election not found');
-      error.statusCode = 404;
-      error.code = 'ELECTION_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
     }
 
-    // Check if voter has already voted in this election
+    // Get candidates using electionService (assuming we want all for details page)
+    const candidatesResult = await electionService.getElectionCandidates(electionId, 1, 1000); // Get all candidates
+
+    // Check if voter has already voted using direct DB access
+    // TODO: Add voteService.checkIfVoted
     let hasVoted = false;
     if (userId) {
-      const existingVote = await db.Vote.findOne({
-        where: {
-          userId,
-          electionId,
-        },
-        attributes: ['id', 'voteTimestamp'],
-      });
-
-      hasVoted = !!existingVote;
+      try {
+        const existingVote = await db.Vote.findOne({ where: { userId, electionId } });
+        hasVoted = !!existingVote;
+      } catch (voteCheckError) {
+        logger.warn(
+          `Failed to check vote status for user ${userId} in election ${electionId}:`,
+          voteCheckError,
+        );
+      }
     }
 
-    // Get voter's verification status for eligibility check
-    let verificationStatus = null;
+    // Get voter profile using voterService
+    let voterProfile = null;
     if (userId) {
-      verificationStatus = await db.VerificationStatus.findOne({
-        where: { userId },
-        attributes: ['isVerified'],
-      });
+      try {
+        voterProfile = await voterService.getVoterProfile(userId);
+      } catch (voterError) {
+        logger.warn(`Failed to get profile for user ${userId}:`, voterError);
+      }
     }
 
-    // Calculate election status for display
+    // Calculate display status (moved from service)
     const now = new Date();
-    let displayStatus = election.status;
-
+    // Define a broader type for displayStatus
+    let displayStatus: ElectionStatus | 'active_soon' | 'ended' | 'upcoming' = election.status;
     if (
       election.status === ElectionStatus.SCHEDULED &&
       now >= election.startDate &&
       now <= election.endDate
     ) {
-      displayStatus = 'active_soon';
+      displayStatus = 'active_soon'; // Consider making this ACTIVE directly in a background job
     } else if (election.status === ElectionStatus.ACTIVE && now > election.endDate) {
-      displayStatus = 'ended';
+      displayStatus = 'ended'; // Consider making this COMPLETED directly in a background job
     } else if (election.status === ElectionStatus.SCHEDULED && now < election.startDate) {
       displayStatus = 'upcoming';
     }
 
-    // Log election view
+    // Log election view using auditService
     if (userId) {
-      await db.AuditLog.create({
+      await auditService.createAuditLog(
         userId,
-        actionType: AuditActionType.ELECTION_VIEW,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        actionDetails: {
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
           electionId,
           electionName: election.electionName,
+          success: true,
         },
-      });
+      );
     }
 
     // Return election details
@@ -220,16 +202,27 @@ export const getElectionById = async (
       message: 'Election retrieved successfully',
       data: {
         election: {
-          ...election.get(),
+          ...election.toJSON(), // Use toJSON to get plain object
+          candidates: candidatesResult.candidates,
           displayStatus,
         },
         voterStatus: {
           hasVoted,
-          isVerified: verificationStatus ? verificationStatus.isVerified : false,
+          isVerified: voterProfile?.verification?.identityVerified || false,
         },
       },
     });
   } catch (error) {
+    // Log failure using auditService
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { electionId, success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log election detail view error', logErr));
     next(error);
   }
 };
@@ -244,72 +237,53 @@ export const getElectionCandidates = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { electionId } = req.params;
+  const { page = 1, limit = 50, search } = req.query;
+  const userId = req.user?.id;
+  const queryParams = { page, limit, search }; // For logging
+
   try {
-    const { electionId } = req.params;
-    const userId = req.user?.id;
+    // Use electionService to get candidates - This service method exists
+    const result = await electionService.getElectionCandidates(
+      electionId,
+      Number(page),
+      Number(limit),
+      search as string | undefined,
+    );
 
-    // Get election
-    const election = await db.Election.findByPk(electionId, {
-      attributes: ['id', 'electionName', 'electionType'],
-    });
-
-    if (!election) {
-      const error: ApiError = new Error('Election not found');
-      error.statusCode = 404;
-      error.code = 'ELECTION_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
-    }
-
-    // Get candidates
-    const candidates = await db.Candidate.findAll({
-      where: {
-        electionId,
-        isActive: true,
-      },
-      attributes: [
-        'id',
-        'fullName',
-        'partyCode',
-        'partyName',
-        'bio',
-        'photoUrl',
-        'position',
-        'manifesto',
-      ],
-      order: [['partyName', 'ASC']],
-    });
-
-    // Log candidate view
+    // Log action using auditService
     if (userId) {
-      await db.AuditLog.create({
+      await auditService.createAuditLog(
         userId,
-        actionType: AuditActionType.ELECTION_VIEW,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        actionDetails: {
-          action: 'view_candidates',
-          electionId,
-          electionName: election.electionName,
-          candidateCount: candidates.length,
-        },
-      });
+        AuditActionType.ELECTION_VIEW, // Still counts as viewing election-related data
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { electionId, view: 'candidates', query: queryParams, success: true },
+      );
     }
 
-    // Return candidates
     res.status(200).json({
       code: 'CANDIDATES_RETRIEVED',
-      message: 'Election candidates retrieved successfully',
-      data: {
-        election: {
-          id: election.id,
-          name: election.electionName,
-          type: election.electionType,
-        },
-        candidates,
-      },
+      message: 'Candidates retrieved successfully',
+      data: result,
     });
   } catch (error) {
+    // Log failure using auditService
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
+          electionId,
+          view: 'candidates',
+          query: queryParams,
+          success: false,
+          error: (error as Error).message,
+        },
+      )
+      .catch(logErr => logger.error('Failed to log candidate list view error', logErr));
     next(error);
   }
 };
@@ -324,75 +298,64 @@ export const getCandidateById = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const { electionId, candidateId } = req.params;
-    const userId = req.user?.id;
+  const { electionId, candidateId } = req.params;
+  const userId = req.user?.id;
 
-    // Get candidate
+  try {
+    // TODO: Add candidateService.getCandidateById
     const candidate = await db.Candidate.findOne({
       where: {
         id: candidateId,
         electionId,
-        isActive: true,
+        isActive: true, // Ensure candidate is active for this election context
       },
-      attributes: [
-        'id',
-        'fullName',
-        'partyCode',
-        'partyName',
-        'bio',
-        'photoUrl',
-        'position',
-        'manifesto',
-      ],
-      include: [
-        {
-          model: db.Election,
-          as: 'election',
-          attributes: ['id', 'electionName', 'electionType'],
-        },
-      ],
+      // Include necessary attributes
     });
 
     if (!candidate) {
-      const error: ApiError = new Error('Candidate not found');
-      error.statusCode = 404;
-      error.code = 'CANDIDATE_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(404, 'Candidate not found for this election', 'CANDIDATE_NOT_FOUND');
     }
 
-    // Log candidate view
+    // Log action using auditService
     if (userId) {
-      await db.AuditLog.create({
+      await auditService.createAuditLog(
         userId,
-        actionType: AuditActionType.ELECTION_VIEW,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        actionDetails: {
-          action: 'view_candidate_details',
-          electionId,
-          candidateId,
-          candidateName: candidate.fullName,
-          partyName: candidate.partyName,
-        },
-      });
+        AuditActionType.ELECTION_VIEW, // Still election-related
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { electionId, candidateId, view: 'candidate_details', success: true },
+      );
     }
 
-    // Return candidate details
     res.status(200).json({
       code: 'CANDIDATE_RETRIEVED',
       message: 'Candidate retrieved successfully',
-      data: candidate,
+      data: { candidate },
     });
   } catch (error) {
+    // Log failure using auditService
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
+          electionId,
+          candidateId,
+          view: 'candidate_details',
+          success: false,
+          error: (error as Error).message,
+        },
+      )
+      .catch(logErr => logger.error('Failed to log candidate detail view error', logErr));
     next(error);
   }
 };
 
 /**
- * Check voter's voting status for an election
- * @route GET /api/v1/elections/:electionId/voting-status
+ * Get voter status for an election (eligibility, voted status)
+ * @route GET /api/v1/elections/:electionId/voter-status
  * @access Private
  */
 export const getVotingStatus = async (
@@ -400,98 +363,59 @@ export const getVotingStatus = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const { electionId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw new ApiError(401, 'Authentication required to check voting status', 'AUTH_REQUIRED');
+  }
+
   try {
-    const { electionId } = req.params;
-    const userId = req.user?.id;
+    // Check eligibility using voterService
+    const eligibility = await voterService.checkVoterEligibility(userId, electionId);
 
-    if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
-    }
+    // Check voted status using direct DB access
+    // TODO: Add voteService.checkIfVoted
+    const existingVote = await db.Vote.findOne({ where: { userId, electionId } });
+    const hasVoted = !!existingVote;
 
-    // Get election
-    const election = await db.Election.findByPk(electionId, {
-      attributes: ['id', 'electionName', 'status', 'startDate', 'endDate'],
-    });
-
-    if (!election) {
-      const error: ApiError = new Error('Election not found');
-      error.statusCode = 404;
-      error.code = 'ELECTION_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
-    }
-
-    // Check if voter has already voted
-    const existingVote = await db.Vote.findOne({
-      where: {
-        userId,
+    // Log action using auditService
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.ELECTION_VIEW, // Viewing election-specific status
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
         electionId,
+        view: 'voter_status',
+        eligibility: eligibility.isEligible,
+        hasVoted,
+        success: true,
       },
-      attributes: ['id', 'voteTimestamp', 'candidateId', 'voteSource'],
-      include: [
-        {
-          model: db.Candidate,
-          as: 'candidate',
-          attributes: ['fullName', 'partyName'],
-        },
-      ],
-    });
+    );
 
-    // Get voter's verification status
-    const verification = await db.VerificationStatus.findOne({
-      where: { userId },
-      attributes: ['isVerified'],
-    });
-
-    // Calculate election status
-    const now = new Date();
-    let electionStatus = election.status;
-
-    if (
-      election.status === ElectionStatus.SCHEDULED &&
-      now >= election.startDate &&
-      now <= election.endDate
-    ) {
-      electionStatus = 'active_soon';
-    } else if (now > election.endDate) {
-      electionStatus = 'ended';
-    } else if (now < election.startDate) {
-      electionStatus = 'upcoming';
-    }
-
-    // Return voting status
     res.status(200).json({
-      code: 'VOTING_STATUS_RETRIEVED',
-      message: 'Voting status retrieved successfully',
+      code: 'VOTER_STATUS_RETRIEVED',
+      message: 'Voter status retrieved successfully',
       data: {
-        election: {
-          id: election.id,
-          name: election.electionName,
-          status: electionStatus,
-          startDate: election.startDate,
-          endDate: election.endDate,
-        },
-        voter: {
-          isVerified: verification?.isVerified || false,
-          hasVoted: !!existingVote,
-          ...(existingVote
-            ? {
-                voteDetails: {
-                  timestamp: existingVote.voteTimestamp,
-                  source: existingVote.voteSource,
-                  candidateName: existingVote.candidate?.fullName,
-                  partyName: existingVote.candidate?.partyName,
-                },
-              }
-            : {}),
-        },
+        electionId,
+        userId,
+        isEligible: eligibility.isEligible,
+        eligibilityReason: eligibility.reason,
+        hasVoted,
       },
     });
   } catch (error) {
+    // Log failure using auditService
+    await auditService
+      .createAuditLog(
+        userId,
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { electionId, view: 'voter_status', success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log voter status view error', logErr));
     next(error);
   }
 };

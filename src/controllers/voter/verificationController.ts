@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { verificationService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
@@ -18,11 +18,7 @@ export const getVerificationStatus = async (
     const userId = req.user?.id;
 
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'User ID not found in request', 'AUTHENTICATION_REQUIRED');
     }
 
     try {
@@ -43,11 +39,7 @@ export const getVerificationStatus = async (
         data: verificationStatus,
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Verification status not found');
-      apiError.statusCode = 404;
-      apiError.code = 'VERIFICATION_STATUS_NOT_FOUND';
-      apiError.isOperational = true;
-      throw apiError;
+      throw new ApiError(404, 'Verification status not found', 'VERIFICATION_STATUS_NOT_FOUND');
     }
   } catch (error) {
     next(error);
@@ -68,21 +60,13 @@ export const submitVerification = async (
     const userId = req.user?.id;
 
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'User ID not found in request', 'AUTHENTICATION_REQUIRED');
     }
 
     const { documentType, documentNumber, documentImageUrl } = req.body;
 
     if (!documentType || !documentNumber || !documentImageUrl) {
-      const error: ApiError = new Error('Missing required fields');
-      error.statusCode = 400;
-      error.code = 'MISSING_REQUIRED_FIELDS';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(400, 'Missing required fields', 'MISSING_REQUIRED_FIELDS');
     }
 
     try {
@@ -112,11 +96,11 @@ export const submitVerification = async (
         data: result,
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to submit verification request');
-      apiError.statusCode = 400;
-      apiError.code = 'VERIFICATION_REQUEST_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      throw new ApiError(
+        400,
+        'Failed to submit verification request',
+        'VERIFICATION_REQUEST_FAILED',
+      );
     }
   } catch (error) {
     next(error);
@@ -173,11 +157,7 @@ export const approveVerification = async (
     const adminId = req.user?.id;
 
     if (!adminId) {
-      const error: ApiError = new Error('Admin ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Admin ID not found in request', 'AUTHENTICATION_REQUIRED');
     }
 
     try {
@@ -202,11 +182,11 @@ export const approveVerification = async (
         data: result,
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to approve verification request');
-      apiError.statusCode = 400;
-      apiError.code = 'VERIFICATION_APPROVAL_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      throw new ApiError(
+        400,
+        'Failed to approve verification request',
+        'VERIFICATION_APPROVAL_FAILED',
+      );
     }
   } catch (error) {
     next(error);
@@ -229,19 +209,11 @@ export const rejectVerification = async (
     const adminId = req.user?.id;
 
     if (!adminId) {
-      const error: ApiError = new Error('Admin ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Admin ID not found in request', 'AUTHENTICATION_REQUIRED');
     }
 
     if (!reason) {
-      const error: ApiError = new Error('Rejection reason is required');
-      error.statusCode = 400;
-      error.code = 'MISSING_REJECTION_REASON';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(400, 'Rejection reason is required', 'MISSING_REJECTION_REASON');
     }
 
     try {
@@ -266,11 +238,11 @@ export const rejectVerification = async (
         data: result,
       });
     } catch (error) {
-      const apiError: ApiError = new Error('Failed to reject verification request');
-      apiError.statusCode = 400;
-      apiError.code = 'VERIFICATION_REJECTION_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
+      throw new ApiError(
+        400,
+        'Failed to reject verification request',
+        'VERIFICATION_REJECTION_FAILED',
+      );
     }
   } catch (error) {
     next(error);

@@ -1,7 +1,101 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { statisticsService, auditService } from '../../services';
+import { AuditActionType } from '../../db/models/AuditLog';
+import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';
+
+/**
+ * Get election results (potentially with breakdown)
+ * @route GET /api/v1/results/elections/:electionId
+ * @access Private (or Public? Check requirements)
+ */
+export const getElectionResults = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { electionId } = req.params;
+  const { includePollingUnitBreakdown = false } = req.query;
+  const userId = req.user?.id || 'unknown';
+  const context = { electionId, includePollingUnitBreakdown };
+
+  try {
+    // Get election results
+    const results = await statisticsService.getElectionResults(
+      electionId,
+      includePollingUnitBreakdown === 'true',
+    );
+
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.ELECTION_RESULTS_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, ...context },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: results,
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId,
+        AuditActionType.ELECTION_RESULTS_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, ...context, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log election results view error', logErr));
+    next(error);
+  }
+};
+
+/**
+ * Get real-time voting statistics (system-wide)
+ * @route GET /api/v1/results/live-stats (Example route)
+ * @access Private (or Public? Check requirements)
+ */
+export const getRealTimeVotingStats = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const userId = req.user?.id || 'unknown';
+
+  try {
+    // Get real-time voting statistics
+    const stats = await statisticsService.getRealTimeVotingStats();
+
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.REAL_TIME_STATS_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId,
+        AuditActionType.REAL_TIME_STATS_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log real-time stats view error', logErr));
+    next(error);
+  }
+};
 
 /**
  * Get election statistics
@@ -14,121 +108,98 @@ export const getElectionStatistics = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const userId = req.user?.id;
     const { electionId } = req.params;
+    const { regionId } = req.query;
 
-    try {
-      // Get election statistics
-      const statistics = await statisticsService.getElectionStatistics(electionId);
-
-      // Log the action
-      await auditService.createAuditLog(
-        (req.user?.id as string) || 'anonymous',
-        'election_statistics_view',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { electionId },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: statistics,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to get election statistics');
-      apiError.statusCode = 400;
-      apiError.code = 'STATISTICS_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
+    if (!userId) {
+      throw new ApiError(401, 'User ID not found in request', 'AUTHENTICATION_REQUIRED');
     }
-  } catch (error) {
-    next(error);
-  }
-};
 
-/**
- * Get election results
- * @route GET /api/v1/results/elections/:electionId
- * @access Private
- */
-export const getElectionResults = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { electionId } = req.params;
-    const { includePollingUnitBreakdown = false } = req.query;
+    if (!electionId) {
+      throw new ApiError(400, 'Election ID is required', 'MISSING_ELECTION_ID');
+    }
 
-    try {
-      // Get election results
-      const results = await statisticsService.getElectionResults(
+    // TODO: Implement statistics retrieval logic
+    // This would involve:
+    // 1. Calculating vote counts
+    // 2. Computing turnout percentages
+    // 3. Analyzing voting patterns
+    // 4. Generating regional breakdowns
+
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.ELECTION_STATISTICS_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { electionId, regionId },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
         electionId,
-        includePollingUnitBreakdown === 'true',
-      );
-
-      // Log the action
-      await auditService.createAuditLog(
-        (req.user?.id as string) || 'anonymous',
-        'election_results_view',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          electionId,
-          includePollingUnitBreakdown,
-        },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: results,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to get election results');
-      apiError.statusCode = 400;
-      apiError.code = 'RESULTS_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
-    }
+        totalVotes: 0,
+        turnoutPercentage: 0,
+        candidates: [], // Replace with actual candidate statistics
+        regions: [], // Replace with actual regional statistics
+        timestamp: new Date().toISOString(),
+      },
+    });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Get real-time voting statistics
- * @route GET /api/v1/results/live
+ * Get real-time election updates
+ * @route GET /api/v1/results/realtime/:electionId
  * @access Private
  */
-export const getRealTimeVotingStats = async (
+export const getRealTimeUpdates = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    try {
-      // Get real-time voting statistics
-      const stats = await statisticsService.getRealTimeVotingStats();
+    const userId = req.user?.id;
+    const { electionId } = req.params;
+    const { lastUpdate } = req.query;
 
-      // Log the action
-      await auditService.createAuditLog(
-        (req.user?.id as string) || 'anonymous',
-        'real_time_stats_view',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {},
-      );
-
-      res.status(200).json({
-        success: true,
-        data: stats,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to get real-time voting statistics');
-      apiError.statusCode = 400;
-      apiError.code = 'REAL_TIME_STATS_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
+    if (!userId) {
+      throw new ApiError(401, 'User ID not found in request', 'AUTHENTICATION_REQUIRED');
     }
+
+    if (!electionId) {
+      throw new ApiError(400, 'Election ID is required', 'MISSING_ELECTION_ID');
+    }
+
+    // TODO: Implement real-time updates logic
+    // This would involve:
+    // 1. Checking for new votes since lastUpdate
+    // 2. Computing incremental statistics
+    // 3. Including polling unit updates
+    // 4. Providing websocket support
+
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.REAL_TIME_UPDATES_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { electionId, lastUpdate },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        electionId,
+        lastUpdate: new Date().toISOString(),
+        newVotes: 0,
+        updatedStatistics: {}, // Replace with actual updated statistics
+      },
+    });
   } catch (error) {
     next(error);
   }

@@ -1,12 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../../middleware/auth';
-import db from '../../db/models';
+// import db from '../../db/models'; // Remove direct db access
 import { ApiError } from '../../middleware/errorHandler';
-import { AuditActionType } from '../../db/models/AuditLog';
 import { ElectionStatus } from '../../db/models/Election';
-import { logger } from '../../config/logger';
-import { sequelize } from '../../server';
-import { resultService } from '../../services';
+import { resultService, electionService, auditService } from '../../services'; // Add services
+import { AuditActionType } from '../../db/models/AuditLog'; // Add AuditActionType
+import { logger } from '../../config/logger'; // Add logger
 
 /**
  * Get live election results
@@ -18,33 +16,38 @@ export const getLiveResults = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const { electionId } = req.params;
+  const { electionId } = req.params;
+  const viewerId = 'public_viewer'; // Or req.user?.id if authenticated route
 
-    // Get election
-    const election = await db.Election.findByPk(electionId, {
-      attributes: ['id', 'electionName', 'electionType', 'status'],
-    });
+  try {
+    // Get election using service
+    const election = await electionService.getElectionById(electionId);
 
     if (!election) {
-      const error: ApiError = new Error('Election not found');
-      error.statusCode = 404;
-      error.code = 'RESOURCE_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
+      // Use ApiError constructor
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
     }
 
     // Check if election is active or completed
     if (![ElectionStatus.ACTIVE, ElectionStatus.COMPLETED].includes(election.status)) {
-      const error: ApiError = new Error('Results are not available for this election');
-      error.statusCode = 403;
-      error.code = 'RESULTS_NOT_AVAILABLE';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(
+        403,
+        'Results are not available for this election status',
+        'RESULTS_NOT_AVAILABLE',
+      );
     }
 
     // Get live results using the result service
     const results = await resultService.getLiveResults(electionId);
+
+    // Log success
+    await auditService.createAuditLog(
+      viewerId,
+      AuditActionType.RESULTS_VIEW_LIVE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, electionId },
+    );
 
     res.status(200).json({
       success: true,
@@ -59,6 +62,16 @@ export const getLiveResults = async (
       },
     });
   } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        viewerId,
+        AuditActionType.RESULTS_VIEW_LIVE,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, electionId, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log live results view error', logErr));
     next(error);
   }
 };
@@ -73,39 +86,38 @@ export const getResultsByRegion = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const { electionId } = req.params;
-    const { regionType = 'state', regionCode } = req.query;
+  const { electionId } = req.params;
+  const { regionType = 'state', regionCode } = req.query;
+  const viewerId = 'public_viewer';
+  const context = { electionId, regionType, regionCode }; // For logging
 
-    // Validate regionType is one of the allowed values
+  try {
+    // Validate regionType
     if (regionType !== 'state' && regionType !== 'lga' && regionType !== 'ward') {
-      const error: ApiError = new Error('Invalid region type. Must be one of: state, lga, ward');
-      error.statusCode = 400;
-      error.code = 'INVALID_REGION_TYPE';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(
+        400,
+        'Invalid region type. Must be one of: state, lga, ward',
+        'INVALID_REGION_TYPE',
+      );
+    }
+    if (!regionCode) {
+      throw new ApiError(400, 'regionCode query parameter is required', 'MISSING_REGION_CODE');
     }
 
-    // Get election
-    const election = await db.Election.findByPk(electionId, {
-      attributes: ['id', 'electionName', 'electionType', 'status'],
-    });
+    // Get election using service
+    const election = await electionService.getElectionById(electionId);
 
     if (!election) {
-      const error: ApiError = new Error('Election not found');
-      error.statusCode = 404;
-      error.code = 'RESOURCE_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
     }
 
-    // Check if election is active or completed
+    // Check if election allows result viewing
     if (![ElectionStatus.ACTIVE, ElectionStatus.COMPLETED].includes(election.status)) {
-      const error: ApiError = new Error('Results are not available for this election');
-      error.statusCode = 403;
-      error.code = 'RESULTS_NOT_AVAILABLE';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(
+        403,
+        'Results are not available for this election status',
+        'RESULTS_NOT_AVAILABLE',
+      );
     }
 
     // Get results by region using the result service
@@ -113,6 +125,15 @@ export const getResultsByRegion = async (
       electionId,
       regionType as 'state' | 'lga' | 'ward',
       regionCode as string,
+    );
+
+    // Log success
+    await auditService.createAuditLog(
+      viewerId,
+      AuditActionType.RESULTS_VIEW_REGION,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, ...context },
     );
 
     res.status(200).json({
@@ -125,10 +146,21 @@ export const getResultsByRegion = async (
           status: election.status,
         },
         regionType,
+        regionCode,
         results,
       },
     });
   } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        viewerId,
+        AuditActionType.RESULTS_VIEW_REGION,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, ...context, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log region results view error', logErr));
     next(error);
   }
 };
@@ -143,33 +175,37 @@ export const getElectionStatistics = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const { electionId } = req.params;
+  const { electionId } = req.params;
+  const viewerId = 'public_viewer';
 
-    // Get election
-    const election = await db.Election.findByPk(electionId, {
-      attributes: ['id', 'electionName', 'electionType', 'status'],
-    });
+  try {
+    // Get election using service
+    const election = await electionService.getElectionById(electionId);
 
     if (!election) {
-      const error: ApiError = new Error('Election not found');
-      error.statusCode = 404;
-      error.code = 'RESOURCE_NOT_FOUND';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
     }
 
-    // Check if election is active or completed
+    // Check if election allows stats viewing
     if (![ElectionStatus.ACTIVE, ElectionStatus.COMPLETED].includes(election.status)) {
-      const error: ApiError = new Error('Statistics are not available for this election');
-      error.statusCode = 403;
-      error.code = 'STATISTICS_NOT_AVAILABLE';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(
+        403,
+        'Statistics are not available for this election status',
+        'STATS_NOT_AVAILABLE',
+      );
     }
 
     // Get election statistics using the result service
     const statistics = await resultService.getElectionStatistics(electionId);
+
+    // Log success
+    await auditService.createAuditLog(
+      viewerId,
+      AuditActionType.RESULTS_VIEW_STATS,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, electionId },
+    );
 
     res.status(200).json({
       success: true,
@@ -184,6 +220,16 @@ export const getElectionStatistics = async (
       },
     });
   } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        viewerId,
+        AuditActionType.RESULTS_VIEW_STATS,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, electionId, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log stats view error', logErr));
     next(error);
   }
 };

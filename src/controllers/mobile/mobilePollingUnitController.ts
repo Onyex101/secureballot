@@ -1,7 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { pollingUnitService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
+import { AuditActionType } from '../../db/models/AuditLog';
+import { logger } from '../../config/logger';
+import PollingUnit from '../../db/models/PollingUnit';
 
 /**
  * Find nearby polling units
@@ -11,78 +14,82 @@ export const getNearbyPollingUnits = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-    const { latitude, longitude, radius = 5, limit = 10 } = req.query;
+  const userId = req.user?.id;
+  const { latitude, longitude, radius = 5, limit = 10 } = req.query;
+  const _searchParams = { latitude, longitude, radius, limit };
 
+  try {
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
     }
 
     if (!latitude || !longitude) {
-      const error: ApiError = new Error('Latitude and longitude are required');
-      error.statusCode = 400;
-      error.code = 'MISSING_COORDINATES';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(400, 'Latitude and longitude are required', 'MISSING_COORDINATES');
     }
 
-    try {
-      // Get nearby polling units
-      const pollingUnits = await pollingUnitService.getNearbyPollingUnits(
-        Number(latitude),
-        Number(longitude),
-        Number(radius),
-        Number(limit),
-      );
+    // Get nearby polling units
+    // Assuming service returns PollingUnit[] potentially augmented with distance
+    const pollingUnits = await pollingUnitService.getNearbyPollingUnits(
+      Number(latitude),
+      Number(longitude),
+      Number(radius),
+      Number(limit),
+    );
 
-      // Log the action
-      await auditService.createAuditLog(
-        userId,
-        'mobile_nearby_polling_units_search',
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.MOBILE_NEARBY_PU_SEARCH,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
+        success: true,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        radius: Number(radius),
+        limit: Number(limit),
+        resultsCount: pollingUnits.length,
+      },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        pollingUnits: pollingUnits.map((unit: PollingUnit & { distance?: number }) => ({
+          id: unit.id,
+          name: unit.pollingUnitName,
+          code: unit.pollingUnitCode,
+          address: unit.address,
+          latitude: unit.latitude,
+          longitude: unit.longitude,
+          distance: unit.distance,
+        })),
+        searchParams: {
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          radius: Number(radius),
+          limit: Number(limit),
+        },
+      },
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.MOBILE_NEARBY_PU_SEARCH,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
-          latitude,
-          longitude,
-          radius,
-          limit,
-          resultsCount: pollingUnits.length,
+          success: false,
+          latitude: latitude ? Number(latitude) : undefined,
+          longitude: longitude ? Number(longitude) : undefined,
+          radius: radius ? Number(radius) : undefined,
+          limit: limit ? Number(limit) : undefined,
+          error: (error as Error).message,
         },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: {
-          pollingUnits: pollingUnits.map((unit: any) => ({
-            id: unit.id,
-            name: unit.name,
-            code: unit.code,
-            address: unit.address,
-            latitude: unit.latitude,
-            longitude: unit.longitude,
-            distance: unit.distance, // This would be calculated in the service
-          })),
-          searchParams: {
-            latitude: Number(latitude),
-            longitude: Number(longitude),
-            radius: Number(radius),
-            limit: Number(limit),
-          },
-        },
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to find nearby polling units');
-      apiError.statusCode = 400;
-      apiError.code = 'NEARBY_POLLING_UNITS_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+      )
+      .catch(logErr => logger.error('Failed to log nearby PU search error', logErr));
     next(error);
   }
 };

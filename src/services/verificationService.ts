@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Op } from 'sequelize';
 import VerificationStatus from '../db/models/VerificationStatus';
 import Voter from '../db/models/Voter';
 

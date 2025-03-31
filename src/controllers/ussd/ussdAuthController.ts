@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { authService, auditService, ussdService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
+import { logger } from '../../config/logger';
 import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
@@ -8,65 +9,74 @@ import { AuditActionType } from '../../db/models/AuditLog';
  * @route POST /api/v1/ussd/auth
  * @access Public
  */
-export const authenticateViaUssd = async (req: Request, res: Response): Promise<void> => {
+export const authenticateViaUssd = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { nin, vin, phoneNumber } = req.body;
+  let voterId: string | undefined;
+  let sessionCode: string | undefined;
+
   try {
-    const { nin, vin, phoneNumber } = req.body;
+    // Authenticate voter
+    const voter = await authService.authenticateVoterForUssd(nin, vin, phoneNumber);
+    voterId = voter.id;
 
-    try {
-      // Authenticate voter
-      const voter = await authService.authenticateVoterForUssd(nin, vin, phoneNumber);
+    // Generate a session code
+    sessionCode = await ussdService.createUssdSession(voter.id, phoneNumber);
 
-      // Generate a session code
-      const sessionCode = await ussdService.createUssdSession(voter.id, phoneNumber);
+    // Log the authentication success
+    await auditService.createAuditLog(
+      voter.id,
+      AuditActionType.USSD_SESSION,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
+        success: true,
+        context: 'authentication',
+        phoneNumber,
+        sessionCode,
+      },
+    );
 
-      // Log the authentication
-      await auditService.createAuditLog(
-        voter.id,
-        'ussd_authentication',
+    // Send session code via SMS (placeholder log)
+    logger.debug(
+      `[SMS] To: ${phoneNumber}, Message: Your USSD voting session code is: ${sessionCode}`,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'USSD authentication successful. Check SMS for session code.',
+      data: {
+        // Avoid sending session code in response if sent via SMS
+        expiresIn: 600, // 10 minutes in seconds
+      },
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        voterId || 'unknown',
+        AuditActionType.USSD_SESSION,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
+          success: false,
+          context: 'authentication',
           phoneNumber,
-          sessionCode,
+          nin,
+          vin, // Log input identifiers
+          error: (error as Error).message,
         },
-      );
-
-      // Send session code via SMS
-      // In a real implementation, this would use an SMS gateway
-      console.log(
-        `[SMS] To: ${phoneNumber}, Message: Your USSD voting session code is: ${sessionCode}`,
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'USSD authentication successful',
-        data: {
-          sessionCode,
-          expiresIn: 600, // 10 minutes in seconds
-        },
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Authentication failed');
-      apiError.statusCode = 401;
-      apiError.code = 'AUTHENTICATION_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
-    if ((error as ApiError).isOperational) {
-      res.status((error as ApiError).statusCode || 400).json({
-        success: false,
-        message: (error as Error).message,
-        code: (error as ApiError).code,
-      });
-    } else {
-      console.error('USSD Authentication Error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'An unexpected error occurred',
-        code: 'INTERNAL_SERVER_ERROR',
-      });
-    }
+      )
+      .catch(logErr => logger.error('Failed to log USSD auth error', logErr));
+    // Pass error to global handler
+    next(
+      error instanceof ApiError
+        ? error
+        : new ApiError(401, 'Authentication failed', 'AUTHENTICATION_FAILED'),
+    );
   }
 };
 
@@ -75,63 +85,88 @@ export const authenticateViaUssd = async (req: Request, res: Response): Promise<
  * @route POST /api/v1/ussd/verify-session
  * @access Public
  */
-export const verifyUssdSession = async (req: Request, res: Response): Promise<void> => {
+export const verifyUssdSession = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { sessionCode, phoneNumber } = req.body;
+  let userIdFromSession: string | undefined;
+
   try {
-    const { sessionCode, phoneNumber } = req.body;
+    if (!sessionCode || !phoneNumber) {
+      throw new ApiError(400, 'sessionCode and phoneNumber are required', 'MISSING_SESSION_INFO');
+    }
+    // Verify the session
+    const session = await ussdService.verifyUssdSession(sessionCode, phoneNumber);
+    userIdFromSession = session?.userId; // Capture for potential failure log
 
-    try {
-      // Verify the session
-      const session = await ussdService.verifyUssdSession(sessionCode, phoneNumber);
+    if (!session) {
+      // Log failure before throwing
+      await auditService
+        .createAuditLog(
+          userIdFromSession || 'unknown',
+          AuditActionType.USSD_SESSION,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          {
+            success: false,
+            context: 'verification',
+            phoneNumber,
+            sessionCode,
+            error: 'Invalid or expired session',
+          },
+        )
+        .catch(logErr => logger.error('Failed to log USSD session verification error', logErr));
+      throw new ApiError(401, 'Invalid or expired session', 'INVALID_SESSION');
+    }
 
-      if (!session) {
-        const error: ApiError = new Error('Invalid or expired session');
-        error.statusCode = 401;
-        error.code = 'INVALID_SESSION';
-        error.isOperational = true;
-        throw error;
-      }
-
-      // Log the verification
-      await auditService.createAuditLog(
-        session.userId,
-        'ussd_session_verification',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          phoneNumber,
-          sessionCode,
-        },
-      );
-
-      res.status(200).json({
+    // Log the verification success
+    await auditService.createAuditLog(
+      session.userId,
+      AuditActionType.USSD_SESSION,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
         success: true,
-        message: 'USSD session verified',
-        data: {
-          userId: session.userId,
-          isValid: true,
-        },
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Session verification failed');
-      apiError.statusCode = 401;
-      apiError.code = 'SESSION_VERIFICATION_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
-    }
+        context: 'verification',
+        phoneNumber,
+        sessionCode,
+      },
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'USSD session verified',
+      data: {
+        userId: session.userId,
+        isValid: true,
+      },
+    });
   } catch (error) {
-    if ((error as ApiError).isOperational) {
-      res.status((error as ApiError).statusCode || 400).json({
-        success: false,
-        message: (error as Error).message,
-        code: (error as ApiError).code,
-      });
-    } else {
-      console.error('USSD Session Verification Error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'An unexpected error occurred',
-        code: 'INTERNAL_SERVER_ERROR',
-      });
+    // Log failure if not already logged
+    if (!(error instanceof ApiError && error.code === 'INVALID_SESSION')) {
+      await auditService
+        .createAuditLog(
+          userIdFromSession || 'unknown',
+          AuditActionType.USSD_SESSION,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          {
+            success: false,
+            context: 'verification',
+            phoneNumber,
+            sessionCode,
+            error: (error as Error).message,
+          },
+        )
+        .catch(logErr => logger.error('Failed to log USSD session verification error', logErr));
     }
+    // Pass error to global handler
+    next(
+      error instanceof ApiError
+        ? error
+        : new ApiError(401, 'Session verification failed', 'SESSION_VERIFICATION_FAILED'),
+    );
   }
 };

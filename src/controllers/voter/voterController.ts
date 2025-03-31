@@ -1,8 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { voterService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { logger } from '../../config/logger';
 
 /**
  * Get voter profile
@@ -14,43 +15,40 @@ export const getProfile = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    // Get user ID from authenticated request
-    const userId = req.user?.id;
+  const userId = req.user?.id;
 
+  try {
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
     }
 
-    try {
-      // Get voter profile
-      const voter = await voterService.getVoterProfile(userId);
+    // Get voter profile
+    const voter = await voterService.getVoterProfile(userId);
 
-      // Log the profile view
-      await auditService.createAuditLog(
-        userId,
+    // Log the profile view
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.PROFILE_UPDATE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, action: 'view_profile' },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: voter,
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
         AuditActionType.PROFILE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { action: 'view_profile' },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: voter,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Voter not found');
-      apiError.statusCode = 404;
-      apiError.code = 'VOTER_NOT_FOUND';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+        { success: false, action: 'view_profile', error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log profile view error', logErr));
     next(error);
   }
 };
@@ -65,60 +63,71 @@ export const updateProfile = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    // Get user ID from authenticated request
-    const userId = req.user?.id;
+  const userId = req.user?.id;
+  const { phoneNumber, dateOfBirth } = req.body;
+  const updatedFields = { phoneNumber, dateOfBirth }; // For logging
 
+  try {
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
     }
 
-    const { phoneNumber, dateOfBirth } = req.body;
+    // Minimal validation, consider more robust validation middleware
+    const updates: { phoneNumber?: string; dateOfBirth?: Date } = {};
+    if (phoneNumber) updates.phoneNumber = phoneNumber;
+    if (dateOfBirth) updates.dateOfBirth = new Date(dateOfBirth);
 
-    try {
-      // Update voter profile
-      const updatedVoter = await voterService.updateVoterProfile(userId, {
-        phoneNumber,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-      });
+    if (Object.keys(updates).length === 0) {
+      throw new ApiError(400, 'No valid fields provided for update', 'NO_UPDATE_FIELDS');
+    }
 
-      // Log the profile update
-      await auditService.createAuditLog(
-        userId,
+    // Update voter profile
+    const updatedVoter = await voterService.updateVoterProfile(userId, updates);
+
+    // Log the profile update
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.PROFILE_UPDATE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
+        success: true,
+        updatedFields: Object.keys(updates),
+      },
+    );
+
+    // Return only relevant parts of profile, not full model object potentially
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        // Return a subset of data
+        id: updatedVoter.id,
+        phoneNumber: updatedVoter.phoneNumber,
+        dateOfBirth: updatedVoter.dateOfBirth,
+      },
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
         AuditActionType.PROFILE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
-          updatedFields: {
-            phoneNumber: phoneNumber ? true : false,
-            dateOfBirth: dateOfBirth ? true : false,
-          },
+          success: false,
+          updatedFields: Object.keys(updatedFields),
+          error: (error as Error).message,
         },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Profile updated successfully',
-        data: updatedVoter,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to update profile');
-      apiError.statusCode = 400;
-      apiError.code = 'UPDATE_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+      )
+      .catch(logErr => logger.error('Failed to log profile update error', logErr));
     next(error);
   }
 };
 
 /**
- * Get voter's polling unit
+ * Get voter's assigned polling unit
  * @route GET /api/v1/voter/polling-unit
  * @access Private
  */
@@ -127,43 +136,40 @@ export const getPollingUnit = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    // Get user ID from authenticated request
-    const userId = req.user?.id;
+  const userId = req.user?.id;
 
+  try {
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
     }
 
-    try {
-      // Get voter's polling unit
-      const pollingUnit = await voterService.getVoterPollingUnit(userId);
+    // Get voter's polling unit
+    const pollingUnit = await voterService.getVoterPollingUnit(userId);
 
-      // Log the polling unit view
-      await auditService.createAuditLog(
-        userId,
-        'polling_unit_view',
+    // Log the polling unit view
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.USER_ASSIGNED_PU_VIEW,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, pollingUnitId: pollingUnit.id },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: pollingUnit,
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.USER_ASSIGNED_PU_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { pollingUnitId: pollingUnit.id },
-      );
-
-      res.status(200).json({
-        success: true,
-        data: pollingUnit,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Polling unit not assigned');
-      apiError.statusCode = 404;
-      apiError.code = 'POLLING_UNIT_NOT_FOUND';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+        { success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log assigned PU view error', logErr));
     next(error);
   }
 };
@@ -178,17 +184,15 @@ export const checkEligibility = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    // Get user ID from authenticated request
-    const userId = req.user?.id;
-    const { electionId } = req.params;
+  const userId = req.user?.id;
+  const { electionId } = req.params;
 
+  try {
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+    if (!electionId) {
+      throw new ApiError(400, 'electionId parameter is required', 'MISSING_ELECTION_ID');
     }
 
     // Check voter eligibility
@@ -197,10 +201,11 @@ export const checkEligibility = async (
     // Log the eligibility check
     await auditService.createAuditLog(
       userId,
-      'eligibility_check',
+      AuditActionType.VOTER_ELIGIBILITY_CHECK,
       req.ip || '',
       req.headers['user-agent'] || '',
       {
+        success: true,
         electionId,
         isEligible: eligibility.isEligible,
         reason: eligibility.reason,
@@ -212,6 +217,16 @@ export const checkEligibility = async (
       data: eligibility,
     });
   } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.VOTER_ELIGIBILITY_CHECK,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { success: false, electionId, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log eligibility check error', logErr));
     next(error);
   }
 };
@@ -226,61 +241,57 @@ export const requestVerification = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  try {
-    // Get user ID from authenticated request
-    const userId = req.user?.id;
+  const userId = req.user?.id;
+  const { documentType, documentNumber, documentImageUrl } = req.body;
+  const context = { documentType, documentNumber }; // For logging
 
+  try {
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+    if (!documentType || !documentNumber || !documentImageUrl) {
+      throw new ApiError(
+        400,
+        'documentType, documentNumber, and documentImageUrl are required',
+        'MISSING_VERIFICATION_DATA',
+      );
     }
 
-    const { documentType, documentNumber, documentImageUrl } = req.body;
+    // Request verification - NOTE: Service might throw 'Not Implemented'
+    const verificationStatus = await voterService.requestVerification(userId);
 
-    try {
-      // Request verification
-      const verification = await voterService.requestVerification(
-        userId,
-        documentType,
-        documentNumber,
-        documentImageUrl,
-      );
+    // Log the verification request
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.VOTER_VERIFICATION_REQUEST,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true, ...context, status: verificationStatus?.verificationLevel || 'submitted' },
+    );
 
-      // Log the verification request
-      await auditService.createAuditLog(
-        userId,
-        AuditActionType.VERIFICATION,
+    res.status(200).json({
+      success: true,
+      message: 'Verification request submitted successfully.',
+      data: { status: verificationStatus?.verificationLevel || 'submitted' }, // Return current status
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.VOTER_VERIFICATION_REQUEST,
         req.ip || '',
         req.headers['user-agent'] || '',
-        {
-          documentType,
-          verificationId: verification.id,
-        },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Verification request submitted successfully',
-        data: verification,
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error('Failed to submit verification request');
-      apiError.statusCode = 400;
-      apiError.code = 'VERIFICATION_REQUEST_FAILED';
-      apiError.isOperational = true;
-      throw apiError;
-    }
-  } catch (error) {
+        { success: false, ...context, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log verification request error', logErr));
     next(error);
   }
 };
 
 /**
  * Change voter password
- * @route PUT /api/v1/voter/change-password
+ * @route POST /api/v1/voter/change-password
  * @access Private
  */
 export const changePassword = async (
@@ -288,43 +299,53 @@ export const changePassword = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
+  const userId = req.user?.id;
+  const { currentPassword, newPassword } = req.body;
+
   try {
-    const userId = req.user?.id;
-    const { currentPassword, newPassword } = req.body;
-
     if (!userId) {
-      const error: ApiError = new Error('User ID not found in request');
-      error.statusCode = 401;
-      error.code = 'AUTHENTICATION_REQUIRED';
-      error.isOperational = true;
-      throw error;
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
     }
+    if (!currentPassword || !newPassword) {
+      throw new ApiError(
+        400,
+        'currentPassword and newPassword are required',
+        'MISSING_PASSWORD_FIELDS',
+      );
+    }
+    // Add password complexity validation if needed here or in service
 
+    // Change password using service
+    await voterService.changePassword(userId, currentPassword, newPassword);
+
+    // Log the action
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.PASSWORD_CHANGE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { success: true },
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    // Log failure
     try {
-      // Change password
-      await voterService.changePassword(userId, currentPassword, newPassword);
-
-      // Log the action
       await auditService.createAuditLog(
-        userId,
+        userId || 'unknown',
         AuditActionType.PASSWORD_CHANGE,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { timestamp: new Date() },
+        { success: false, error: (error as Error).message },
       );
-
-      res.status(200).json({
-        success: true,
-        message: 'Password changed successfully',
-      });
-    } catch (error) {
-      const apiError: ApiError = new Error((error as Error).message);
-      apiError.statusCode = 400;
-      apiError.code = 'PASSWORD_CHANGE_ERROR';
-      apiError.isOperational = true;
-      throw apiError;
+    } catch (logErr) {
+      logger.error(
+        `Failed to log password change error: ${logErr instanceof Error ? logErr.message : String(logErr)}`,
+      );
     }
-  } catch (error) {
     next(error);
   }
 };

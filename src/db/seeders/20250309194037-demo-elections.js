@@ -54,8 +54,25 @@ const adminTypes = [
   'PollingUnitOfficer',
   'VoterRegistrationOfficer',
   'CandidateRegistrationOfficer',
-  'Observer'
+  'Observer',
+  'Voter'
 ];
+
+// Role hierarchy (aligned with UserRole enum)
+const roleHierarchy = {
+  SystemAdministrator: 100,
+  ElectoralCommissioner: 90,
+  SecurityOfficer: 85,
+  SystemAuditor: 80,
+  RegionalElectoralOfficer: 70,
+  ElectionManager: 65,
+  ResultVerificationOfficer: 60,
+  PollingUnitOfficer: 50,
+  VoterRegistrationOfficer: 45,
+  CandidateRegistrationOfficer: 40,
+  Observer: 20,
+  Voter: 10
+};
 
 // Permission mapping based on roles (aligned with Permission enum in src/types/auth.ts)
 const rolePermissionsMap = {

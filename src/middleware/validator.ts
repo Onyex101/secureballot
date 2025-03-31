@@ -37,12 +37,7 @@ export const validate = (validations: ValidationChain[]) => {
     });
 
     // Create API error
-    const error: ApiError = new Error('Validation error');
-    error.statusCode = 400;
-    error.code = 'VALIDATION_ERROR';
-    error.details = formattedErrors;
-    error.isOperational = true;
-
+    const error = new ApiError(400, 'Validation error', 'VALIDATION_ERROR', formattedErrors);
     next(error);
   };
 };
@@ -111,4 +106,18 @@ export const validationMessages = {
   nin: () => 'National Identification Number (NIN) must be exactly 11 characters',
   vin: () => 'Voter Identification Number (VIN) must be exactly 19 characters',
   phoneNumber: () => 'Phone number must be a valid Nigerian phone number (e.g., +234XXXXXXXXXX)',
+};
+
+export const validateRequest = (schema: any) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { error } = schema.validate(req.body);
+      if (error) {
+        throw new ApiError(400, error.details[0].message, 'VALIDATION_ERROR');
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 };

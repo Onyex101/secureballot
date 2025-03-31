@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { Dialect } from 'sequelize';
+import { logger } from './logger';
 
 dotenv.config();
 
@@ -80,7 +81,7 @@ const config: DatabaseConfig = {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432', 10),
     dialect: (process.env.DB_DIALECT as Dialect) || 'postgres',
-    logging: process.env.DB_LOGGING === 'true' ? console.log : false,
+    logging: process.env.DB_LOGGING === 'true' ? logger.debug : false,
   },
   test: {
     username: process.env.DB_USER || 'postgres',

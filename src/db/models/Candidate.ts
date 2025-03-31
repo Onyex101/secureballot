@@ -1,4 +1,8 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
+// Remove sequelize-typescript imports
+// import { Table, Column, BelongsTo, ForeignKey, AllowNull, Comment } from 'sequelize-typescript';
+import Election from './Election';
+import Vote from './Vote';
 
 // Candidate status enum
 export enum CandidateStatus {
@@ -38,10 +42,12 @@ interface CandidateCreationAttributes
     | 'updatedAt'
   > {}
 
+// Remove @Table decorator
 class Candidate
   extends Model<CandidateAttributes, CandidateCreationAttributes>
   implements CandidateAttributes
 {
+  // Remove decorators
   public id!: string;
   public electionId!: string;
   public fullName!: string;
@@ -56,23 +62,26 @@ class Candidate
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
-  // Timestamps
-  public static readonly createdAt = 'createdAt';
-  public static readonly updatedAt = 'updatedAt';
+  // Associations (defined in associate method)
+  public election?: Election;
+  public votes?: Vote[];
 
-  // Model associations
+  // Re-add static associate method
   public static associate(models: any): void {
     Candidate.belongsTo(models.Election, {
-      foreignKey: 'election_id',
+      foreignKey: 'electionId',
+      targetKey: 'id',
       as: 'election',
     });
 
     Candidate.hasMany(models.Vote, {
-      foreignKey: 'candidate_id',
+      foreignKey: 'candidateId',
+      sourceKey: 'id',
       as: 'votes',
     });
   }
 
+  // Re-add static initialize method
   public static initialize(sequelize: Sequelize): typeof Candidate {
     return Candidate.init(
       {
@@ -167,17 +176,17 @@ class Candidate
         sequelize,
         modelName: 'Candidate',
         tableName: 'candidates',
-        underscored: false,
+        underscored: false, // Use false if field names in init are camelCase
         timestamps: true,
         indexes: [
           { fields: ['election_id'] },
           { fields: ['party_code'] },
           { fields: ['status'] },
           { fields: ['is_active'] },
-          { unique: true, fields: ['election_id', 'party_code'] },
+          { unique: true, fields: ['election_id', 'party_code'] }, // Matches SQL constraint
         ],
         hooks: {
-          beforeUpdate: async (candidate: Candidate) => {
+          beforeUpdate: (candidate: Candidate) => {
             // Update isActive based on status
             if (
               candidate.status === CandidateStatus.REJECTED ||
