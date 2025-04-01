@@ -22,7 +22,7 @@ jobs:
         run: npm i
 
       - name: Build project
-        run: npm run build --traceResolution 
+        run: npm run build 
 
       - name: Create deployment package
         # This command zips the necessary files for Elastic Beanstalk.
