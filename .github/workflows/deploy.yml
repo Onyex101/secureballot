@@ -1,0 +1,43 @@
+# .github/workflows/deploy.yml
+name: Deploy to Elastic Beanstalk via S3
+
+on:
+  push:
+    branches:
+      - main # Trigger deployment only on pushes to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm i
+
+      - name: Build project
+        # Replace with your actual build command if different. Remove if no build step is needed.
+        # Ensure the output directory (e.g., 'dist', 'build') is included in the zip step below if needed.
+        run: npm run build 
+
+      - name: Create deployment package
+        # This command zips the necessary files for Elastic Beanstalk.
+        run: zip -r deploy.zip .
+
+      - name: Deploy to EB
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: secureBallot
+          environment_name: secureBallot-env
+          version_label: ${{ github.sha }}
+          region: us-east-1
+          deployment_package: deploy.zip
