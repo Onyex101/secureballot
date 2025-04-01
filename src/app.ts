@@ -13,7 +13,7 @@ import serverConfig from './config/server';
 import swaggerSpec from './config/swagger';
 import { stream } from './config/logger';
 import routes from './routes';
-import errorHandler from './middleware/errorHandler';
+import errorHandler from '@/middleware/errorHandler';
 
 const app: Application = express();
 
