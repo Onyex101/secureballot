@@ -16,15 +16,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.11.0
           cache: 'npm'
 
       - name: Install dependencies
         run: npm i
 
       - name: Build project
-        # Replace with your actual build command if different. Remove if no build step is needed.
-        # Ensure the output directory (e.g., 'dist', 'build') is included in the zip step below if needed.
         run: npm run build 
 
       - name: Create deployment package
