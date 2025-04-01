@@ -13,7 +13,7 @@ import serverConfig from './config/server';
 import swaggerSpec from './config/swagger';
 import { stream } from './config/logger';
 import routes from './routes';
-import errorHandler from './middleware/errorHandler';
+// import errorHandler from './middleware/errorHandler';
 
 const app: Application = express();
 
@@ -83,7 +83,7 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // Error handling
-app.use(errorHandler);
+// app.use(errorHandler);
 
 // Handle 404 errors
 app.use((req: Request, res: Response) => {
