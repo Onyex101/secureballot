@@ -16,13 +16,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.11.0
+          node-version: 20
 
       - name: Install dependencies
         run: npm i
 
       - name: Build project
-        run: npm run build 
+        run: npm run build --traceResolution 
 
       - name: Create deployment package
         # This command zips the necessary files for Elastic Beanstalk.

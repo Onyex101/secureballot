@@ -3,7 +3,7 @@ import { ValidationError } from 'sequelize';
 import { logger } from '../config/logger';
 
 // Define ApiError as a class extending Error
-export class ApiError extends Error {
+class ApiError extends Error {
   public statusCode: number;
   public code?: string;
   public details?: any;
@@ -119,4 +119,4 @@ const errorHandler = (
   });
 };
 
-export default errorHandler;
+export { errorHandler, ApiError };
