@@ -4,7 +4,7 @@
   "description": "A secure API for the Nigerian hybrid encryption-based voting system with USSD integration",
   "main": "dist/server.js",
   "scripts": {
-    "build": "npx tsc --traceResolution",
+    "build": "npx tsc",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
     "lint": "eslint . --ext .ts",
