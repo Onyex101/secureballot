@@ -86,7 +86,7 @@ export const castVote = async (
         verificationUrl: `/api/v1/votes/verify/${voteResult.receiptCode}`,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     await transaction.rollback();
 
     await auditService

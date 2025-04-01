@@ -52,7 +52,7 @@ export const setupMfa = async (
           qrCodeUrl: result.qrCodeUrl,
         },
       });
-    } catch (error) {
+    } catch (error: any) {
       const apiError = new ApiError(
         400,
         'Failed to set up MFA',
@@ -62,7 +62,7 @@ export const setupMfa = async (
       );
       throw apiError;
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };
@@ -121,7 +121,7 @@ export const enableMfa = async (
         success: true,
         message: 'MFA enabled successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       if (!(error instanceof ApiError && error.code === 'INVALID_MFA_TOKEN')) {
         await auditService.createAuditLog(
           userId,
@@ -144,7 +144,7 @@ export const enableMfa = async (
         throw apiError;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };
@@ -203,7 +203,7 @@ export const disableMfa = async (
         success: true,
         message: 'MFA disabled successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       if (!(error instanceof ApiError && error.code === 'INVALID_MFA_TOKEN')) {
         await auditService.createAuditLog(
           userId,
@@ -226,7 +226,7 @@ export const disableMfa = async (
         throw apiError;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };
@@ -276,7 +276,7 @@ export const generateBackupCodes = async (
           backupCodes,
         },
       });
-    } catch (error) {
+    } catch (error: any) {
       await auditService.createAuditLog(
         userId,
         AuditActionType.BACKUP_CODES_GENERATED,
@@ -293,7 +293,7 @@ export const generateBackupCodes = async (
       );
       throw apiError;
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };
@@ -346,7 +346,7 @@ export const verifyBackupCode = async (
         success: true,
         message: 'Backup code verified successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       if (!(error instanceof ApiError && error.code === 'INVALID_BACKUP_CODE')) {
         await auditService.createAuditLog(
           userId,
@@ -369,7 +369,7 @@ export const verifyBackupCode = async (
         throw apiError;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };

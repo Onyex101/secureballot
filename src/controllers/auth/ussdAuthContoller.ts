@@ -66,7 +66,7 @@ export const authenticateViaUssd = async (
       );
       throw apiError;
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };
@@ -163,7 +163,7 @@ export const verifyUssdSession = async (
         throw apiError;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 };

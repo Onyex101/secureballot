@@ -76,7 +76,7 @@ export const mobileLogin = async (
         requiresDeviceVerification: true, // Flag for client
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     // Log failed login attempt
     await auditService
       .createAuditLog(
@@ -166,7 +166,7 @@ export const verifyDevice = async (
         deviceVerified: true,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     // Log failure if not already logged
     if (!(error instanceof ApiError && error.code === 'INVALID_VERIFICATION_CODE')) {
       await auditService

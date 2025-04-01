@@ -53,7 +53,7 @@ export const authenticateViaUssd = async (
         expiresIn: 600, // 10 minutes in seconds
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     // Log failure
     await auditService
       .createAuditLog(
@@ -143,7 +143,7 @@ export const verifyUssdSession = async (
         isValid: true,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     // Log failure if not already logged
     if (!(error instanceof ApiError && error.code === 'INVALID_SESSION')) {
       await auditService
