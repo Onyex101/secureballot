@@ -10,9 +10,6 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Install TypeScript for build
-RUN npm install typescript
-
 # Build TypeScript
 RUN npm run build
 

@@ -78,8 +78,6 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.4.5",
-    "typescript": "^5.8.2",
-    "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "xss-clean": "^0.1.4"
   },
@@ -120,7 +118,8 @@
     "sequelize-cli": "^6.6.2",
     "supertest": "^6.3.4",
     "ts-jest": "^29.2.6",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
   },
   "engines": {
     "node": ">=18.0.0"
