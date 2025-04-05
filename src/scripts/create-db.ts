@@ -1,8 +1,9 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
 import { logger } from '../config/logger';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env.prod') });
 
 const dbName = process.env.DB_NAME || 'secure_ballot';
 const dbNameTest = process.env.DB_NAME_TEST || 'secure_ballot_test';

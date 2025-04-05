@@ -1,6 +1,27 @@
+# .dockerignore
+
+# Ignore environment files
+.env*
+.env.*
+
+# Ignore dependencies (installed via RUN)
 node_modules
-npm-debug.log
+
+# Ignore build output (built inside container)
+dist
+
+# Ignore Docker/Git artifacts
+Dockerfile*
+.dockerignore
 .git
+.gitignore
+
+# Ignore logs and misc
+npm-debug.log*
+README.md
+LICENSE
+
+npm-debug.log
 .github
 .gitignore
 .dockerignore
@@ -10,9 +31,7 @@ docker-compose.yml
 .vscode
 .idea
 logs
-dist
 coverage
-.env
-.env.*
 test
-tests 
+tests
+prod.rc

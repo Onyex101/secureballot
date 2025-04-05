@@ -25,6 +25,13 @@ DROP INDEX IF EXISTS idx_admin_users_is_active;
 DROP INDEX IF EXISTS idx_ussd_sessions_phone_number;
 DROP INDEX IF EXISTS idx_ussd_sessions_is_active;
 
+-- Add missing audit log index drops
+DROP INDEX IF EXISTS idx_audit_logs_user_id;
+DROP INDEX IF EXISTS idx_audit_logs_action_type;
+DROP INDEX IF EXISTS idx_audit_logs_action_timestamp;
+DROP INDEX IF EXISTS idx_audit_logs_ip_address;
+DROP INDEX IF EXISTS idx_audit_logs_is_suspicious;
+
 -- Drop tables in reverse order of creation (child tables first, then parent tables)
 DROP TABLE IF EXISTS observer_reports;
 DROP TABLE IF EXISTS audit_logs;
