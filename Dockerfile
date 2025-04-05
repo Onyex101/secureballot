@@ -19,14 +19,10 @@ RUN npm run build
 # Set production environment
 ENV NODE_ENV=production
 
-# Make startup script executable
-RUN chmod +x scripts/start.sh
-
 # Expose port
 EXPOSE 5000
 
 # Create volume for logs
 VOLUME [ "/usr/src/app/logs" ]
 
-# Start the server using the startup script
-CMD ["./scripts/start.sh"] 
+CMD ["node", "dist/server.js"]
