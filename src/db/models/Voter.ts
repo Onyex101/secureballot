@@ -7,6 +7,12 @@ interface VoterAttributes {
   vin: string;
   phoneNumber: string;
   dateOfBirth: Date;
+  fullName: string;
+  pollingUnitCode: string;
+  state: string;
+  gender: string;
+  lga: string;
+  ward: string;
   passwordHash: string;
   recoveryToken: string | null;
   recoveryTokenExpiry: Date | null;
@@ -44,6 +50,12 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
   public vin!: string;
   public phoneNumber!: string;
   public dateOfBirth!: Date;
+  public fullName!: string;
+  public pollingUnitCode!: string;
+  public state!: string;
+  public gender!: string;
+  public lga!: string;
+  public ward!: string;
   public passwordHash!: string;
   public recoveryToken!: string | null;
   public recoveryTokenExpiry!: Date | null;
@@ -66,14 +78,15 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
   }
 
   public static associate(models: any): void {
-    Voter.hasOne(models.VoterCard, {
-      foreignKey: 'userId',
-      as: 'voterCard',
-    });
-
     Voter.hasOne(models.VerificationStatus, {
       foreignKey: 'userId',
       as: 'verificationStatus',
+    });
+
+    Voter.belongsTo(models.PollingUnit, {
+      foreignKey: 'polling_unit_code',
+      targetKey: 'polling_unit_code',
+      as: 'pollingUnit',
     });
 
     Voter.hasMany(models.Vote, {
@@ -140,6 +153,51 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           field: 'date_of_birth',
           type: DataTypes.DATEONLY,
           allowNull: false,
+        },
+        fullName: {
+          field: 'full_name',
+          type: DataTypes.STRING(100),
+          allowNull: false,
+          validate: {
+            notEmpty: true,
+          },
+        },
+        pollingUnitCode: {
+          field: 'polling_unit_code',
+          type: DataTypes.STRING(50),
+          allowNull: false,
+          validate: {
+            notEmpty: true,
+          },
+        },
+        state: {
+          type: DataTypes.STRING(50),
+          allowNull: false,
+          validate: {
+            notEmpty: true,
+          },
+        },
+        gender: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          defaultValue: 'male',
+          validate: {
+            isIn: [['male', 'female']],
+          },
+        },
+        lga: {
+          type: DataTypes.STRING(50),
+          allowNull: false,
+          validate: {
+            notEmpty: true,
+          },
+        },
+        ward: {
+          type: DataTypes.STRING(100),
+          allowNull: false,
+          validate: {
+            notEmpty: true,
+          },
         },
         passwordHash: {
           field: 'password_hash',
@@ -211,6 +269,8 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           { unique: true, fields: ['nin'] },
           { unique: true, fields: ['vin'] },
           { fields: ['phone_number'] },
+          { fields: ['polling_unit_code'] },
+          { fields: ['state', 'lga', 'ward'] },
         ],
         hooks: {
           beforeCreate: async (voter: Voter) => {

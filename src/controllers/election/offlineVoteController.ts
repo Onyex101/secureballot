@@ -48,7 +48,7 @@ export const generateOfflinePackage = async (
     // Get voter details (specifically polling unit)
     // TODO: Potentially optimize to only get necessary details
     const voterProfile = await voterService.getVoterProfile(userId);
-    const pollingUnitInfo = voterProfile?.voterCard?.pollingUnit;
+    const pollingUnitInfo = voterProfile?.pollingUnit;
     if (!pollingUnitInfo) {
       throw new ApiError(
         404,

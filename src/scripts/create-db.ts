@@ -3,10 +3,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { logger } from '../config/logger';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env.prod') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const dbName = process.env.DB_NAME || 'secure_ballot';
-const dbNameTest = process.env.DB_NAME_TEST || 'secure_ballot_test';
 
 const createDatabase = async () => {
   // Connect to default postgres database
@@ -30,19 +29,6 @@ const createDatabase = async () => {
       logger.info(`Database ${dbName} created`);
     } else {
       logger.info(`Database ${dbName} already exists`);
-    }
-
-    // Check if test database exists
-    const testDbExists = await pool.query(`
-      SELECT 1 FROM pg_database WHERE datname = '${dbNameTest}'
-    `);
-
-    // Create test database if it doesn't exist
-    if (testDbExists.rowCount === 0) {
-      await pool.query(`CREATE DATABASE ${dbNameTest}`);
-      logger.info(`Database ${dbNameTest} created`);
-    } else {
-      logger.info(`Database ${dbNameTest} already exists`);
     }
 
     // Create PostgreSQL extensions if needed

@@ -25,6 +25,7 @@ export enum AuditActionType {
   MFA_DISABLED = 'mfa_disabled',
   BACKUP_CODES_GENERATED = 'backup_codes_generated',
   BACKUP_CODE_VERIFY = 'backup_code_verify',
+  ADMIN_LOGIN = 'admin_login',
   ADMIN_USER_LIST_VIEW = 'admin_user_list_view',
   ADMIN_USER_CREATE = 'admin_user_create',
   REGION_POLLING_UNITS_VIEW = 'region_polling_units_view',

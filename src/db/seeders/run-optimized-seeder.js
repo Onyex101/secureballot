@@ -19,6 +19,7 @@
 const path = require('path');
 const fs = require('fs');
 const { Sequelize } = require('sequelize');
+const bcrypt = require('bcrypt');
 const { 
   optimizeDbConnection, 
   generateDataInChunks, 
@@ -26,6 +27,9 @@ const {
   toggleForeignKeyConstraints,
   withPerformanceMonitoring
 } = require('./optimized-seeder-utils');
+const { faker } = require('@faker-js/faker');
+const naijaFaker = require('@codegrenade/naija-faker');
+const { v4: uuidv4 } = require('uuid');
 
 // Load environment variables
 require('dotenv').config();
@@ -35,8 +39,8 @@ const isUndoMode = process.argv.includes('--undo');
 
 // Configuration
 const CONFIG = {
-  batchSize: parseInt(process.env.SEED_BATCH_SIZE, 10),
-  maxVotersPerState: parseInt(process.env.SEED_MAX_VOTERS_PER_STATE, 10),
+  batchSize: parseInt(process.env.SEED_BATCH_SIZE || '100', 10),
+  maxVotersPerState: parseInt(process.env.SEED_MAX_VOTERS_PER_STATE || '500', 10),
   useParallelProcessing: process.env.SEED_USE_PARALLEL !== 'false',
   useTransactions: process.env.SEED_USE_TRANSACTIONS !== 'false',
   seedTarget: process.env.SEED_TARGET || 'all', // 'all', 'admin', 'elections', 'voters', etc.
@@ -46,8 +50,11 @@ const CONFIG = {
   isUndo: isUndoMode
 };
 
+// Define salt rounds for bcrypt
+const SALT_ROUNDS = 10;
+
 async function generatePasswordHash(password) {
-  return bcrypt.hash(password, SALT_ROUNDS);
+  return await bcrypt.hash(password, SALT_ROUNDS);
 }
 
 async function runOptimizedSeeder() {
@@ -163,10 +170,6 @@ async function runOptimizedSeeder() {
  * @param {string} target - Target to seed ('admin', 'elections', 'voters', etc.)
  */
 async function runTargetedSeed(queryInterface, Sequelize, target) {
-  const { faker } = require('@faker-js/faker');
-  const naijaFaker = require('@codegrenade/naija-faker');
-  const { v4: uuidv4 } = require('uuid');
-  
   if (CONFIG.isUndo) {
     console.log(`Undoing seed data for: ${target}`);
     
@@ -262,7 +265,7 @@ async function runTargetedSeed(queryInterface, Sequelize, target) {
       full_name: 'Super Administrator',
       email: 'admin@secureballot.ng',
       phone_number: naijaFaker.phoneNumber(),
-      password_hash: generatePasswordHash('password123'),
+      password_hash: await generatePasswordHash('password123'),
       admin_type: 'SystemAdministrator',
       is_active: true,
       created_at: new Date(),

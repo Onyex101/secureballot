@@ -63,14 +63,11 @@ router.get(
   adminLimiter,
   validate([
     query('role').optional(),
-
     query('status')
       .optional()
       .isIn(['active', 'inactive', 'all'])
       .withMessage('Status must be one of: active, inactive, all'),
-
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-
     query('limit')
       .optional()
       .isInt({ min: 1, max: 100 })

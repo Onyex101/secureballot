@@ -27,7 +27,7 @@
     "db:seed:optimized": "node --max-old-space-size=4096 src/db/seeders/run-optimized-seeder.js",
     "db:seed:optimized:gc": "node --max-old-space-size=4096 --expose-gc src/db/seeders/run-optimized-seeder.js",
     "db:seed:fast": "DISABLE_CONSTRAINTS=true DISABLE_INDEXES=true node --max-old-space-size=4096 --expose-gc src/db/seeders/run-optimized-seeder.js",
-    "db:seed:small": "SEED_BATCH_SIZE=5000 SEED_MAX_VOTERS_PER_STATE=10000 node src/db/seeders/run-optimized-seeder.js",
+    "db:seed:small": "SEED_BATCH_SIZE=200 SEED_MAX_VOTERS_PER_STATE=2000 node src/db/seeders/run-optimized-seeder.js",
     "db:seed:large": "SEED_BATCH_SIZE=10000 SEED_MAX_VOTERS_PER_STATE=50000 DISABLE_CONSTRAINTS=true DISABLE_INDEXES=true node --max-old-space-size=8192 --expose-gc src/db/seeders/run-optimized-seeder.js",
     "db:seed:debug": "DEBUG=true node src/db/seeders/run-optimized-seeder.js",
     "swagger-autogen": "ts-node src/scripts/swagger-autogen.ts",

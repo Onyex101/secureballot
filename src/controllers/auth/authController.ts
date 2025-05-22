@@ -201,6 +201,77 @@ export const verifyMfa = async (req: Request, res: Response, next: NextFunction)
 };
 
 /**
+ * Login an admin user
+ * @route POST /api/v1/auth/admin-login
+ * @access Public
+ */
+export const adminLogin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      throw new ApiError(400, 'Email and password are required', 'MISSING_FIELDS');
+    }
+
+    try {
+      // Authenticate admin
+      const admin = await authService.authenticateAdmin(email, password);
+
+      // Generate token with admin role
+      const token = authService.generateToken(admin.id, 'admin');
+
+      // Log the login
+      await auditService.createAuditLog(
+        admin.id,
+        AuditActionType.ADMIN_LOGIN,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { email, success: true },
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Admin login successful',
+        data: {
+          token,
+          user: {
+            id: admin.id,
+            email: admin.email,
+            fullName: admin.fullName,
+            role: admin.adminType,
+          },
+          requiresMfa: admin.mfaEnabled,
+        },
+      });
+    } catch (error) {
+      // Log failed login attempt
+      await auditService.createAuditLog(
+        null,
+        AuditActionType.ADMIN_LOGIN,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { email, success: false, error: (error as Error).message },
+      );
+
+      const apiError = new ApiError(
+        401,
+        'Invalid admin credentials',
+        'INVALID_ADMIN_CREDENTIALS',
+        undefined,
+        true,
+      );
+      throw apiError;
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Refresh token
  * @route POST /api/v1/auth/refresh-token
  * @access Private
@@ -211,11 +282,12 @@ export const refreshToken = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    // The user ID should be available from the authentication middleware
-    const userId = (req as any).user.id;
+    // The user ID and role should be available from the authentication middleware
+    const userId = (req as any).userId;
+    const role = (req as any).role || 'voter';
 
-    // Generate a new token
-    const token = authService.generateToken(userId);
+    // Generate a new token with the same role
+    const token = authService.generateToken(userId, role);
 
     // Log the token refresh
     await auditService.createAuditLog(
@@ -223,7 +295,7 @@ export const refreshToken = async (
       AuditActionType.TOKEN_REFRESH,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { success: true },
+      { success: true, role },
     );
 
     res.status(200).json({

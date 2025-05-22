@@ -6,6 +6,9 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Op } from 'sequelize';
 import Voter from '../db/models/Voter';
+import AdminUser from '../db/models/AdminUser';
+import { config } from '../config';
+import { logger } from '../config/logger';
 
 interface VoterRegistrationData {
   nin: string;
@@ -133,6 +136,42 @@ export const authenticateVoterForUssd = async (nin: string, vin: string, phoneNu
 };
 
 /**
+ * Authenticate an admin user
+ */
+export const authenticateAdmin = async (email: string, password: string): Promise<AdminUser> => {
+  // Find admin by email
+  const admin = await AdminUser.findOne({
+    where: { email },
+    include: ['roles', 'permissions'],
+  });
+
+  if (!admin) {
+    logger.debug(`Admin authentication failed: No admin found with email ${email}`);
+    throw new Error('Invalid credentials');
+  }
+
+  // Check if admin is active
+  if (!admin.isActive) {
+    logger.debug(`Admin authentication failed: Admin account is inactive for email ${email}`);
+    throw new Error('Account is inactive');
+  }
+
+  // Verify password
+  const isPasswordValid = await admin.validatePassword(password);
+  if (!isPasswordValid) {
+    logger.debug(`Admin authentication failed: Invalid password for email ${email}`);
+    throw new Error('Invalid credentials');
+  }
+
+  // Update last login
+  await admin.update({
+    lastLogin: new Date(),
+  });
+
+  return admin;
+};
+
+/**
  * Generate JWT token
  */
 export const generateToken = (
@@ -145,9 +184,15 @@ export const generateToken = (
     role,
   };
 
-  const secret = process.env.JWT_SECRET || 'default-secret-key';
+  const secret = config.jwt.secret || process.env.JWT_SECRET;
+  if (!secret) {
+    logger.error('JWT secret is not defined');
+    throw new Error('JWT secret is not configured');
+  }
+
   const options: SignOptions = {
     expiresIn: expiresIn as any,
+    issuer: 'secureBallot',
   };
 
   return jwt.sign(payload, secret as Secret, options);

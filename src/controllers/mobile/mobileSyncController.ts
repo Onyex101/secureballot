@@ -120,7 +120,7 @@ export const syncData = async (
             nin: voterProfile.nin,
             vin: voterProfile.vin,
             phoneNumber: voterProfile.phoneNumber,
-            pollingUnit: voterProfile.voterCard?.pollingUnit,
+            pollingUnit: voterProfile.pollingUnit,
             verification: voterProfile.verification,
             mfaEnabled: voterProfile.mfaEnabled,
           },

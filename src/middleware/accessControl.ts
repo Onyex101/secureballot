@@ -157,7 +157,8 @@ export const requirePermission = (requiredPermissions: Permission | Permission[]
       }
 
       const userRole = req.user.adminType;
-      const userPermissions = req.user.permissions?.map(p => p.permissionName) || [];
+      type Permission = { permissionName: string };
+      const userPermissions = req.user.permissions?.map((p: Permission) => p.permissionName) || [];
 
       if (!userRole) {
         throw new ApiError(403, 'User has no assigned role', 'ROLE_REQUIRED');

@@ -1,6 +1,5 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 import AdminUser from './AdminUser';
-import VoterCard from './VoterCard';
 import Vote from './Vote';
 
 interface PollingUnitAttributes {
@@ -57,14 +56,14 @@ class PollingUnit
   public readonly updatedAt!: Date;
 
   public officer?: AdminUser;
-  public voterCards?: VoterCard[];
+  public voters?: any[];
   public votes?: Vote[];
 
   public static associate(models: any): void {
-    PollingUnit.hasMany(models.VoterCard, {
+    PollingUnit.hasMany(models.Voter, {
       sourceKey: 'pollingUnitCode',
-      foreignKey: 'pollingUnitCode',
-      as: 'voterCards',
+      foreignKey: 'polling_unit_code',
+      as: 'voters',
     });
 
     PollingUnit.hasMany(models.Vote, {

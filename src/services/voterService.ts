@@ -1,5 +1,4 @@
 import Voter from '../db/models/Voter';
-import VoterCard from '../db/models/VoterCard';
 import VerificationStatus from '../db/models/VerificationStatus';
 import PollingUnit from '../db/models/PollingUnit';
 import Vote from '../db/models/Vote';
@@ -16,6 +15,12 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
       'vin',
       'phoneNumber',
       'dateOfBirth',
+      'fullName',
+      'pollingUnitCode',
+      'state',
+      'gender',
+      'lga',
+      'ward',
       'isActive',
       'createdAt',
       'lastLogin',
@@ -37,16 +42,9 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
         ],
       },
       {
-        model: VoterCard,
-        as: 'voterCard',
-        attributes: ['id', 'vin', 'issuedDate', 'isValid', 'pollingUnitCode'],
-        include: [
-          {
-            model: PollingUnit,
-            as: 'polling_unit',
-            attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address'],
-          },
-        ],
+        model: PollingUnit,
+        as: 'pollingUnit',
+        attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address'],
       },
     ],
   });
@@ -56,8 +54,7 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
   }
 
   const verificationStatus = voter.get('verificationStatus') as VerificationStatus | undefined;
-  const voterCard = voter.get('voterCard') as VoterCard | undefined;
-  const pollingUnit = voterCard?.get('polling_unit') as PollingUnit | undefined;
+  const pollingUnit = voter.get('pollingUnit') as PollingUnit | undefined;
 
   return {
     id: voter.id,
@@ -65,6 +62,7 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
     vin: voter.vin,
     phoneNumber: voter.phoneNumber,
     dateOfBirth: voter.dateOfBirth,
+    fullName: voter.fullName,
     isActive: voter.isActive,
     createdAt: voter.createdAt,
     lastLogin: voter.lastLogin,
@@ -81,23 +79,18 @@ export const getVoterProfile = async (voterId: string): Promise<any> => {
           lastVerified: verificationStatus.lastVerifiedAt,
         }
       : null,
-    voterCard: voterCard
-      ? {
-          id: voterCard.id,
-          vin: voterCard.vin,
-          issued: voterCard.issuedDate,
-          valid: voterCard.isValid,
-          pollingUnitCode: voterCard.pollingUnitCode,
-          pollingUnit: pollingUnit
-            ? {
-                id: pollingUnit.id,
-                name: pollingUnit.pollingUnitName,
-                code: pollingUnit.pollingUnitCode,
-                address: pollingUnit.address,
-              }
-            : null,
-        }
-      : null,
+    voterCard: {
+      vin: voter.vin,
+      pollingUnitCode: voter.pollingUnitCode,
+      pollingUnit: pollingUnit
+        ? {
+            id: pollingUnit.id,
+            name: pollingUnit.pollingUnitName,
+            code: pollingUnit.pollingUnitCode,
+            address: pollingUnit.address,
+          }
+        : null,
+    },
   };
 };
 
@@ -126,18 +119,15 @@ export const updateVoterProfile = async (
  * Get voter's assigned polling unit
  */
 export const getVoterPollingUnit = async (voterId: string): Promise<PollingUnit> => {
-  const voterCard = await VoterCard.findOne({
-    where: { userId: voterId },
-    include: [
-      {
-        model: PollingUnit,
-        as: 'polling_unit',
-        required: true,
-      },
-    ],
-  });
+  const voter = await Voter.findByPk(voterId);
 
-  const pollingUnit = voterCard?.get('polling_unit') as PollingUnit | undefined;
+  if (!voter) {
+    throw new ApiError(404, 'Voter not found');
+  }
+
+  const pollingUnit = await PollingUnit.findOne({
+    where: { pollingUnitCode: voter.pollingUnitCode },
+  });
 
   if (!pollingUnit) {
     throw new ApiError(404, 'Polling unit not assigned or found for voter');
@@ -248,8 +238,8 @@ export const changePassword = async (
 /**
  * Get voter public key
  */
-export const getVoterPublicKey = async (userId: string): Promise<string | null> => {
-  const voter = await Voter.findByPk(userId, {
+export const getVoterPublicKey = async (voterId: string): Promise<string | null> => {
+  const voter = await Voter.findByPk(voterId, {
     attributes: ['publicKey'],
   });
 
@@ -257,5 +247,5 @@ export const getVoterPublicKey = async (userId: string): Promise<string | null> 
     throw new ApiError(404, 'Voter not found');
   }
 
-  return voter.publicKey ?? null;
+  return voter.publicKey || null;
 };

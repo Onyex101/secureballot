@@ -122,32 +122,11 @@ async function toggleForeignKeyConstraints(queryInterface, disable = true) {
         : 'SET FOREIGN_KEY_CHECKS = 1;';
       break;
     case 'postgres':
-      // In PostgreSQL, we need to disable triggers that enforce foreign keys
-      if (disable) {
-        query = `
-          DO $$
-          BEGIN
-            EXECUTE (
-              SELECT 'ALTER TABLE ' || table_name || ' DISABLE TRIGGER ALL;'
-              FROM information_schema.tables
-              WHERE table_schema = 'public'
-              AND table_type = 'BASE TABLE'
-            );
-          END $$;
-        `;
-      } else {
-        query = `
-          DO $$
-          BEGIN
-            EXECUTE (
-              SELECT 'ALTER TABLE ' || table_name || ' ENABLE TRIGGER ALL;'
-              FROM information_schema.tables
-              WHERE table_schema = 'public'
-              AND table_type = 'BASE TABLE'
-            );
-          END $$;
-        `;
-      }
+      // For PostgreSQL, set session_replication_role to bypass triggers instead
+      // This doesn't require superuser privileges
+      query = disable 
+        ? 'SET session_replication_role = replica;' 
+        : 'SET session_replication_role = default;';
       break;
     case 'sqlite':
       query = disable 
@@ -164,6 +143,7 @@ async function toggleForeignKeyConstraints(queryInterface, disable = true) {
     console.log(`Foreign key constraints ${disable ? 'disabled' : 'enabled'}`);
   } catch (error) {
     console.error(`Error ${disable ? 'disabling' : 'enabling'} foreign key constraints:`, error.message);
+    // Try to continue even if we can't disable/enable constraints
   }
 }
 

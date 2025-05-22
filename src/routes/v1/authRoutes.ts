@@ -136,7 +136,6 @@ router.post(
   authLimiter,
   validate([
     body('identifier').notEmpty().withMessage(validationMessages.required('Identifier')),
-
     body('password').notEmpty().withMessage(validationMessages.required('Password')),
   ]),
   async (req, res, next) => {
@@ -640,6 +639,55 @@ router.post(
   async (req, res, next) => {
     try {
       await authController.resetPassword(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/admin-login:
+ *   post:
+ *     summary: Login as an admin
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 description: Admin password
+ *     responses:
+ *       200:
+ *         description: Admin login successful
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Account inactive
+ */
+router.post(
+  '/admin-login',
+  authLimiter,
+  validate([
+    body('email').isEmail().withMessage(validationMessages.email()),
+    body('password').notEmpty().withMessage(validationMessages.required('Password')),
+  ]),
+  async (req, res, next) => {
+    try {
+      await authController.adminLogin(req, res, next);
     } catch (error) {
       next(error);
     }

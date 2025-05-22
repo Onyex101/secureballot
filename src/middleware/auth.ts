@@ -3,15 +3,26 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { ApiError } from './errorHandler';
 import AdminUser from '../db/models/AdminUser';
+import Voter from '../db/models/Voter';
 import { config } from '../config/index';
+import { logger } from '../config/logger';
 
-// Define custom Request interface with user
+// Enhanced Request interface to support both admin and voter users
 export interface AuthRequest extends Request {
-  user?: AdminUser;
+  user?: any;
+  userType?: 'admin' | 'voter';
+  userId?: string;
+  role?: string;
+}
+
+interface JwtPayload extends jwt.JwtPayload {
+  id: string;
+  role: string;
 }
 
 /**
- * Middleware to authenticate JWT token
+ * Middleware to authenticate JWT token for both admin and voter users
+ * @route All protected routes
  */
 export const authenticate = async (
   req: AuthRequest,
@@ -32,17 +43,66 @@ export const authenticate = async (
     }
 
     try {
-      const decoded = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
-      const user = await AdminUser.findByPk(decoded.id);
-
-      if (!user) {
-        throw new ApiError(401, 'User not found', 'USER_NOT_FOUND');
+      // Use JWT_SECRET from config with proper fallback
+      const secret = config.jwt.secret || process.env.JWT_SECRET;
+      if (!secret) {
+        logger.error('JWT secret is not defined');
+        throw new ApiError(500, 'Internal server error', 'SERVER_ERROR');
       }
 
-      req.user = user;
+      const decoded = jwt.verify(token, secret) as JwtPayload;
+      
+      // Extract user ID and role from token
+      const userId = decoded.id;
+      const role = decoded.role;
+
+      if (!userId || !role) {
+        throw new ApiError(401, 'Invalid token payload', 'INVALID_TOKEN_PAYLOAD');
+      }
+
+      // Store user ID and role in request for easier access
+      req.userId = userId;
+      req.role = role;
+
+      // Handle different user types based on role
+      if (role === 'admin') {
+        const admin = await AdminUser.findByPk(userId, {
+          include: ['roles', 'permissions'],
+        });
+
+        if (!admin) {
+          throw new ApiError(401, 'Admin user not found', 'USER_NOT_FOUND');
+        }
+
+        if (!admin.isActive) {
+          throw new ApiError(403, 'Account is inactive', 'ACCOUNT_INACTIVE');
+        }
+
+        req.user = admin;
+        req.userType = 'admin';
+      } else if (role === 'voter') {
+        const voter = await Voter.findByPk(userId);
+
+        if (!voter) {
+          throw new ApiError(401, 'Voter not found', 'USER_NOT_FOUND');
+        }
+
+        if (!voter.isActive) {
+          throw new ApiError(403, 'Account is inactive', 'ACCOUNT_INACTIVE');
+        }
+
+        req.user = voter;
+        req.userType = 'voter';
+      } else {
+        throw new ApiError(403, 'Invalid user role', 'INVALID_ROLE');
+      }
+
       next();
     } catch (error) {
-      throw new ApiError(401, 'Invalid token', 'INVALID_TOKEN');
+      if (error instanceof jwt.JsonWebTokenError) {
+        throw new ApiError(401, 'Invalid or expired token', 'INVALID_TOKEN');
+      }
+      throw error;
     }
   } catch (error) {
     next(error);
@@ -50,50 +110,59 @@ export const authenticate = async (
 };
 
 /**
- * Middleware to authorize based on user roles
- * @param roles Allowed roles
+ * Middleware to ensure user is an admin
+ * @route Admin-only routes
  */
-export const authorize = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new ApiError(401, 'No token provided');
+    if (!req.user || req.userType !== 'admin') {
+      throw new ApiError(403, 'Admin access required', 'ADMIN_REQUIRED');
     }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
-    const user = await AdminUser.findByPk(decoded.id, {
-      include: ['roles', 'permissions'],
-    });
-
-    if (!user) {
-      throw new ApiError(401, 'User not found');
-    }
-
-    req.user = user;
     next();
   } catch (error) {
-    next(new ApiError(401, 'Invalid token'));
+    next(error);
   }
 };
 
 /**
- * Middleware to check specific permissions
- * @param requiredPermissions Required permissions
+ * Middleware to ensure user is a voter
+ * @route Voter-only routes
+ */
+export const requireVoter = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  try {
+    if (!req.user || req.userType !== 'voter') {
+      throw new ApiError(403, 'Voter access required', 'VOTER_REQUIRED');
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Middleware to check specific permissions for admin users
+ * @param requiredPermission Required permission string
+ * @route Admin routes with specific permission requirements
  */
 export const hasPermission = (requiredPermission: string) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) {
-        throw new ApiError(401, 'User not authenticated');
+      if (!req.user || req.userType !== 'admin') {
+        throw new ApiError(403, 'Admin access required', 'ADMIN_REQUIRED');
       }
 
-      const hasPermission = req.user.permissions?.some(
-        permission => permission.permissionName === requiredPermission,
+      // Check if user is a superadmin (always has all permissions)
+      if (req.user.adminType === 'superadmin') {
+        return next();
+      }
+
+      // Check specific permission
+      const hasRequiredPermission = req.user.permissions?.some(
+        (permission: any) => permission.permissionName === requiredPermission,
       );
 
-      if (!hasPermission) {
-        throw new ApiError(403, 'Access denied');
+      if (!hasRequiredPermission) {
+        throw new ApiError(403, `Required permission: ${requiredPermission}`, 'PERMISSION_DENIED');
       }
 
       next();
@@ -103,6 +172,10 @@ export const hasPermission = (requiredPermission: string) => {
   };
 };
 
+/**
+ * Middleware to check if MFA is enabled
+ * @route Routes requiring MFA
+ */
 export const requireMfa = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
     if (!req.user) {
@@ -119,6 +192,10 @@ export const requireMfa = (req: AuthRequest, res: Response, next: NextFunction):
   }
 };
 
+/**
+ * Middleware to check device verification for mobile routes
+ * @route Mobile routes requiring device verification
+ */
 export const requireDeviceVerification = (
   req: AuthRequest,
   res: Response,
@@ -129,13 +206,16 @@ export const requireDeviceVerification = (
       throw new ApiError(401, 'User not authenticated', 'AUTHENTICATION_REQUIRED');
     }
 
-    const deviceId = req.headers['x-device-id'];
+    const deviceId = req.headers['x-device-id'] as string;
 
     if (!deviceId) {
       throw new ApiError(400, 'Device ID required', 'DEVICE_ID_REQUIRED');
     }
 
     // TODO: Implement device verification logic
+    // This should check if the deviceId is registered for this user
+    // For now, we'll just pass through
+
     next();
   } catch (error) {
     next(error);

@@ -3,14 +3,14 @@ import Candidate from '../db/models/Candidate';
 import Voter from '../db/models/Voter';
 import PollingUnit from '../db/models/PollingUnit';
 import Vote, { VoteSource } from '../db/models/Vote';
-import VoterCard from '../db/models/VoterCard';
 import { v4 as uuidv4 } from 'uuid';
 import { Op, WhereOptions } from 'sequelize';
 import crypto from 'crypto';
 import { decrypt } from 'eciesjs';
 import { ApiError } from '../middleware/errorHandler';
 import db from '../db/models';
-import { logError, logWarn } from '../utils/logger';
+import { logError } from '../utils/logger';
+import { checkVoterEligibility } from './voterService';
 
 // --- IMPORTANT: Load the server's private key securely ---
 // This should come from a secure source like environment variables or a secret manager
@@ -166,17 +166,10 @@ export const getVoterDetails = async (userId: string) => {
   const voter = await Voter.findByPk(userId, {
     include: [
       {
-        model: db.VoterCard,
-        as: 'voterCard',
+        model: db.PollingUnit,
+        as: 'pollingUnit',
         required: false,
-        include: [
-          {
-            model: db.PollingUnit,
-            as: 'polling_unit',
-            required: false,
-            attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
-          },
-        ],
+        attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
       },
     ],
   });
@@ -185,8 +178,7 @@ export const getVoterDetails = async (userId: string) => {
     throw new ApiError(404, 'Voter not found');
   }
 
-  const voterCard = voter.get('voterCard') as VoterCard | undefined;
-  const pollingUnit = voterCard?.get('polling_unit') as PollingUnit | undefined;
+  const pollingUnit = voter.get('pollingUnit') as PollingUnit | undefined;
 
   return {
     id: voter.id,
@@ -280,55 +272,6 @@ const decryptVoteData = (encryptedDataHex: string): DecryptedVoteData => {
 };
 
 /**
- * Check if a voter is eligible for a specific election.
- */
-export const checkVoterEligibility = async (
-  userId: string,
-  electionId: string,
-): Promise<boolean> => {
-  const voter = await Voter.findByPk(userId, {
-    include: [
-      {
-        model: db.VoterCard,
-        as: 'voterCard',
-        required: true,
-      },
-    ],
-  });
-
-  const election = await Election.findByPk(electionId);
-
-  if (!voter || !election) {
-    return false;
-  }
-
-  if (!voter.isActive) {
-    return false;
-  }
-
-  if (election.status !== ElectionStatus.ACTIVE) {
-    return false;
-  }
-
-  const now = new Date();
-  if (now < election.startDate || now > election.endDate) {
-    return false;
-  }
-
-  const voterCard = voter.get('voterCard') as VoterCard | undefined;
-  if (!voterCard) {
-    return false;
-  }
-
-  if (election.eligibilityRules) {
-    // --- Placeholder for eligibility rules check ---
-    logWarn(`Eligibility rules check not fully implemented for election ${electionId}`);
-  }
-
-  return true;
-};
-
-/**
  * Cast a vote for an election.
  */
 export const castVote = async (
@@ -338,23 +281,14 @@ export const castVote = async (
   voteSource: VoteSource,
   clientPublicKey?: string,
 ): Promise<Vote> => {
-  const voter = await Voter.findByPk(userId, {
-    include: [
-      {
-        model: db.VoterCard,
-        as: 'voterCard',
-        required: true,
-      },
-    ],
-  });
+  const voter = await Voter.findByPk(userId);
 
   if (!voter) {
     throw new ApiError(404, 'Voter not found.');
   }
 
-  const voterCard = voter.get('voterCard') as VoterCard | undefined;
-  if (!voterCard) {
-    throw new ApiError(400, 'Voter registration incomplete (missing voter card).');
+  if (!voter.pollingUnitCode) {
+    throw new ApiError(400, 'Voter registration incomplete (missing polling unit code).');
   }
 
   const isEligible = await checkVoterEligibility(userId, electionId);
@@ -388,7 +322,7 @@ export const castVote = async (
   }
 
   const pollingUnit = await PollingUnit.findOne({
-    where: { pollingUnitCode: voterCard.pollingUnitCode },
+    where: { pollingUnitCode: voter.pollingUnitCode },
     attributes: ['id'],
   });
 

@@ -5,7 +5,6 @@ import Vote from '../db/models/Vote';
 import Candidate from '../db/models/Candidate';
 import PollingUnit from '../db/models/PollingUnit';
 import Voter from '../db/models/Voter';
-import VoterCard from '../db/models/VoterCard';
 import UssdVote from '../db/models/UssdVote';
 
 /**
@@ -20,13 +19,7 @@ export const getElectionStatistics = async (electionId: string): Promise<any> =>
 
   // Get total registered voters
   const totalRegisteredVoters = await Voter.count({
-    include: [
-      {
-        model: VoterCard,
-        as: 'voterCard',
-        required: true,
-      },
-    ],
+    where: Sequelize.literal('polling_unit_code IS NOT NULL'),
   });
 
   // Get total votes cast
@@ -55,8 +48,12 @@ export const getElectionStatistics = async (electionId: string): Promise<any> =>
   });
 
   // Calculate voter turnout
-  const voterTurnout =
-    totalRegisteredVoters > 0 ? (totalVotesCast / totalRegisteredVoters) * 100 : 0;
+  const voterTurnout = (() => {
+    if (totalRegisteredVoters > 0) {
+      return (totalVotesCast / totalRegisteredVoters) * 100;
+    }
+    return 0;
+  })();
 
   return {
     electionId: election.id,
