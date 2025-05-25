@@ -38,6 +38,12 @@
  *         - phoneNumber
  *         - dateOfBirth
  *         - password
+ *         - fullName
+ *         - pollingUnitCode
+ *         - state
+ *         - gender
+ *         - lga
+ *         - ward
  *       properties:
  *         nin:
  *           type: string
@@ -61,6 +67,31 @@
  *           format: password
  *           description: User password
  *           example: "securepassword123"
+ *         fullName:
+ *           type: string
+ *           description: Full name of the voter
+ *           example: "John Doe"
+ *         pollingUnitCode:
+ *           type: string
+ *           description: Assigned polling unit code
+ *           example: "PU001"
+ *         state:
+ *           type: string
+ *           description: State of residence
+ *           example: "Lagos"
+ *         gender:
+ *           type: string
+ *           enum: [male, female]
+ *           description: Gender of the voter
+ *           example: "male"
+ *         lga:
+ *           type: string
+ *           description: Local Government Area
+ *           example: "Ikeja"
+ *         ward:
+ *           type: string
+ *           description: Ward within the LGA
+ *           example: "Ward 1"
  *     MfaVerification:
  *       type: object
  *       required:
