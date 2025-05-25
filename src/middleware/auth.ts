@@ -51,7 +51,7 @@ export const authenticate = async (
       }
 
       const decoded = jwt.verify(token, secret) as JwtPayload;
-      
+
       // Extract user ID and role from token
       const userId = decoded.id;
       const role = decoded.role;

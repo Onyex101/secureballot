@@ -7,6 +7,7 @@ import * as mobileAuthController from '../../controllers/mobile/mobileAuthContro
 import * as mobileVoteController from '../../controllers/mobile/mobileVoteController';
 import * as mobilePollingUnitController from '../../controllers/mobile/mobilePollingUnitController';
 import * as mobileSyncController from '../../controllers/mobile/mobileSyncController';
+import * as locationController from '../../controllers/mobile/locationController';
 
 // This file contains routes specific to the mobile app
 const router = Router();
@@ -83,6 +84,47 @@ router.post(
     body('password').notEmpty().withMessage(validationMessages.required('Password')),
   ]),
   mobileAuthController.mobileLogin,
+);
+
+/**
+ * @swagger
+ * /api/v1/mobile/auth/request-device-verification:
+ *   post:
+ *     summary: Request device verification code
+ *     tags: [Mobile Integration]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - deviceId
+ *             properties:
+ *               deviceId:
+ *                 type: string
+ *                 description: Unique identifier for the device
+ *     responses:
+ *       200:
+ *         description: Verification code sent successfully
+ *       400:
+ *         description: Invalid device ID
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  '/auth/request-device-verification',
+  authenticate,
+  validate([
+    body('deviceId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Device ID'))
+      .isLength({ min: 36, max: 64 })
+      .withMessage('Device ID must be between 36 and 64 characters'),
+  ]),
+  mobileAuthController.requestDeviceVerification,
 );
 
 /**
@@ -318,6 +360,55 @@ router.get(
   ]),
   mobilePollingUnitController.getNearbyPollingUnits,
 );
+
+/**
+ * @swagger
+ * /api/v1/mobile/my-polling-unit:
+ *   get:
+ *     summary: Get user's assigned polling unit
+ *     tags: [Mobile Integration]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User's polling unit information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     pollingUnit:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         code:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         state:
+ *                           type: string
+ *                         lga:
+ *                           type: string
+ *                         ward:
+ *                           type: string
+ *                         latitude:
+ *                           type: number
+ *                         longitude:
+ *                           type: number
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Polling unit not found
+ */
+router.get('/my-polling-unit', authenticate, locationController.getUserPollingUnit);
 
 /**
  * @swagger

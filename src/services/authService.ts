@@ -16,6 +16,12 @@ interface VoterRegistrationData {
   phoneNumber: string;
   dateOfBirth: Date;
   password: string;
+  fullName: string;
+  pollingUnitCode: string;
+  state: string;
+  gender: string;
+  lga: string;
+  ward: string;
 }
 
 /**
@@ -40,16 +46,19 @@ export const registerVoter = async (data: VoterRegistrationData): Promise<Voter>
     throw new Error('Voter already exists');
   }
 
-  const hashedPassword = await bcrypt.hash(data.password, 10);
   const voter = await Voter.create({
     nin: data.nin,
     vin: data.vin,
     phoneNumber: data.phoneNumber,
     dateOfBirth: data.dateOfBirth,
     password: data.password,
-    passwordHash: hashedPassword,
-    isActive: true,
-    mfaEnabled: false,
+    passwordHash: '', // Will be set by beforeCreate hook
+    fullName: data.fullName,
+    pollingUnitCode: data.pollingUnitCode,
+    state: data.state,
+    gender: data.gender,
+    lga: data.lga,
+    ward: data.ward,
   });
 
   return voter;

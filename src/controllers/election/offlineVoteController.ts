@@ -11,6 +11,8 @@ import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { logger } from '../../config/logger';
 import { VoteSource } from '../../db/models/Vote';
+import { reconstructPrivateKey } from '../../services/electionKeyService';
+import { batchDecryptVotes, EncryptedVote } from '../../services/voteEncryptionService';
 
 /**
  * Generate offline voting package
@@ -133,8 +135,8 @@ export const generateOfflinePackage = async (
 };
 
 /**
- * Submit offline votes
- * @route POST /api/v1/elections/:electionId/submit-offline
+ * Submit offline votes (encrypted)
+ * @route POST /api/v1/elections/:electionId/offline-votes
  * @access Private
  */
 export const submitOfflineVotes = async (
@@ -142,30 +144,33 @@ export const submitOfflineVotes = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  const userId = req.user?.id;
   const { electionId } = req.params;
-  // Assuming encryptedVotes is an array of { candidateId: string, encryptedVote: string (base64) }
-  const { encryptedVotes, _signature, keyId } = req.body;
-  const processedVotesInfo: {
+  const { encryptedVotes, keyShares, adminId, reason } = req.body;
+  const userId = req.user?.id;
+  const processedVotesInfo: Array<{
     id?: string;
     candidateId: string;
     status: string;
     error?: string;
     receiptCode?: string;
-  }[] = [];
+  }> = [];
 
   try {
     if (!userId) {
       throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
     }
+
     if (!Array.isArray(encryptedVotes) || encryptedVotes.length === 0) {
+      throw new ApiError(400, 'Encrypted votes array is required', 'MISSING_ENCRYPTED_VOTES');
+    }
+
+    if (!Array.isArray(keyShares) || keyShares.length < 3) {
       throw new ApiError(
         400,
-        'encryptedVotes array is required and cannot be empty',
-        'MISSING_VOTE_DATA',
+        'At least 3 key shares required for decryption',
+        'INSUFFICIENT_KEY_SHARES',
       );
     }
-    // TODO: Add validation for signature and keyId presence if required
 
     // Check if election exists
     const election = await electionService.getElectionById(electionId);
@@ -173,18 +178,8 @@ export const submitOfflineVotes = async (
       throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
     }
 
-    // TODO: Implement secure key retrieval using keyId
-    // const privateKey = await getKeyFromSecureStore(keyId);
-    // if (!privateKey) { throw new ApiError(400, 'Invalid or expired key ID', 'INVALID_KEY_ID'); }
-    const _mockPrivateKey = 'PLACEHOLDER_RETRIEVED_PRIVATE_KEY'; // !! REPLACE WITH ACTUAL KEY RETRIEVAL !!
-
-    // TODO: Implement signature verification
-    // const dataToVerify = JSON.stringify(encryptedVotes); // Or however data was signed
-    // const isSignatureValid = encryptionService.verifySignature(dataToVerify, signature, storedPublicKey);
-    const isSignatureValid = true; // Placeholder
-    if (!isSignatureValid) {
-      throw new ApiError(400, 'Invalid signature', 'INVALID_SIGNATURE');
-    }
+    // Reconstruct private key from shares
+    const privateKey = reconstructPrivateKey(electionId, keyShares, { adminId, reason });
 
     // Get voter's assigned polling unit
     const pollingUnit = await voterService.getVoterPollingUnit(userId);
@@ -196,54 +191,55 @@ export const submitOfflineVotes = async (
       );
     }
 
-    // Process each vote within a transaction if multiple votes are atomic
-    // For simplicity here, processing individually. Consider transaction for atomicity.
-    for (const voteData of encryptedVotes) {
-      const { candidateId, encryptedVote } = voteData;
+    // Convert encrypted votes to proper format
+    const encryptedVoteObjects: EncryptedVote[] = encryptedVotes.map((vote: any) => ({
+      encryptedVoteData: Buffer.from(vote.encryptedVoteData, 'base64'),
+      encryptedAesKey: vote.encryptedAesKey,
+      iv: vote.iv,
+      voteHash: vote.voteHash,
+      publicKeyFingerprint: vote.publicKeyFingerprint,
+    }));
+
+    // Batch decrypt all votes
+    const decryptedVotes = batchDecryptVotes(encryptedVoteObjects, privateKey);
+
+    // Process each decrypted vote
+    for (let i = 0; i < decryptedVotes.length; i++) {
+      const voteData = decryptedVotes[i];
       let voteId: string | undefined;
       let receiptCode: string | undefined;
       let status: string = 'failed';
       let errorMsg: string | undefined;
 
       try {
-        if (!candidateId || !encryptedVote) {
-          throw new Error('Missing candidateId or encryptedVote for an entry.');
-        }
-
-        // TODO: Implement decryption using retrieved private key
-        // const decryptedPayload = encryptionService.decrypt(encryptedVote, mockPrivateKey);
-        // const voteContent = JSON.parse(decryptedPayload); // Assuming JSON payload
-        // Verify voteContent (e.g., matches candidateId, includes timestamp, etc.)
-        logger.info(
-          `Placeholder: Decrypting vote for candidate ${candidateId} from user ${userId}`,
-        );
-
-        // TODO: Re-evaluate this call. Should likely cast AFTER decryption and validation.
-        // The current voteService.castVote expects non-encrypted data implicitly.
-        // It also handles its own validations (eligibility, not voted). If we decrypt first,
-        // we might call a different service method or pass decrypted data.
-        // Temporarily calling castVote with placeholders assuming validation passes.
+        // Cast the decrypted vote
         const result = await voteService.castVote(
-          userId,
-          electionId,
-          candidateId,
-          pollingUnit.id,
-          VoteSource.OFFLINE, // Use OFFLINE source
-          // If decryption provides specific data, pass it here instead of relying on castVote internal generation
+          voteData.voterId,
+          voteData.electionId,
+          voteData.candidateId,
+          voteData.pollingUnitId,
+          VoteSource.OFFLINE,
         );
+
         voteId = result.id;
         receiptCode = result.receiptCode;
         status = 'processed';
       } catch (processingError) {
         logger.error(
-          `Error processing offline vote for candidate ${candidateId}, user ${userId}:`,
+          `Error processing offline vote for candidate ${voteData.candidateId}, user ${voteData.voterId}:`,
           processingError,
         );
         status = 'failed';
         errorMsg = (processingError as Error).message;
-        // Decide if one failure should stop all processing or just log and continue
       }
-      processedVotesInfo.push({ id: voteId, candidateId, status, error: errorMsg, receiptCode });
+
+      processedVotesInfo.push({
+        id: voteId,
+        candidateId: voteData.candidateId,
+        status,
+        error: errorMsg,
+        receiptCode,
+      });
     }
 
     // Check if any votes failed processing
@@ -257,12 +253,13 @@ export const submitOfflineVotes = async (
       req.ip || '',
       req.headers['user-agent'] || '',
       {
-        success: failedVotes.length === 0, // Overall success if no individual failures
+        success: failedVotes.length === 0,
         electionId,
         totalVotesSubmitted: encryptedVotes.length,
         successfulVotes: successfulVotes.length,
         failedVotes: failedVotes.length,
-        keyId, // Log keyId used
+        adminId,
+        reason,
       },
     );
 
@@ -277,12 +274,12 @@ export const submitOfflineVotes = async (
       success: overallStatus === 200,
       message: overallMessage,
       data: {
-        processedVotes: processedVotesInfo, // Return detailed status
+        processedVotes: processedVotesInfo,
         timestamp: new Date(),
       },
     });
   } catch (error) {
-    // Log catastrophic failure (e.g., signature invalid, election not found)
+    // Log catastrophic failure
     await auditService
       .createAuditLog(
         userId || 'unknown',
@@ -294,7 +291,7 @@ export const submitOfflineVotes = async (
           electionId,
           voteCount: Array.isArray(encryptedVotes) ? encryptedVotes.length : 0,
           error: (error as Error).message,
-          keyId: keyId || 'unknown',
+          adminId: adminId || 'unknown',
         },
       )
       .catch(logErr => logger.error('Failed to log offline vote submission error', logErr));

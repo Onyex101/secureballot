@@ -12,7 +12,19 @@ import { logError } from '../../utils/logger';
  */
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { nin, vin, phoneNumber, dateOfBirth, password } = req.body;
+    const {
+      nin,
+      vin,
+      phoneNumber,
+      dateOfBirth,
+      password,
+      fullName,
+      pollingUnitCode,
+      state,
+      gender,
+      lga,
+      ward,
+    } = req.body;
 
     // Check if voter already exists
     const voterExists = await authService.checkVoterExists(nin, vin);
@@ -34,6 +46,12 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       phoneNumber,
       dateOfBirth: new Date(dateOfBirth),
       password,
+      fullName,
+      pollingUnitCode,
+      state,
+      gender,
+      lga,
+      ward,
     });
 
     // Log the registration

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import { validate, validationMessages } from '../../middleware/validator';
 import { ussdLimiter } from '../../middleware/rateLimiter';
 import * as ussdSessionController from '../../controllers/ussd/ussdSessionController';
@@ -152,7 +152,7 @@ router.post(
 router.get(
   '/session-status',
   validate([
-    body('sessionCode')
+    query('sessionCode')
       .notEmpty()
       .withMessage(validationMessages.required('Session code'))
       .isLength({ min: 6, max: 10 })
@@ -208,6 +208,88 @@ router.post(
       .withMessage(validationMessages.phoneNumber()),
   ]),
   ussdVoteController.verifyVote,
+);
+
+/**
+ * @swagger
+ * /api/v1/ussd/menu:
+ *   post:
+ *     summary: Handle USSD menu navigation
+ *     tags: [USSD]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sessionId
+ *               - selection
+ *             properties:
+ *               sessionId:
+ *                 type: string
+ *                 example: "123456"
+ *               selection:
+ *                 type: string
+ *                 example: "1"
+ *     responses:
+ *       200:
+ *         description: Menu navigation processed
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Session not found
+ */
+router.post(
+  '/menu',
+  ussdLimiter,
+  validate([
+    body('sessionId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Session ID'))
+      .isLength({ min: 6, max: 10 })
+      .withMessage('Session ID must be 6-10 characters'),
+
+    body('selection').notEmpty().withMessage(validationMessages.required('Selection')),
+  ]),
+  ussdSessionController.handleMenuNavigation,
+);
+
+/**
+ * @swagger
+ * /api/v1/ussd/end:
+ *   post:
+ *     summary: End USSD session
+ *     tags: [USSD]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sessionId
+ *             properties:
+ *               sessionId:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Session ended successfully
+ *       404:
+ *         description: Session not found
+ */
+router.post(
+  '/end',
+  ussdLimiter,
+  validate([
+    body('sessionId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Session ID'))
+      .isLength({ min: 6, max: 10 })
+      .withMessage('Session ID must be 6-10 characters'),
+  ]),
+  ussdSessionController.endSession,
 );
 
 export default router;

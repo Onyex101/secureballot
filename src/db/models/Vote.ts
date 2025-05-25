@@ -19,7 +19,10 @@ interface VoteAttributes {
   candidateId: string;
   pollingUnitId: string;
   encryptedVoteData: Buffer;
+  encryptedAesKey: string;
+  iv: string;
   voteHash: string;
+  publicKeyFingerprint: string;
   voteTimestamp: Date;
   voteSource: VoteSource;
   isCounted: boolean;
@@ -41,7 +44,10 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
   public candidateId!: string;
   public pollingUnitId!: string;
   public encryptedVoteData!: Buffer;
+  public encryptedAesKey!: string;
+  public iv!: string;
   public voteHash!: string;
+  public publicKeyFingerprint!: string;
   public voteTimestamp!: Date;
   public voteSource!: VoteSource;
   public isCounted!: boolean;
@@ -137,9 +143,24 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
           type: DataTypes.BLOB,
           allowNull: false,
         },
+        encryptedAesKey: {
+          field: 'encrypted_aes_key',
+          type: DataTypes.TEXT,
+          allowNull: false,
+        },
+        iv: {
+          field: 'iv',
+          type: DataTypes.STRING(32),
+          allowNull: false,
+        },
         voteHash: {
           field: 'vote_hash',
           type: DataTypes.STRING(255),
+          allowNull: false,
+        },
+        publicKeyFingerprint: {
+          field: 'public_key_fingerprint',
+          type: DataTypes.STRING(16),
           allowNull: false,
         },
         voteTimestamp: {

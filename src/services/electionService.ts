@@ -335,6 +335,18 @@ export const castVote = async (
   const voteHash = crypto.createHash('sha256').update(voteDataToHash).digest('hex');
   const receiptCode = uuidv4();
 
+  // Generate required encryption fields for hybrid encryption
+  const aesKey = crypto.randomBytes(32); // 256-bit AES key
+  const iv = crypto.randomBytes(16); // 128-bit IV
+  const publicKeyFingerprint = crypto
+    .createHash('sha256')
+    .update(clientPublicKey || 'default-key')
+    .digest('hex')
+    .substring(0, 16);
+
+  // For now, store the AES key as-is (in production, this should be encrypted with public key)
+  const encryptedAesKey = aesKey.toString('hex');
+
   const vote = await db.sequelize.transaction(async t => {
     const newVote = await Vote.create(
       {
@@ -343,7 +355,10 @@ export const castVote = async (
         candidateId,
         pollingUnitId,
         encryptedVoteData: Buffer.from(encryptedVoteDataHex, 'hex'),
+        encryptedAesKey,
+        iv: iv.toString('hex'),
         voteHash,
+        publicKeyFingerprint,
         voteSource,
         receiptCode,
       },
@@ -447,4 +462,33 @@ export const publishElectionResults = async (
   await election.update(updateData);
 
   return election;
+};
+
+/**
+ * Get active elections
+ */
+export const getActiveElections = (): Promise<Election[]> => {
+  const now = new Date();
+  return Election.findAll({
+    where: {
+      status: ElectionStatus.ACTIVE,
+      startDate: { [Op.lte]: now },
+      endDate: { [Op.gte]: now },
+    },
+    order: [['startDate', 'ASC']],
+  });
+};
+
+/**
+ * Get upcoming elections
+ */
+export const getUpcomingElections = (): Promise<Election[]> => {
+  const now = new Date();
+  return Election.findAll({
+    where: {
+      status: ElectionStatus.SCHEDULED,
+      startDate: { [Op.gt]: now },
+    },
+    order: [['startDate', 'ASC']],
+  });
 };

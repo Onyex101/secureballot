@@ -14,3 +14,5 @@ export * as voteService from './voteService';
 export * as resultService from './resultService';
 export * as notificationService from './notificationService';
 export * as encryptionService from './encryptionService';
+export * as voteEncryptionService from './voteEncryptionService';
+export * as electionKeyService from './electionKeyService';

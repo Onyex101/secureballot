@@ -41,6 +41,7 @@ interface ElectionAttributes {
   resultsPublishedAt?: Date;
   preliminaryResultsPublished?: boolean;
   preliminaryResultsPublishedAt?: Date;
+  publicKeyFingerprint?: string;
 }
 
 interface ElectionCreationAttributes
@@ -79,6 +80,7 @@ class Election
   public resultsPublishedAt?: Date;
   public preliminaryResultsPublished?: boolean;
   public preliminaryResultsPublishedAt?: Date;
+  public publicKeyFingerprint?: string;
 
   public candidates?: Candidate[];
   public votes?: Vote[];
@@ -219,6 +221,11 @@ class Election
         preliminaryResultsPublishedAt: {
           type: DataTypes.DATE,
           field: 'preliminary_results_published_at',
+          allowNull: true,
+        },
+        publicKeyFingerprint: {
+          type: DataTypes.STRING(16),
+          field: 'public_key_fingerprint',
           allowNull: true,
         },
       },

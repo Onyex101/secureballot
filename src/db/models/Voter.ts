@@ -85,7 +85,7 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
 
     Voter.belongsTo(models.PollingUnit, {
       foreignKey: 'polling_unit_code',
-      targetKey: 'polling_unit_code',
+      targetKey: 'pollingUnitCode',
       as: 'pollingUnit',
     });
 

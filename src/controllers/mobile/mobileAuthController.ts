@@ -1,9 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import { authService, auditService } from '../../services';
+import { authService, auditService, notificationService, voterService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { logger } from '../../config/logger';
+import crypto from 'crypto';
+
+// In-memory store for device verification codes (in production, use Redis or database)
+const deviceVerificationCodes = new Map<
+  string,
+  {
+    code: string;
+    userId: string;
+    deviceId: string;
+    expiresAt: Date;
+    attempts: number;
+  }
+>();
 
 /**
  * Login via mobile app
@@ -104,6 +117,88 @@ export const mobileLogin = async (
 };
 
 /**
+ * Request device verification code
+ */
+export const requestDeviceVerification = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const userId = req.user?.id;
+  const { deviceId } = req.body;
+
+  try {
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+    if (!deviceId) {
+      throw new ApiError(400, 'Device ID is required', 'MISSING_DEVICE_ID');
+    }
+
+    // Generate a 6-digit verification code
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+
+    // Store the verification code
+    const codeKey = `${userId}-${deviceId}`;
+    deviceVerificationCodes.set(codeKey, {
+      code: verificationCode,
+      userId,
+      deviceId,
+      expiresAt,
+      attempts: 0,
+    });
+
+    // Get voter's phone number for SMS
+    const voter = await voterService.getVoterProfile(userId);
+    if (!voter) {
+      throw new ApiError(404, 'Voter not found', 'VOTER_NOT_FOUND');
+    }
+
+    // Send verification code via SMS
+    try {
+      await notificationService.sendSMS(
+        voter.phoneNumber,
+        `SecureBallot: Your device verification code is ${verificationCode}. Valid for 10 minutes.`,
+      );
+    } catch (smsError) {
+      logger.error('Failed to send device verification SMS', { userId, deviceId, error: smsError });
+      // Continue without failing - code is still valid for manual entry
+    }
+
+    // Log the request
+    await auditService.createAuditLog(
+      userId,
+      AuditActionType.DEVICE_VERIFY,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      { deviceId, success: true, action: 'request' },
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your registered phone number',
+      data: {
+        expiresAt,
+        phoneNumber: `***${voter.phoneNumber.slice(-4)}`, // Masked phone number
+      },
+    });
+  } catch (error) {
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.DEVICE_VERIFY,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { deviceId, success: false, error: (error as Error).message, action: 'request' },
+      )
+      .catch(logErr => logger.error('Failed to log device verification request error', logErr));
+
+    next(error);
+  }
+};
+
+/**
  * Verify mobile device
  */
 export const verifyDevice = async (
@@ -122,34 +217,73 @@ export const verifyDevice = async (
       throw new ApiError(400, 'deviceId and verificationCode are required', 'MISSING_DEVICE_INFO');
     }
 
-    // TODO: Implement proper device verification logic
-    // - Generate and send code (e.g., via SMS to registered number)
-    // - Store code with expiry associated with userId/deviceId
-    // - Compare submitted code with stored code
-    const isValid = verificationCode === '123456'; // Placeholder
+    // Get stored verification code
+    const codeKey = `${userId}-${deviceId}`;
+    const storedData = deviceVerificationCodes.get(codeKey);
+
+    if (!storedData) {
+      throw new ApiError(
+        400,
+        'No verification code found. Please request a new code.',
+        'NO_VERIFICATION_CODE',
+      );
+    }
+
+    // Check if code has expired
+    if (new Date() > storedData.expiresAt) {
+      deviceVerificationCodes.delete(codeKey);
+      throw new ApiError(
+        400,
+        'Verification code has expired. Please request a new code.',
+        'VERIFICATION_CODE_EXPIRED',
+      );
+    }
+
+    // Check attempt limit (max 3 attempts)
+    if (storedData.attempts >= 3) {
+      deviceVerificationCodes.delete(codeKey);
+      throw new ApiError(
+        400,
+        'Too many failed attempts. Please request a new code.',
+        'TOO_MANY_ATTEMPTS',
+      );
+    }
+
+    // Verify the code
+    const isValid = storedData.code === verificationCode.toString();
 
     if (!isValid) {
+      // Increment attempts
+      storedData.attempts += 1;
+      deviceVerificationCodes.set(codeKey, storedData);
+
       // Log failed verification attempt
       await auditService.createAuditLog(
         userId,
-        AuditActionType.DEVICE_VERIFY, // Use enum
+        AuditActionType.DEVICE_VERIFY,
         req.ip || '',
         req.headers['user-agent'] || '',
         {
           success: false,
           deviceId,
+          attempts: storedData.attempts,
           reason: 'Invalid verification code',
         },
       );
+
       throw new ApiError(400, 'Invalid verification code', 'INVALID_VERIFICATION_CODE');
     }
 
-    // TODO: Mark device as verified for the user in the database
+    // Code is valid - clean up and mark device as verified
+    deviceVerificationCodes.delete(codeKey);
+
+    // TODO: In production, store device verification in database
+    // await DeviceVerification.create({ userId, deviceId, verifiedAt: new Date() });
 
     // Log successful verification
     await auditService.createAuditLog(
       userId,
-      AuditActionType.DEVICE_VERIFY, // Use enum
+      AuditActionType.DEVICE_VERIFY,
       req.ip || '',
       req.headers['user-agent'] || '',
       { success: true, deviceId },
@@ -164,11 +298,23 @@ export const verifyDevice = async (
       data: {
         token,
         deviceVerified: true,
+        verifiedAt: new Date(),
       },
     });
   } catch (error: any) {
     // Log failure if not already logged
-    if (!(error instanceof ApiError && error.code === 'INVALID_VERIFICATION_CODE')) {
+    if (
+      !(
+        error instanceof ApiError &&
+        error.code &&
+        [
+          'INVALID_VERIFICATION_CODE',
+          'NO_VERIFICATION_CODE',
+          'VERIFICATION_CODE_EXPIRED',
+          'TOO_MANY_ATTEMPTS',
+        ].includes(error.code)
+      )
+    ) {
       await auditService
         .createAuditLog(
           userId || 'unknown',
@@ -180,5 +326,17 @@ export const verifyDevice = async (
         .catch(logErr => logger.error('Failed to log device verification error', logErr));
     }
     next(error);
+  }
+};
+
+/**
+ * Clean up expired verification codes (should be called periodically)
+ */
+export const cleanupExpiredCodes = (): void => {
+  const now = new Date();
+  for (const [key, data] of deviceVerificationCodes.entries()) {
+    if (now > data.expiresAt) {
+      deviceVerificationCodes.delete(key);
+    }
   }
 };

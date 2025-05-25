@@ -188,7 +188,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- * 
+ *
  *   post:
  *     summary: Create new election
  *     description: Create a new election (admin only)
@@ -283,7 +283,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- * 
+ *
  *   put:
  *     summary: Update election
  *     description: Update an existing election (admin only)
@@ -350,7 +350,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- * 
+ *
  *   delete:
  *     summary: Delete election
  *     description: Delete an election (admin only)
@@ -501,4 +501,4 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- */ 
+ */

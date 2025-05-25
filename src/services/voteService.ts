@@ -4,7 +4,8 @@ import Voter from '../db/models/Voter';
 import Election, { ElectionStatus } from '../db/models/Election';
 import Candidate from '../db/models/Candidate';
 import PollingUnit from '../db/models/PollingUnit';
-import { hashData } from './encryptionService';
+import { encryptVote, createVoteProof, VoteData } from './voteEncryptionService';
+import { getElectionPublicKey } from './electionKeyService';
 import { ApiError } from '../middleware/errorHandler';
 
 /**
@@ -66,12 +67,24 @@ export const castVote = async (
     throw new ApiError(409, 'Voter has already cast a vote in this election');
   }
 
-  // Create a hash of the vote for verification
-  const voteDataToHash = `${voterId}-${electionId}-${candidateId}-${pollingUnitId}-${Date.now()}`;
-  const voteHash = hashData(voteDataToHash);
+  // Get the election's public key for encryption
+  const electionPublicKey = getElectionPublicKey(electionId);
 
-  // Generate a receipt code from the hash
-  const receiptCode = voteHash.substring(0, 16).toUpperCase();
+  // Prepare vote data for encryption
+  const voteData: VoteData = {
+    voterId,
+    electionId,
+    candidateId,
+    pollingUnitId,
+    timestamp: new Date(),
+    voteSource,
+  };
+
+  // Encrypt the vote using hybrid encryption
+  const encryptedVote = encryptVote(voteData, electionPublicKey);
+
+  // Generate a receipt code from the vote proof
+  const receiptCode = createVoteProof(voteData, encryptedVote);
 
   // Create the vote record
   const vote = await Vote.create({
@@ -79,15 +92,18 @@ export const castVote = async (
     electionId,
     candidateId,
     pollingUnitId,
-    encryptedVoteData: Buffer.from('placeholder-encrypted-data'),
-    voteHash,
+    encryptedVoteData: encryptedVote.encryptedVoteData,
+    encryptedAesKey: encryptedVote.encryptedAesKey,
+    iv: encryptedVote.iv,
+    voteHash: encryptedVote.voteHash,
+    publicKeyFingerprint: encryptedVote.publicKeyFingerprint,
     receiptCode,
     voteSource,
   });
 
   return {
     id: vote.id,
-    voteHash,
+    voteHash: encryptedVote.voteHash,
     receiptCode,
     timestamp: vote.voteTimestamp,
   };

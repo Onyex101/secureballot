@@ -41,8 +41,8 @@ const BATCH_SIZE = process.env.SEED_BATCH_SIZE ?
   parseInt(process.env.SEED_BATCH_SIZE, 10) : 200;
 
 // Configuration for scaling data generation
-const POLLING_UNITS_PER_STATE = 1;
-const VOTERS_PER_POLLING_UNIT = 5;
+const POLLING_UNITS_PER_STATE = 10;
+const VOTERS_PER_POLLING_UNIT = 200;
 
 // Default values if not set
 const DEFAULT_MAX_VOTERS_PER_STATE = 400;

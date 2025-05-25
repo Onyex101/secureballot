@@ -303,6 +303,10 @@ export const castVote = async (req: AuthRequest, res: Response, next: NextFuncti
         }),
       ),
       voteHash: crypto.randomBytes(32).toString('hex'),
+      encryptedAesKey: 'placeholder-encrypted-key',
+      iv: crypto.randomBytes(16).toString('hex'),
+      publicKeyFingerprint: 'placeholder-fingerprint',
+      receiptCode: crypto.randomBytes(16).toString('hex'),
     });
 
     // Create audit log

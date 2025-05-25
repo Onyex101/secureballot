@@ -12,6 +12,7 @@ import * as systemAuditorController from '../../controllers/admin/systemAuditorC
 import * as securityOfficerController from '../../controllers/admin/securityOfficerController';
 import * as electoralCommissionerController from '../../controllers/admin/electoralCommissionerController';
 import * as resultVerificationController from '../../controllers/admin/resultVerificationController';
+import * as regionalOfficerController from '../../controllers/admin/regionalOfficerController';
 import * as verificationController from '../../controllers/voter/verificationController';
 import * as authController from '../../controllers/auth/authController';
 
@@ -633,6 +634,227 @@ router.post('/reject-results', async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/admin/regions/{state}/polling-units:
+ *   get:
+ *     summary: Get polling units in a region (Regional Officer only)
+ *     tags: [Regional Management]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: state
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - name: page
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *       - name: search
+ *         in: query
+ *         schema:
+ *           type: string
+ *       - name: lga
+ *         in: query
+ *         schema:
+ *           type: string
+ *       - name: ward
+ *         in: query
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Polling units in region returned
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Regional Officer
+ */
+router.get(
+  '/regions/:state/polling-units',
+  requireRole([UserRole.REGIONAL_OFFICER]),
+  adminLimiter,
+  validate([
+    param('state').notEmpty().withMessage(validationMessages.required('State')),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit')
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
+    query('search').optional(),
+    query('lga').optional(),
+    query('ward').optional(),
+  ]),
+  regionalOfficerController.getRegionPollingUnits,
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/polling-units:
+ *   post:
+ *     summary: Create a new polling unit (Regional Officer only)
+ *     tags: [Regional Management]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - pollingUnitName
+ *               - pollingUnitCode
+ *               - address
+ *               - state
+ *               - lga
+ *               - ward
+ *             properties:
+ *               pollingUnitName:
+ *                 type: string
+ *               pollingUnitCode:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               lga:
+ *                 type: string
+ *               ward:
+ *                 type: string
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Polling unit created successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Regional Officer
+ */
+router.post(
+  '/polling-units',
+  requireRole([UserRole.REGIONAL_OFFICER]),
+  adminLimiter,
+  validate([
+    body('pollingUnitName')
+      .notEmpty()
+      .withMessage(validationMessages.required('Polling unit name')),
+    body('pollingUnitCode')
+      .notEmpty()
+      .withMessage(validationMessages.required('Polling unit code')),
+    body('address').notEmpty().withMessage(validationMessages.required('Address')),
+    body('state').notEmpty().withMessage(validationMessages.required('State')),
+    body('lga').notEmpty().withMessage(validationMessages.required('LGA')),
+    body('ward').notEmpty().withMessage(validationMessages.required('Ward')),
+    body('latitude').optional().isFloat().withMessage('Latitude must be a number'),
+    body('longitude').optional().isFloat().withMessage('Longitude must be a number'),
+  ]),
+  regionalOfficerController.createPollingUnit,
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/polling-units/{pollingUnitId}:
+ *   put:
+ *     summary: Update a polling unit (Regional Officer only)
+ *     tags: [Regional Management]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: pollingUnitId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               pollingUnitName:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Polling unit updated successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Regional Officer
+ *       404:
+ *         description: Polling unit not found
+ */
+router.put(
+  '/polling-units/:pollingUnitId',
+  requireRole([UserRole.REGIONAL_OFFICER]),
+  adminLimiter,
+  validate([
+    param('pollingUnitId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Polling unit ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Polling unit ID')),
+    body('pollingUnitName').optional(),
+    body('address').optional(),
+    body('latitude').optional().isFloat().withMessage('Latitude must be a number'),
+    body('longitude').optional().isFloat().withMessage('Longitude must be a number'),
+  ]),
+  regionalOfficerController.updatePollingUnit,
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/regions/{state}/statistics:
+ *   get:
+ *     summary: Get regional statistics (Regional Officer only)
+ *     tags: [Regional Management]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: state
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Regional statistics returned
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a Regional Officer
+ */
+router.get(
+  '/regions/:state/statistics',
+  requireRole([UserRole.REGIONAL_OFFICER]),
+  adminLimiter,
+  validate([param('state').notEmpty().withMessage(validationMessages.required('State'))]),
+  regionalOfficerController.getRegionStatistics,
+);
 
 // Add more admin routes as needed...
 

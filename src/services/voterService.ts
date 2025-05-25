@@ -249,3 +249,43 @@ export const getVoterPublicKey = async (voterId: string): Promise<string | null>
 
   return voter.publicKey || null;
 };
+
+/**
+ * Get voter by NIN (National Identification Number)
+ */
+export const getVoterByNin = async (nin: string): Promise<any> => {
+  const voter = await Voter.findOne({
+    where: { nin },
+    include: [
+      {
+        model: PollingUnit,
+        as: 'pollingUnit',
+        attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address', 'ward', 'lga'],
+      },
+    ],
+  });
+
+  if (!voter) {
+    return null;
+  }
+
+  const pollingUnit = voter.get('pollingUnit') as PollingUnit | undefined;
+
+  return {
+    id: voter.id,
+    nin: voter.nin,
+    vin: voter.vin,
+    fullName: voter.fullName,
+    phoneNumber: voter.phoneNumber,
+    pollingUnit: pollingUnit
+      ? {
+          id: pollingUnit.id,
+          name: pollingUnit.pollingUnitName,
+          code: pollingUnit.pollingUnitCode,
+          address: pollingUnit.address,
+          ward: pollingUnit.ward,
+          lga: pollingUnit.lga,
+        }
+      : null,
+  };
+};

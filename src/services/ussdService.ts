@@ -378,3 +378,62 @@ export const processUssdRequest = (
 
   return `END Invalid input. Please try again.`;
 };
+
+/**
+ * Update session state
+ */
+export const updateSessionState = async (sessionId: string, newState: any): Promise<void> => {
+  const session = await UssdSession.findOne({
+    where: { sessionCode: sessionId },
+  });
+
+  if (!session) {
+    throw new ApiError(404, 'Session not found');
+  }
+
+  await session.update({
+    sessionData: newState,
+    lastActivity: new Date(),
+  });
+};
+
+/**
+ * End USSD session
+ */
+export const endSession = async (sessionId: string): Promise<void> => {
+  const session = await UssdSession.findOne({
+    where: { sessionCode: sessionId },
+  });
+
+  if (!session) {
+    throw new ApiError(404, 'Session not found');
+  }
+
+  await session.update({
+    isActive: false,
+    sessionStatus: UssdSessionStatus.COMPLETED,
+    lastActivity: new Date(),
+  });
+};
+
+/**
+ * Get session by session ID
+ */
+export const getSession = async (sessionId: string): Promise<any> => {
+  const session = await UssdSession.findOne({
+    where: { sessionCode: sessionId },
+  });
+
+  if (!session) {
+    return null;
+  }
+
+  return {
+    sessionCode: session.sessionCode,
+    userId: session.userId,
+    sessionData: session.sessionData,
+    isActive: session.isActive,
+    expiresAt: session.expiresAt,
+    lastActivity: session.lastActivity,
+  };
+};
