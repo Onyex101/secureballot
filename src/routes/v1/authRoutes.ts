@@ -27,6 +27,12 @@ const router = Router();
  *               - phoneNumber
  *               - dateOfBirth
  *               - password
+ *               - fullName
+ *               - pollingUnitCode
+ *               - state
+ *               - gender
+ *               - lga
+ *               - ward
  *             properties:
  *               nin:
  *                 type: string
@@ -49,6 +55,31 @@ const router = Router();
  *                 type: string
  *                 format: password
  *                 description: User password
+ *               fullName:
+ *                 type: string
+ *                 description: Full name of the voter
+ *                 example: "John Doe"
+ *               pollingUnitCode:
+ *                 type: string
+ *                 description: Assigned polling unit code
+ *                 example: "PU001"
+ *               state:
+ *                 type: string
+ *                 description: State of residence
+ *                 example: "Lagos"
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female]
+ *                 description: Gender of the voter
+ *                 example: "male"
+ *               lga:
+ *                 type: string
+ *                 description: Local Government Area
+ *                 example: "Ikeja"
+ *               ward:
+ *                 type: string
+ *                 description: Ward within the LGA
+ *                 example: "Ward 1"
  *     responses:
  *       201:
  *         description: Voter registered successfully
@@ -90,6 +121,42 @@ router.post(
       .withMessage(validationMessages.required('Password'))
       .isLength({ min: 8 })
       .withMessage('Password must be at least 8 characters'),
+
+    body('fullName')
+      .notEmpty()
+      .withMessage(validationMessages.required('Full name'))
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Full name must be between 2 and 100 characters'),
+
+    body('pollingUnitCode')
+      .notEmpty()
+      .withMessage(validationMessages.required('Polling unit code'))
+      .isLength({ min: 1, max: 50 })
+      .withMessage('Polling unit code must be between 1 and 50 characters'),
+
+    body('state')
+      .notEmpty()
+      .withMessage(validationMessages.required('State'))
+      .isLength({ min: 2, max: 50 })
+      .withMessage('State must be between 2 and 50 characters'),
+
+    body('gender')
+      .notEmpty()
+      .withMessage(validationMessages.required('Gender'))
+      .isIn(['male', 'female'])
+      .withMessage('Gender must be either male or female'),
+
+    body('lga')
+      .notEmpty()
+      .withMessage(validationMessages.required('LGA'))
+      .isLength({ min: 2, max: 50 })
+      .withMessage('LGA must be between 2 and 50 characters'),
+
+    body('ward')
+      .notEmpty()
+      .withMessage(validationMessages.required('Ward'))
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Ward must be between 1 and 100 characters'),
   ]),
   async (req, res, next) => {
     try {
