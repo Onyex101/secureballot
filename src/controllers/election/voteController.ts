@@ -20,7 +20,7 @@ export const castVote = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  const { electionId } = req.params;
+  const { id: electionId } = req.params;
   const { candidateId } = req.body;
   const userId = req.user?.id;
   let voteResult: { id: string; voteHash: string; receiptCode: string; timestamp: Date } | null =
@@ -299,7 +299,7 @@ export const checkVotingStatus = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  const { electionId } = req.params;
+  const { id: electionId } = req.params;
   const userId = req.user?.id;
 
   try {

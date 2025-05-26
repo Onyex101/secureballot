@@ -57,6 +57,7 @@ export const getElections = async (
 
     // Return paginated results
     res.status(200).json({
+      success: true,
       code: 'ELECTIONS_RETRIEVED',
       message: 'Elections retrieved successfully',
       data: {
@@ -93,7 +94,7 @@ export const getElectionById = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  const { electionId } = req.params;
+  const { id: electionId } = req.params;
   const userId = req.user?.id;
 
   try {
@@ -362,6 +363,7 @@ export const getVotingStatus = async (
     );
 
     res.status(200).json({
+      success: true,
       code: 'VOTER_STATUS_RETRIEVED',
       message: 'Voter status retrieved successfully',
       data: {
@@ -420,6 +422,7 @@ export const getElectionDashboard = async (
     }
 
     res.status(200).json({
+      success: true,
       code: 'ELECTION_DASHBOARD_RETRIEVED',
       message: 'Election dashboard data retrieved successfully',
       data: dashboardData,

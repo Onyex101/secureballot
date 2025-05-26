@@ -62,25 +62,25 @@ class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements Vote
 
   public static associate(models: any): void {
     Vote.belongsTo(models.Voter, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       targetKey: 'id',
       as: 'voter',
     });
 
     Vote.belongsTo(models.Election, {
-      foreignKey: 'electionId',
+      foreignKey: 'election_id',
       targetKey: 'id',
       as: 'election',
     });
 
     Vote.belongsTo(models.Candidate, {
-      foreignKey: 'candidateId',
+      foreignKey: 'candidate_id',
       targetKey: 'id',
       as: 'candidate',
     });
 
     Vote.belongsTo(models.PollingUnit, {
-      foreignKey: 'pollingUnitId',
+      foreignKey: 'polling_unit_id',
       targetKey: 'id',
       as: 'pollingUnit',
     });

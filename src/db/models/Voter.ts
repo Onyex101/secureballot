@@ -81,7 +81,7 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
 
   public static associate(models: any): void {
     Voter.hasOne(models.VerificationStatus, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       as: 'verificationStatus',
     });
 
@@ -92,25 +92,25 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
     });
 
     Voter.hasMany(models.Vote, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       sourceKey: 'id',
       as: 'votes',
     });
 
     Voter.hasMany(models.AuditLog, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       sourceKey: 'id',
       as: 'auditLogs',
     });
 
     Voter.hasMany(models.FailedAttempt, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       sourceKey: 'id',
       as: 'failedAttempts',
     });
 
     Voter.hasMany(models.UssdSession, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       sourceKey: 'id',
       as: 'ussdSessions',
     });
