@@ -3,6 +3,7 @@ import { AuthRequest } from '../../middleware/auth';
 import { candidateService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
 import { logger } from '../../config/logger';
 
 /**
@@ -17,7 +18,7 @@ export const getCandidates = async (
 ): Promise<void> => {
   const { electionId } = req.params;
   const { search, page = 1, limit = 50 } = req.query;
-  const userId = req.user?.id || 'unknown';
+  const userId = getSafeUserIdForAudit(req.user?.id);
   const queryParams = { search, page, limit };
 
   try {
@@ -76,7 +77,7 @@ export const getCandidateById = async (
   next: NextFunction,
 ): Promise<void> => {
   const { id } = req.params;
-  const userId = req.user?.id || 'unknown';
+  const userId = getSafeUserIdForAudit(req.user?.id);
 
   try {
     // Get candidate
@@ -167,7 +168,7 @@ export const createCandidate = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.CANDIDATE_CREATE,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -225,7 +226,7 @@ export const updateCandidate = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.CANDIDATE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -277,7 +278,7 @@ export const deleteCandidate = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.CANDIDATE_DELETE,
         req.ip || '',
         req.headers['user-agent'] || '',

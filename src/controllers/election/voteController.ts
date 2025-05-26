@@ -7,6 +7,7 @@ import { AuditActionType } from '../../db/models/AuditLog';
 import { VoteSource } from '../../db/models/Vote';
 import { sequelize } from '../../server';
 import { voteService, auditService, voterService, electionService } from '../../services';
+import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
 import { logger } from '../../config/logger';
 
 /**
@@ -91,7 +92,7 @@ export const castVote = async (
 
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.VOTE_CAST,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -127,7 +128,7 @@ export const verifyVote = async (
     const result = await voteService.verifyVote(receiptCode);
 
     await auditService.createAuditLog(
-      userId || 'verifier',
+      getSafeUserIdForAudit(userId), // Use null for anonymous verifiers
       AuditActionType.VOTE_VERIFY,
       req.ip || '',
       req.headers['user-agent'] || '',
@@ -155,7 +156,7 @@ export const verifyVote = async (
     if (!(error instanceof ApiError && error.code === 'VOTE_VERIFICATION_FAILED')) {
       await auditService
         .createAuditLog(
-          userId || 'verifier',
+          getSafeUserIdForAudit(userId), // Use null for anonymous verifiers
           AuditActionType.VOTE_VERIFY,
           req.ip || '',
           req.headers['user-agent'] || '',
@@ -202,7 +203,7 @@ export const getVoteHistory = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.VOTE_HISTORY_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -272,7 +273,7 @@ export const reportVoteIssue = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.VOTE_ISSUE_REPORT,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -338,7 +339,7 @@ export const checkVotingStatus = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.VOTE_STATUS_CHECK,
         req.ip || '',
         req.headers['user-agent'] || '',

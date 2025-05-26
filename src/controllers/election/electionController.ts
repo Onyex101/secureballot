@@ -5,6 +5,7 @@ import { electionService, auditService, voterService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { ElectionStatus } from '../../db/models/Election';
+import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
 
 import { logger } from '../../config/logger';
 
@@ -71,7 +72,7 @@ export const getElections = async (
     // Log failure using auditService
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.ELECTION_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -182,7 +183,7 @@ export const getElectionById = async (
     // Log failure using auditService
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.ELECTION_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -237,7 +238,7 @@ export const getElectionCandidates = async (
     // Log failure using auditService
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.ELECTION_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -302,7 +303,7 @@ export const getCandidateById = async (
     // Log failure using auditService
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.ELECTION_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -427,7 +428,7 @@ export const getElectionDashboard = async (
     // Log failure using auditService
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.ELECTION_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',

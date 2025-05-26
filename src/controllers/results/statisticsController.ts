@@ -4,6 +4,7 @@ import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { auditService, statisticsService, electionService, voteService } from '../../services';
 import { logger } from '../../config/logger';
+import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
 
 /**
  * Get election results (potentially with breakdown)
@@ -17,7 +18,7 @@ export const getElectionResults = async (
 ): Promise<void> => {
   const { electionId } = req.params;
   const { includePollingUnitBreakdown = false } = req.query;
-  const userId = req.user?.id || 'unknown';
+  const userId = getSafeUserIdForAudit(req.user?.id); // Safely get user ID for audit logging
   const context = { electionId, includePollingUnitBreakdown };
 
   try {
@@ -64,7 +65,7 @@ export const getRealTimeVotingStats = async (
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
-  const userId = req.user?.id || 'unknown';
+  const userId = getSafeUserIdForAudit(req.user?.id); // Safely get user ID for audit logging
 
   try {
     // Get real-time voting statistics
@@ -192,7 +193,7 @@ export const getElectionStatistics = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        req.user?.id || 'unknown',
+        getSafeUserIdForAudit(req.user?.id), // Safely get user ID for audit logging
         AuditActionType.ELECTION_STATISTICS_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -303,7 +304,7 @@ export const getRealTimeUpdates = async (
   } catch (error) {
     await auditService
       .createAuditLog(
-        req.user?.id || 'unknown',
+        getSafeUserIdForAudit(req.user?.id), // Safely get user ID for audit logging
         AuditActionType.REAL_TIME_UPDATES_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',

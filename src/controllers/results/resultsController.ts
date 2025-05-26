@@ -5,6 +5,7 @@ import { ElectionStatus } from '../../db/models/Election';
 import { resultService, electionService, auditService } from '../../services'; // Add services
 import { AuditActionType } from '../../db/models/AuditLog'; // Add AuditActionType
 import { logger } from '../../config/logger'; // Add logger
+import { getUserIdFromRequest } from '../../utils/auditHelpers';
 
 /**
  * Get live election results
@@ -17,7 +18,7 @@ export const getLiveResults = async (
   next: NextFunction,
 ): Promise<void> => {
   const { electionId } = req.params;
-  const viewerId = 'public_viewer'; // Or req.user?.id if authenticated route
+  const viewerId = getUserIdFromRequest(req); // Safely get user ID for audit logging
 
   try {
     // Get election using service
@@ -88,7 +89,7 @@ export const getResultsByRegion = async (
 ): Promise<void> => {
   const { electionId } = req.params;
   const { regionType = 'state', regionCode } = req.query;
-  const viewerId = 'public_viewer';
+  const viewerId = getUserIdFromRequest(req); // Safely get user ID for audit logging
   const context = { electionId, regionType, regionCode }; // For logging
 
   try {
@@ -176,7 +177,7 @@ export const getElectionStatistics = async (
   next: NextFunction,
 ): Promise<void> => {
   const { electionId } = req.params;
-  const viewerId = 'public_viewer';
+  const viewerId = getUserIdFromRequest(req); // Safely get user ID for audit logging
 
   try {
     // Get election using service

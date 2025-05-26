@@ -3,6 +3,7 @@ import { AuthRequest } from '../../middleware/auth';
 import { voterService, auditService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
 import { logger } from '../../config/logger';
 
 /**
@@ -42,7 +43,7 @@ export const getProfile = async (
     // Log failure
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.PROFILE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -111,7 +112,7 @@ export const updateProfile = async (
     // Log failure
     await auditService
       .createAuditLog(
-        userId || 'unknown',
+        getSafeUserIdForAudit(userId),
         AuditActionType.PROFILE_UPDATE,
         req.ip || '',
         req.headers['user-agent'] || '',
