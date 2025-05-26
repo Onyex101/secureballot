@@ -107,6 +107,68 @@ router.get(
 
 /**
  * @swagger
+ * /api/v1/elections/{electionId}/dashboard:
+ *   get:
+ *     summary: Get comprehensive election dashboard data
+ *     tags: [Elections]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Election dashboard data returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                   example: "ELECTION_DASHBOARD_RETRIEVED"
+ *                 message:
+ *                   type: string
+ *                   example: "Election dashboard data retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     overview:
+ *                       type: object
+ *                       description: "Overview statistics and election info"
+ *                     candidates:
+ *                       type: object
+ *                       description: "Candidates data and comparison"
+ *                     statistics:
+ *                       type: object
+ *                       description: "Detailed statistics by region, age, gender"
+ *                     liveUpdates:
+ *                       type: array
+ *                       description: "Live election updates and announcements"
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Election not found
+ */
+router.get(
+  '/:electionId/dashboard',
+  defaultLimiter,
+  validate([
+    param('electionId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+  ]),
+  electionController.getElectionDashboard,
+);
+
+/**
+ * @swagger
  * /api/v1/elections/{electionId}/candidates:
  *   get:
  *     summary: Get all candidates for an election

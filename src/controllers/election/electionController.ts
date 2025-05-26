@@ -1,17 +1,11 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import db from '../../db/models'; // Re-add db for direct access where needed
-// Import necessary services
-import {
-  electionService,
-  auditService,
-  voterService,
-  // voteService, // voteService has no checkIfVoted yet
-} from '../../services';
+import db from '../../db/models';
+import { electionService, auditService, voterService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { ElectionStatus } from '../../db/models/Election';
-import { Op } from 'sequelize';
+
 import { logger } from '../../config/logger';
 
 /**
@@ -29,38 +23,15 @@ export const getElections = async (
   const queryParams = { status, type, page, limit };
 
   try {
-    // TODO: Refactor to use enhanced electionService.getElections when available
-    const offset = (Number(page) - 1) * Number(limit);
-    const whereClause: any = {};
-    if (status === 'active') {
-      whereClause.status = ElectionStatus.ACTIVE;
-    } else if (status === 'upcoming') {
-      whereClause.startDate = { [Op.gt]: new Date() };
-      whereClause.status = ElectionStatus.SCHEDULED;
-    } else if (status === 'past') {
-      whereClause.endDate = { [Op.lt]: new Date() };
-      whereClause.status = { [Op.in]: [ElectionStatus.COMPLETED, ElectionStatus.CANCELLED] };
-    } else if (status) {
-      whereClause.status = status; // Allow filtering by specific status like DRAFT
-    }
-    if (type) {
-      whereClause.electionType = type;
-    }
-    const { count, rows: elections } = await db.Election.findAndCountAll({
-      where: whereClause,
-      attributes: [
-        'id',
-        'electionName',
-        'electionType',
-        'startDate',
-        'endDate',
-        'description',
-        'status',
-      ],
-      order: [['startDate', 'ASC']],
+    const result = await electionService.getElectionsWithPagination({
+      status: status as string,
+      type: type as string,
+      page: Number(page),
       limit: Number(limit),
-      offset,
+      search: req.query.search as string,
     });
+
+    const { elections } = result;
 
     // Get voter profile using voterService
     let voterProfile = null;
@@ -79,7 +50,7 @@ export const getElections = async (
         AuditActionType.ELECTION_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { filter: queryParams, resultsCount: count, success: true },
+        { filter: queryParams, resultsCount: result.pagination.total, success: true },
       );
     }
 
@@ -89,12 +60,7 @@ export const getElections = async (
       message: 'Elections retrieved successfully',
       data: {
         elections,
-        pagination: {
-          total: count,
-          page: Number(page),
-          limit: Number(limit),
-          pages: Math.ceil(count / Number(limit)),
-        },
+        pagination: result.pagination,
         // Extract verification status from profile
         voterStatus: voterProfile?.verification
           ? { isVerified: voterProfile.verification.identityVerified }
@@ -416,6 +382,58 @@ export const getVotingStatus = async (
         { electionId, view: 'voter_status', success: false, error: (error as Error).message },
       )
       .catch(logErr => logger.error('Failed to log voter status view error', logErr));
+    next(error);
+  }
+};
+
+/**
+ * Get comprehensive election dashboard data
+ * @route GET /api/v1/elections/:electionId/dashboard
+ * @access Private
+ */
+export const getElectionDashboard = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { electionId } = req.params;
+  const userId = req.user?.id;
+
+  try {
+    // Get comprehensive dashboard data using electionService
+    const dashboardData = await electionService.getElectionDashboard(electionId);
+
+    // Log action using auditService
+    if (userId) {
+      await auditService.createAuditLog(
+        userId,
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
+          electionId,
+          view: 'dashboard',
+          success: true,
+        },
+      );
+    }
+
+    res.status(200).json({
+      code: 'ELECTION_DASHBOARD_RETRIEVED',
+      message: 'Election dashboard data retrieved successfully',
+      data: dashboardData,
+    });
+  } catch (error) {
+    // Log failure using auditService
+    await auditService
+      .createAuditLog(
+        userId || 'unknown',
+        AuditActionType.ELECTION_VIEW,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        { electionId, view: 'dashboard', success: false, error: (error as Error).message },
+      )
+      .catch(logErr => logger.error('Failed to log dashboard view error', logErr));
     next(error);
   }
 };

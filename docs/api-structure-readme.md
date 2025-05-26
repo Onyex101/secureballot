@@ -86,14 +86,33 @@ The API uses JWT (JSON Web Token) based authentication:
 
 | Method | Endpoint | Description | Auth Required | Implementation Status |
 |--------|----------|-------------|--------------|---------------------|
-| GET | `/elections` | Get list of elections | Yes | ✅ Complete |
+| GET | `/elections` | Get list of elections with pagination and filtering | Yes | ✅ Complete |
 | GET | `/elections/:electionId` | Get election details | Yes | ✅ Complete |
+| GET | `/elections/:electionId/dashboard` | Get comprehensive dashboard data | Yes | ✅ Complete |
 | GET | `/elections/:electionId/candidates` | Get candidates for an election | Yes | ✅ Complete |
 | GET | `/elections/:electionId/candidates/:candidateId` | Get candidate details | Yes | ✅ Complete |
 | GET | `/elections/:electionId/voting-status` | Check voter's voting status for an election | Yes | ✅ Complete |
 | GET | `/elections/:electionId/offline-package` | Generate offline voting package | Yes | ✅ Complete |
 | POST | `/elections/:electionId/submit-offline` | Submit offline votes | Yes | ✅ Complete |
 | GET | `/elections/:electionId/offline-votes/:receiptCode` | Verify offline vote status | Yes | ✅ Complete |
+
+#### Election Dashboard API
+
+The comprehensive dashboard API (`/elections/:electionId/dashboard`) provides:
+- **Overview Section**: Election details, key statistics, vote distribution
+- **Candidates Section**: Complete candidate list with vote counts and percentages
+- **Statistics Section**: Regional breakdowns, turnout data, recent activity
+- **Live Updates**: Real-time announcements, results updates, security alerts
+- **Single Endpoint**: All dashboard data in one optimized API call
+- **Frontend Ready**: Structured for React/Next.js dashboard components
+
+**Data Returned**:
+- Real-time vote counts and turnout percentages
+- Candidate performance metrics and comparisons
+- Regional vote distribution by states
+- Polling unit reporting status
+- Recent voting activity feed
+- Live election announcements and updates
 
 #### Election Offline Voting
 

@@ -24,12 +24,14 @@ interface VoterAttributes {
   mfaEnabled: boolean;
   mfaBackupCodes: string[] | null;
   publicKey?: string;
+  password?: string;
 }
 
 interface VoterCreationAttributes
   extends Optional<
     VoterAttributes,
     | 'id'
+    | 'passwordHash'
     | 'recoveryToken'
     | 'recoveryTokenExpiry'
     | 'isActive'
@@ -203,6 +205,7 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           field: 'password_hash',
           type: DataTypes.STRING,
           allowNull: false,
+          defaultValue: '', // Temporary default, will be overridden by hook
         },
         recoveryToken: {
           field: 'recovery_token',
@@ -258,6 +261,10 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           type: DataTypes.TEXT,
           allowNull: true,
         },
+        password: {
+          type: DataTypes.VIRTUAL,
+          allowNull: true,
+        },
       },
       {
         sequelize,
@@ -274,17 +281,19 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
         ],
         hooks: {
           beforeCreate: async (voter: Voter) => {
+            // Ensure password is hashed before creation
             if (voter.password) {
               const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
               voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
-              voter.password = undefined;
+              delete voter.password;
             }
           },
           beforeUpdate: async (voter: Voter) => {
+            // Hash password on update if provided
             if (voter.password && voter.changed('passwordHash') === false) {
               const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
               voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
-              voter.password = undefined;
+              delete voter.password;
             }
           },
         },

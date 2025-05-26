@@ -25,6 +25,7 @@ This electronic voting system is designed to address the specific challenges of 
 - **Multi-channel voting**: Web interface, mobile app, and USSD support
 - **Multi-factor authentication**: Using National Identification Number (NIN), Voter Identification Number (VIN), and phone verification
 - **Hybrid encryption**: Secure vote storage using asymmetric and symmetric encryption
+- **Comprehensive dashboard API**: Single endpoint for complete election data and analytics
 - **Real-time monitoring**: Live election statistics and results visualization
 - **Role-based access control**: Granular permissions for various electoral officials
 - **Comprehensive audit trail**: Logging of all system activities for transparency
@@ -118,8 +119,9 @@ The API follows RESTful principles with clear endpoint organization.
 
 ### Election & Voting
 
-- **GET /elections**: Get list of all elections
+- **GET /elections**: Get list of all elections with pagination and filtering
 - **GET /elections/{electionId}**: Get details for a specific election
+- **GET /elections/{electionId}/dashboard**: Get comprehensive dashboard data
 - **GET /elections/{electionId}/candidates**: Get list of candidates
 - **POST /elections/{electionId}/vote**: Cast a vote in an election
 - **GET /elections/{electionId}/voting-status**: Check if voter has already voted

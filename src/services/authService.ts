@@ -52,7 +52,6 @@ export const registerVoter = async (data: VoterRegistrationData): Promise<Voter>
     phoneNumber: data.phoneNumber,
     dateOfBirth: data.dateOfBirth,
     password: data.password,
-    passwordHash: '', // Will be set by beforeCreate hook
     fullName: data.fullName,
     pollingUnitCode: data.pollingUnitCode,
     state: data.state,
@@ -75,7 +74,18 @@ export const authenticateVoter = async (
   nin: string;
   vin: string;
   phoneNumber: string;
+  fullName: string;
+  dateOfBirth: Date;
+  pollingUnitCode: string;
+  state: string;
+  lga: string;
+  ward: string;
+  gender: string;
+  isActive: boolean;
+  lastLogin: Date | null;
+  mfaEnabled: boolean;
   requiresMfa: boolean;
+  createdAt: Date;
 }> => {
   // Find voter by NIN, VIN, or phone number
   const voter = await Voter.findOne({
@@ -104,15 +114,26 @@ export const authenticateVoter = async (
     lastLogin: new Date(),
   });
 
-  // Determine if MFA is required (could be based on settings or user preferences)
-  const requiresMfa = false; // Placeholder logic
+  // Determine if MFA is required based on voter's MFA settings
+  const requiresMfa = voter.mfaEnabled;
 
   return {
     id: voter.id,
     nin: voter.nin,
     vin: voter.vin,
     phoneNumber: voter.phoneNumber,
+    fullName: voter.fullName,
+    dateOfBirth: voter.dateOfBirth,
+    pollingUnitCode: voter.pollingUnitCode,
+    state: voter.state,
+    lga: voter.lga,
+    ward: voter.ward,
+    gender: voter.gender,
+    isActive: voter.isActive,
+    lastLogin: voter.lastLogin,
+    mfaEnabled: voter.mfaEnabled,
     requiresMfa,
+    createdAt: voter.createdAt,
   };
 };
 
