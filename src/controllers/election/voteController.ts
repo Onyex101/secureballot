@@ -77,6 +77,7 @@ export const castVote = async (
     await transaction.commit();
 
     res.status(201).json({
+      success: true,
       code: 'VOTE_CAST_SUCCESS',
       message: 'Vote cast successfully',
       data: {
@@ -148,6 +149,7 @@ export const verifyVote = async (
     }
 
     res.status(200).json({
+      success: true,
       code: 'VOTE_VERIFIED',
       message: 'Vote verified successfully',
       data: result,
@@ -196,6 +198,7 @@ export const getVoteHistory = async (
     );
 
     res.status(200).json({
+      success: true,
       code: 'VOTE_HISTORY_RETRIEVED',
       message: 'Vote history retrieved successfully',
       data: history,
@@ -266,6 +269,7 @@ export const reportVoteIssue = async (
     );
 
     res.status(200).json({
+      success: true,
       code: 'VOTE_ISSUE_REPORTED',
       message: 'Issue reported successfully. Thank you for your feedback.',
       data: { reportId },
@@ -326,6 +330,7 @@ export const checkVotingStatus = async (
     );
 
     res.status(200).json({
+      success: true,
       code: 'VOTING_STATUS_CHECKED',
       message: 'Voting status retrieved successfully',
       data: {
