@@ -27,8 +27,8 @@ export const listUsers = async (
     );
 
     // Log the action using enum
-    await auditService.createAuditLog(
-      req.user?.id || 'unknown',
+    await auditService.createAdminAuditLog(
+      req.user?.id || null,
       AuditActionType.ADMIN_USER_LIST_VIEW,
       req.ip || '',
       req.headers['user-agent'] || '',
@@ -43,8 +43,8 @@ export const listUsers = async (
     // Log failure (optional, as global handler will log too)
     // logger.error('Error fetching admin users:', error);
     await auditService
-      .createAuditLog(
-        req.user?.id || 'unknown',
+      .createAdminAuditLog(
+        req.user?.id || null,
         AuditActionType.ADMIN_USER_LIST_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -95,7 +95,7 @@ export const createUser = async (
     );
 
     // Log the action using enum
-    await auditService.createAuditLog(
+    await auditService.createAdminAuditLog(
       creatorUserId,
       AuditActionType.ADMIN_USER_CREATE,
       req.ip || '',
@@ -122,8 +122,8 @@ export const createUser = async (
     // Log failure (optional, as global handler will log too)
     // logger.error('Error creating admin user:', error);
     await auditService
-      .createAuditLog(
-        req.user?.id || 'unknown',
+      .createAdminAuditLog(
+        req.user?.id || null,
         AuditActionType.ADMIN_USER_CREATE,
         req.ip || '',
         req.headers['user-agent'] || '',

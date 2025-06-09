@@ -33,6 +33,7 @@ export enum AuditActionType {
   POLLING_UNIT_UPDATE = 'polling_unit_update',
   REGION_STATS_VIEW = 'region_statistics_view',
   ELECTION_CREATE = 'election_create',
+  ELECTION_KEY_GENERATE = 'election_key_generate',
   RESULT_PUBLISH = 'result_publish',
   RESULT_VERIFICATION = 'result_verification',
   SECURITY_LOG_VIEW = 'security_log_view',

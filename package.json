@@ -31,6 +31,7 @@
     "db:seed:large": "SEED_BATCH_SIZE=10000 SEED_MAX_VOTERS_PER_STATE=50000 DISABLE_CONSTRAINTS=true DISABLE_INDEXES=true node --max-old-space-size=8192 --expose-gc src/db/seeders/run-optimized-seeder.js",
     "db:seed:debug": "DEBUG=true node src/db/seeders/run-optimized-seeder.js",
     "swagger-autogen": "ts-node src/scripts/swagger-autogen.ts",
+    "admin:create": "node src/db/scripts/createAdmin.js",
     "prepare": "husky install",
     "e2e": "docker compose -f docker-compose.test.yml up -d && node tests/e2e/index.js && docker compose -f docker-compose.test.yml down",
     "e2e:auth": "docker compose -f docker-compose.test.yml up -d && node tests/e2e/index.js auth && docker compose -f docker-compose.test.yml down",

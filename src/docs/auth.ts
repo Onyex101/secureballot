@@ -19,13 +19,14 @@
  *     AdminCredentials:
  *       type: object
  *       required:
- *         - nin
+ *         - email
  *         - password
  *       properties:
- *         nin:
+ *         email:
  *           type: string
- *           description: National Identification Number
- *           example: "12345678901"
+ *           format: email
+ *           description: Admin email address
+ *           example: "admin@example.com"
  *         password:
  *           type: string
  *           format: password
@@ -582,6 +583,417 @@
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Invalid or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/ussd/authenticate:
+ *   post:
+ *     summary: Authenticate a voter via USSD
+ *     tags: [USSD Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nin
+ *               - vin
+ *               - phoneNumber
+ *             properties:
+ *               nin:
+ *                 type: string
+ *                 description: 11-character National Identification Number
+ *                 example: "12345678901"
+ *               vin:
+ *                 type: string
+ *                 description: 19-character Voter Identification Number
+ *                 example: "1234567890123456789"
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Phone number for verification
+ *                 example: "+2348012345678"
+ *     responses:
+ *       200:
+ *         description: USSD authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "USSD authentication successful"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     sessionCode:
+ *                       type: string
+ *                       example: "123456"
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Invalid input parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/ussd/verify-session:
+ *   post:
+ *     summary: Verify USSD session and get authentication token
+ *     tags: [USSD Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sessionCode
+ *             properties:
+ *               sessionCode:
+ *                 type: string
+ *                 description: 6-10 character session code from USSD authentication
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: USSD session verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Session verified successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                     voter:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         nin:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *       400:
+ *         description: Invalid input parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Invalid or expired session
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/setup-mfa:
+ *   post:
+ *     summary: Set up MFA for authenticated user
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: MFA setup information returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "MFA setup initiated"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     qrCode:
+ *                       type: string
+ *                       description: QR code for authenticator app
+ *                     secret:
+ *                       type: string
+ *                       description: Manual entry secret
+ *                     backupCodes:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: One-time backup codes
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/enable-mfa:
+ *   post:
+ *     summary: Enable MFA after verification
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: 6-digit MFA token from authenticator app
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: MFA enabled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "MFA enabled successfully"
+ *       400:
+ *         description: Invalid input parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/disable-mfa:
+ *   post:
+ *     summary: Disable MFA for authenticated user
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: 6-digit MFA token for verification
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: MFA disabled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "MFA disabled successfully"
+ *       400:
+ *         description: Invalid input parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/generate-backup-codes:
+ *   post:
+ *     summary: Generate new backup codes for MFA
+ *     tags: [MFA]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Backup codes generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Backup codes generated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     backupCodes:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: Array of one-time backup codes
+ *                       example: ["ABC123", "DEF456", "GHI789"]
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/verify-backup-code:
+ *   post:
+ *     summary: Verify a backup code for MFA authentication
+ *     tags: [MFA]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - backupCode
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: User ID
+ *                 example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+ *               backupCode:
+ *                 type: string
+ *                 description: One-time backup code
+ *                 example: "ABC123"
+ *     responses:
+ *       200:
+ *         description: Backup code verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Backup code verified successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *       400:
+ *         description: Invalid input parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Invalid backup code
  *         content:
  *           application/json:
  *             schema:

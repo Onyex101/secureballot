@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import * as electionService from '../../services/electionService';
 import * as auditService from '../../services/auditService';
+import { generateElectionKeyPair } from '../../services/electionKeyService';
 import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
@@ -54,8 +55,24 @@ export const createElection = async (
       eligibilityRules,
     );
 
+    // Generate encryption keys for the election
+    let keyRecord = null;
+    try {
+      keyRecord = await generateElectionKeyPair(newElection.id, userId);
+      logger.info('Election keys generated successfully', {
+        electionId: newElection.id,
+        publicKeyFingerprint: keyRecord.publicKeyFingerprint,
+      });
+    } catch (keyError) {
+      logger.error('Failed to generate election keys, but election was created', {
+        electionId: newElection.id,
+        error: (keyError as Error).message,
+      });
+      // Continue - election was created successfully, keys can be generated later
+    }
+
     // Log the action
-    await auditService.createAuditLog(
+    await auditService.createAdminAuditLog(
       userId,
       AuditActionType.ELECTION_CREATE,
       req.ip || '',
@@ -65,25 +82,99 @@ export const createElection = async (
         electionId: newElection.id,
         electionName: newElection.electionName,
         electionType: newElection.electionType,
+        keysGenerated: keyRecord !== null,
+        publicKeyFingerprint: keyRecord?.publicKeyFingerprint,
       },
     );
 
     res.status(201).json({
       success: true,
       message: 'Election created successfully',
-      data: newElection,
+      data: {
+        ...newElection.toJSON(),
+        keysGenerated: keyRecord !== null,
+        publicKeyFingerprint: keyRecord?.publicKeyFingerprint,
+      },
     });
   } catch (error) {
     // Log failure
     await auditService
-      .createAuditLog(
-        userId || 'unknown',
+      .createAdminAuditLog(
+        userId || null,
         AuditActionType.ELECTION_CREATE,
         req.ip || '',
         req.headers['user-agent'] || '',
         { success: false, electionType, startDate, endDate, error: (error as Error).message },
       )
       .catch(logErr => logger.error('Failed to log election creation error', logErr));
+    next(error);
+  }
+};
+
+/**
+ * Generate encryption keys for an election
+ */
+export const generateElectionKeys = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const { electionId } = req.params;
+  const userId = req.user?.id;
+
+  try {
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+
+    // Check if election exists
+    const election = await electionService.getElectionById(electionId);
+    if (!election) {
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
+    }
+
+    // Generate encryption keys for the election
+    const keyRecord = await generateElectionKeyPair(electionId, userId);
+
+    // Log the action
+    await auditService.createAdminAuditLog(
+      userId,
+      AuditActionType.ELECTION_KEY_GENERATE,
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      {
+        success: true,
+        electionId: election.id,
+        electionName: election.electionName,
+        publicKeyFingerprint: keyRecord.publicKeyFingerprint,
+      },
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Election keys generated successfully',
+      data: {
+        electionId: keyRecord.electionId,
+        publicKeyFingerprint: keyRecord.publicKeyFingerprint,
+        keyGeneratedAt: keyRecord.keyGeneratedAt,
+        isActive: keyRecord.isActive,
+      },
+    });
+  } catch (error) {
+    // Log failure
+    await auditService
+      .createAdminAuditLog(
+        userId || null,
+        AuditActionType.ELECTION_KEY_GENERATE,
+        req.ip || '',
+        req.headers['user-agent'] || '',
+        {
+          success: false,
+          electionId,
+          error: (error as Error).message,
+        },
+      )
+      .catch(logErr => logger.error('Failed to log key generation error', logErr));
     next(error);
   }
 };
@@ -126,7 +217,7 @@ export const publishResults = async (
     );
 
     // Log the action
-    await auditService.createAuditLog(
+    await auditService.createAdminAuditLog(
       userId,
       AuditActionType.RESULT_PUBLISH,
       req.ip || '',

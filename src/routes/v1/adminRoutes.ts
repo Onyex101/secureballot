@@ -241,7 +241,8 @@ router.get(
  * @swagger
  * /api/v1/admin/elections:
  *   post:
- *     summary: Create a new election
+ *     summary: Create a new election and generate encryption keys
+ *     description: Creates a new election and automatically generates encryption keys for secure voting. If key generation fails, the election is still created successfully.
  *     tags: [Electoral Commissioner]
  *     security:
  *       - BearerAuth: []
@@ -259,22 +260,92 @@ router.get(
  *             properties:
  *               electionName:
  *                 type: string
+ *                 description: Name of the election
+ *                 example: "2024 Presidential Election"
  *               electionType:
  *                 type: string
  *                 enum: [Presidential, Gubernatorial, Senatorial, HouseOfReps, StateAssembly, LocalGovernment]
+ *                 description: Type of election
+ *                 example: "Presidential"
  *               startDate:
  *                 type: string
  *                 format: date-time
+ *                 description: Election start date and time
+ *                 example: "2024-12-20T08:00:00.000Z"
  *               endDate:
  *                 type: string
  *                 format: date-time
+ *                 description: Election end date and time
+ *                 example: "2024-12-20T18:00:00.000Z"
  *               description:
  *                 type: string
+ *                 description: Optional election description
+ *                 example: "Presidential election for the year 2024"
  *               eligibilityRules:
  *                 type: object
+ *                 description: Optional eligibility rules for voters
  *     responses:
  *       201:
- *         description: Election created successfully
+ *         description: Election created successfully with encryption keys
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Election created successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Election ID
+ *                       example: "f0c6ff28-374b-4f2b-8756-55147cd9a60f"
+ *                     electionName:
+ *                       type: string
+ *                       example: "2024 Presidential Election"
+ *                     electionType:
+ *                       type: string
+ *                       example: "Presidential"
+ *                     startDate:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-12-20T08:00:00.000Z"
+ *                     endDate:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-12-20T18:00:00.000Z"
+ *                     description:
+ *                       type: string
+ *                       nullable: true
+ *                       example: "Presidential election for the year 2024"
+ *                     isActive:
+ *                       type: boolean
+ *                       example: false
+ *                     status:
+ *                       type: string
+ *                       example: "draft"
+ *                     keysGenerated:
+ *                       type: boolean
+ *                       description: Whether encryption keys were successfully generated
+ *                       example: true
+ *                     publicKeyFingerprint:
+ *                       type: string
+ *                       description: Fingerprint of the generated public key (if keys were generated)
+ *                       example: "abc123def456"
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-12-19T15:30:00.000Z"
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-12-19T15:30:00.000Z"
  *       400:
  *         description: Invalid input data
  *       401:
@@ -322,6 +393,85 @@ router.post(
   ],
   validate([body('electionName'), body('electionType'), body('startDate'), body('endDate')]),
   electoralCommissionerController.createElection,
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/elections/{electionId}/generate-keys:
+ *   post:
+ *     summary: Generate encryption keys for an election
+ *     description: Generates encryption keys for an existing election that doesn't have keys yet. This is useful for elections created before automatic key generation was implemented.
+ *     tags: [Electoral Commissioner]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         description: The ID of the election to generate keys for
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         example: "f0c6ff28-374b-4f2b-8756-55147cd9a60f"
+ *     responses:
+ *       201:
+ *         description: Election keys generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Election keys generated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     electionId:
+ *                       type: string
+ *                       format: uuid
+ *                       description: Election ID
+ *                       example: "f0c6ff28-374b-4f2b-8756-55147cd9a60f"
+ *                     publicKeyFingerprint:
+ *                       type: string
+ *                       description: Fingerprint of the generated public key
+ *                       example: "abc123def456"
+ *                     keyGeneratedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: When the keys were generated
+ *                       example: "2024-12-19T15:30:00.000Z"
+ *                     isActive:
+ *                       type: boolean
+ *                       description: Whether the keys are active
+ *                       example: true
+ *       400:
+ *         description: Invalid election ID
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Election not found
+ *       409:
+ *         description: Keys already exist for this election
+ */
+router.post(
+  '/elections/:electionId/generate-keys',
+  requireRole([UserRole.ELECTORAL_COMMISSIONER, UserRole.ELECTION_MANAGER]),
+  defaultLimiter,
+  [
+    param('electionId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID(4)
+      .withMessage('Election ID must be a valid UUID'),
+  ],
+  validate([param('electionId')]),
+  electoralCommissionerController.generateElectionKeys,
 );
 
 /**

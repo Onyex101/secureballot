@@ -21,6 +21,25 @@ export const createAuditLog = (
 };
 
 /**
+ * Create an audit log entry for admin actions
+ */
+export const createAdminAuditLog = (
+  adminId: string | null,
+  actionType: string,
+  ipAddress: string,
+  userAgent: string,
+  actionDetails?: any,
+) => {
+  return AuditLog.create({
+    adminId,
+    actionType,
+    ipAddress,
+    userAgent,
+    actionDetails,
+  });
+};
+
+/**
  * Get audit logs with filtering and pagination
  */
 export const getAuditLogs = async (

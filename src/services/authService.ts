@@ -172,7 +172,6 @@ export const authenticateAdmin = async (email: string, password: string): Promis
   // Find admin by email
   const admin = await AdminUser.findOne({
     where: { email },
-    include: ['roles', 'permissions'],
   });
 
   if (!admin) {
@@ -188,6 +187,7 @@ export const authenticateAdmin = async (email: string, password: string): Promis
 
   // Verify password
   const isPasswordValid = await admin.validatePassword(password);
+
   if (!isPasswordValid) {
     logger.debug(`Admin authentication failed: Invalid password for email ${email}`);
     throw new Error('Invalid credentials');

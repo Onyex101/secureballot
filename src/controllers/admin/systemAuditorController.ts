@@ -31,7 +31,7 @@ export const getAuditLogs = async (
     );
 
     // Log this audit log view
-    await auditService.createAuditLog(
+    await auditService.createAdminAuditLog(
       requesterUserId,
       AuditActionType.AUDIT_LOG_VIEW,
       req.ip || '',
@@ -46,8 +46,8 @@ export const getAuditLogs = async (
   } catch (error) {
     // Log failure
     await auditService
-      .createAuditLog(
-        requesterUserId || 'unknown',
+      .createAdminAuditLog(
+        requesterUserId || null,
         AuditActionType.AUDIT_LOG_VIEW,
         req.ip || '',
         req.headers['user-agent'] || '',

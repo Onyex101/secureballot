@@ -1,10 +1,12 @@
 /**
  * Election Key Management Service
  * Handles generation, storage, and management of election encryption keys
+ * Now using persistent database storage instead of in-memory storage
  */
 import { generateElectionKeys } from './voteEncryptionService';
 import { hashData } from '../utils/encryption';
 import Election from '../db/models/Election';
+import ElectionKey from '../db/models/ElectionKey';
 import { logger } from '../config/logger';
 import { ApiError } from '../middleware/errorHandler';
 
@@ -16,12 +18,6 @@ export interface ElectionKeyRecord {
   keyGeneratedBy: string;
   isActive: boolean;
 }
-
-// In a real implementation, these would be stored in a secure key management system
-// For demo purposes, we'll use in-memory storage with the understanding that
-// in production this should use HSM (Hardware Security Module) or secure key vault
-const electionKeys = new Map<string, ElectionKeyRecord>();
-const privateKeyShares = new Map<string, string[]>(); // Election ID -> Array of key shares
 
 /**
  * Generate keys for a new election
@@ -38,29 +34,26 @@ export const generateElectionKeyPair = async (
     }
 
     // Check if keys already exist for this election
-    if (electionKeys.has(electionId)) {
+    const existingKey = await ElectionKey.findOne({ where: { electionId } });
+    if (existingKey) {
       throw new ApiError(409, 'Keys already exist for this election');
     }
 
     // Generate the key pair
     const keys = generateElectionKeys();
 
-    // Store public key and metadata
-    const keyRecord: ElectionKeyRecord = {
+    // Split private key into shares
+    const privateKeyShares = splitPrivateKey(keys.privateKey!);
+
+    // Store keys in database
+    const electionKey = await ElectionKey.create({
       electionId,
       publicKey: keys.publicKey,
       publicKeyFingerprint: keys.publicKeyFingerprint,
-      keyGeneratedAt: new Date(),
+      privateKeyShares,
       keyGeneratedBy: generatedBy,
       isActive: true,
-    };
-
-    electionKeys.set(electionId, keyRecord);
-
-    // In a real implementation, the private key would be split using Shamir's Secret Sharing
-    // and distributed to multiple key holders
-    const privateKeyShares_temp = splitPrivateKey(keys.privateKey!);
-    privateKeyShares.set(electionId, privateKeyShares_temp);
+    });
 
     // Update election record with public key fingerprint
     await election.update({
@@ -73,8 +66,15 @@ export const generateElectionKeyPair = async (
       generatedBy,
     });
 
-    // Return record without private key
-    return keyRecord;
+    // Return record without private key shares
+    return {
+      electionId: electionKey.electionId,
+      publicKey: electionKey.publicKey,
+      publicKeyFingerprint: electionKey.publicKeyFingerprint,
+      keyGeneratedAt: electionKey.keyGeneratedAt,
+      keyGeneratedBy: electionKey.keyGeneratedBy,
+      isActive: electionKey.isActive,
+    };
   } catch (error) {
     logger.error('Failed to generate election keys', {
       electionId,
@@ -87,9 +87,11 @@ export const generateElectionKeyPair = async (
 /**
  * Get public key for an election
  */
-export const getElectionPublicKey = (electionId: string): string => {
-  const keyRecord = electionKeys.get(electionId);
-  if (!keyRecord || !keyRecord.isActive) {
+export const getElectionPublicKey = async (electionId: string): Promise<string> => {
+  const keyRecord = await ElectionKey.findOne({
+    where: { electionId, isActive: true },
+  });
+  if (!keyRecord) {
     throw new ApiError(404, 'Election keys not found or inactive');
   }
   return keyRecord.publicKey;
@@ -98,25 +100,34 @@ export const getElectionPublicKey = (electionId: string): string => {
 /**
  * Get election key information (without private key)
  */
-export const getElectionKeyInfo = (electionId: string): ElectionKeyRecord => {
-  const keyRecord = electionKeys.get(electionId);
+export const getElectionKeyInfo = async (electionId: string): Promise<ElectionKeyRecord> => {
+  const keyRecord = await ElectionKey.findOne({ where: { electionId } });
   if (!keyRecord) {
     throw new ApiError(404, 'Election keys not found');
   }
-  return keyRecord;
+  return {
+    electionId: keyRecord.electionId,
+    publicKey: keyRecord.publicKey,
+    publicKeyFingerprint: keyRecord.publicKeyFingerprint,
+    keyGeneratedAt: keyRecord.keyGeneratedAt,
+    keyGeneratedBy: keyRecord.keyGeneratedBy,
+    isActive: keyRecord.isActive,
+  };
 };
 
 /**
  * Deactivate election keys (for security)
  */
-export const deactivateElectionKeys = (electionId: string, deactivatedBy: string): void => {
-  const keyRecord = electionKeys.get(electionId);
+export const deactivateElectionKeys = async (
+  electionId: string,
+  deactivatedBy: string,
+): Promise<void> => {
+  const keyRecord = await ElectionKey.findOne({ where: { electionId } });
   if (!keyRecord) {
     throw new ApiError(404, 'Election keys not found');
   }
 
-  keyRecord.isActive = false;
-  electionKeys.set(electionId, keyRecord);
+  await keyRecord.update({ isActive: false });
 
   logger.warn('Election keys deactivated', {
     electionId,
@@ -129,16 +140,18 @@ export const deactivateElectionKeys = (electionId: string, deactivatedBy: string
  * Reconstruct private key from shares (simplified implementation)
  * In a real system, this would use proper Shamir's Secret Sharing
  */
-export const reconstructPrivateKey = (
+export const reconstructPrivateKey = async (
   electionId: string,
   keyShares: string[],
   requesterInfo: { adminId: string; reason: string },
-): string => {
+): Promise<string> => {
   try {
-    const storedShares = privateKeyShares.get(electionId);
-    if (!storedShares) {
+    const keyRecord = await ElectionKey.findOne({ where: { electionId } });
+    if (!keyRecord) {
       throw new ApiError(404, 'Private key shares not found for election');
     }
+
+    const storedShares = keyRecord.privateKeyShares;
 
     // Verify we have enough shares (simplified - in real implementation would use threshold)
     if (keyShares.length < Math.ceil(storedShares.length / 2)) {
@@ -215,28 +228,46 @@ function reconstructFromShares(shares: string[]): string {
 /**
  * List all election keys (admin function)
  */
-export const listElectionKeys = (): ElectionKeyRecord[] => {
-  return Array.from(electionKeys.values());
+export const listElectionKeys = async (): Promise<ElectionKeyRecord[]> => {
+  const keys = await ElectionKey.findAll({
+    attributes: [
+      'electionId',
+      'publicKey',
+      'publicKeyFingerprint',
+      'keyGeneratedAt',
+      'keyGeneratedBy',
+      'isActive',
+    ],
+  });
+  return keys.map(key => ({
+    electionId: key.electionId,
+    publicKey: key.publicKey,
+    publicKeyFingerprint: key.publicKeyFingerprint,
+    keyGeneratedAt: key.keyGeneratedAt,
+    keyGeneratedBy: key.keyGeneratedBy,
+    isActive: key.isActive,
+  }));
 };
 
 /**
  * Verify election key integrity
  */
-export const verifyElectionKeyIntegrity = (electionId: string): boolean => {
+export const verifyElectionKeyIntegrity = async (electionId: string): Promise<boolean> => {
   try {
-    const keyRecord = electionKeys.get(electionId);
+    const keyRecord = await ElectionKey.findOne({ where: { electionId } });
     if (!keyRecord) {
       return false;
     }
 
-    // Verify public key fingerprint matches stored value
-    const computedFingerprint = hashData(keyRecord.publicKey).substring(0, 16);
-    return computedFingerprint === keyRecord.publicKeyFingerprint;
+    // Basic integrity check - verify fingerprint matches public key
+    const keys = {
+      publicKey: keyRecord.publicKey,
+      publicKeyFingerprint: keyRecord.publicKeyFingerprint,
+    };
+    const expectedFingerprint = hashData(keys.publicKey).substring(0, 16);
+    return keys.publicKeyFingerprint === expectedFingerprint;
   } catch (error) {
-    logger.error('Key integrity verification failed', {
-      electionId,
-      error: (error as Error).message,
-    });
+    logger.error('Failed to verify key integrity', { electionId, error });
     return false;
   }
 };

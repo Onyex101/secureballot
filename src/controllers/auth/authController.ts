@@ -264,7 +264,7 @@ export const adminLogin = async (
       const token = authService.generateToken(admin.id, 'admin');
 
       // Log the login
-      await auditService.createAuditLog(
+      await auditService.createAdminAuditLog(
         admin.id,
         AuditActionType.ADMIN_LOGIN,
         req.ip || '',
@@ -287,8 +287,9 @@ export const adminLogin = async (
         },
       });
     } catch (error) {
+      logger.info('Error:', { error });
       // Log failed login attempt
-      await auditService.createAuditLog(
+      await auditService.createAdminAuditLog(
         null,
         AuditActionType.ADMIN_LOGIN,
         req.ip || '',

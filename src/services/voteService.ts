@@ -7,6 +7,7 @@ import PollingUnit from '../db/models/PollingUnit';
 import { encryptVote, createVoteProof, VoteData } from './voteEncryptionService';
 import { getElectionPublicKey } from './electionKeyService';
 import { ApiError } from '../middleware/errorHandler';
+// import { logger } from '../config/logger';
 
 /**
  * Cast a vote in an election
@@ -20,6 +21,7 @@ export const castVote = async (
 ) => {
   // Validate voter exists
   const voter = await Voter.findByPk(voterId);
+
   if (!voter) {
     throw new ApiError(404, 'Voter not found');
   }
@@ -46,12 +48,14 @@ export const castVote = async (
       isActive: true,
     },
   });
+
   if (!candidate) {
     throw new ApiError(400, 'Candidate not found or not active for this election');
   }
 
   // Validate polling unit exists
   const pollingUnit = await PollingUnit.findByPk(pollingUnitId);
+
   if (!pollingUnit) {
     throw new ApiError(404, 'Polling unit not found');
   }
@@ -63,12 +67,13 @@ export const castVote = async (
       electionId,
     },
   });
+
   if (existingVote) {
     throw new ApiError(409, 'Voter has already cast a vote in this election');
   }
 
   // Get the election's public key for encryption
-  const electionPublicKey = getElectionPublicKey(electionId);
+  const electionPublicKey = await getElectionPublicKey(electionId);
 
   // Prepare vote data for encryption
   const voteData: VoteData = {

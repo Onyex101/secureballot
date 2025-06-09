@@ -323,7 +323,7 @@ export const submitOfflineVotes = async (
     const { batchDecryptVotes } = await import('../../services/voteEncryptionService');
 
     // Reconstruct private key from shares
-    const privateKey = reconstructPrivateKey(electionId, keyShares, { adminId, reason });
+    const privateKey = await reconstructPrivateKey(electionId, keyShares, { adminId, reason });
 
     // Get voter's polling unit
     const pollingUnit = await voterService.getVoterPollingUnit(userId);
