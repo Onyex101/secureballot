@@ -19,7 +19,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "allowSyntheticDefaultImports": true,
+    "preserveSymlinks": false
   },
   "include": [
     "src/**/*.ts",

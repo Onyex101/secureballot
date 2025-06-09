@@ -1,5 +1,12 @@
 declare module 'xss-clean' {
   import { RequestHandler } from 'express';
-  const xss: () => RequestHandler;
-  export = xss;
+
+  interface XssCleanOptions {
+    replaceWith?: string;
+    whiteList?: { [key: string]: any };
+  }
+
+  function xssClean(options?: XssCleanOptions): RequestHandler;
+
+  export = xssClean;
 }

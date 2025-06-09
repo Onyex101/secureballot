@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "npx tsc",
-    "postinstall": "tsc",
+    "heroku-postbuild": "npm run build",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
     "lint": "eslint . --ext .ts",
@@ -80,10 +80,10 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.4.5",
+    "typescript": "^4.9.5",
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
-    "xss-clean": "^0.1.4",
-    "typescript": "^5.8.2"
+    "xss-clean": "^0.1.4"
   },
   "devDependencies": {
     "@codegrenade/naija-faker": "^1.0.5",

@@ -5,7 +5,8 @@ import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import hpp from 'hpp';
-import xss from 'xss-clean';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const xss = require('xss-clean');
 import swaggerUi from 'swagger-ui-express';
 import path from 'path';
 
