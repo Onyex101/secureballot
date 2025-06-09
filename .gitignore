@@ -4,7 +4,6 @@ npm-shrinkwrap.json
 *.log
 *.gz
 
-dist
 logs
 
 # Coveralls
