@@ -10,17 +10,13 @@ import { defaultLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
-// All routes require authentication
-router.use(authenticate);
-
+// Public routes (no authentication required)
 /**
  * @swagger
  * /api/v1/elections:
  *   get:
- *     summary: Get list of elections
+ *     summary: Get list of elections with candidates (Public)
  *     tags: [Elections]
- *     security:
- *       - BearerAuth: []
  *     parameters:
  *       - name: status
  *         in: query
@@ -44,9 +40,79 @@ router.use(authenticate);
  *           default: 10
  *     responses:
  *       200:
- *         description: List of elections returned
- *       401:
- *         description: Unauthorized
+ *         description: List of elections with candidates returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: "ELECTIONS_RETRIEVED"
+ *                 message:
+ *                   type: string
+ *                   example: "Elections retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     elections:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           electionName:
+ *                             type: string
+ *                           electionType:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                           startDate:
+ *                             type: string
+ *                             format: date-time
+ *                           endDate:
+ *                             type: string
+ *                             format: date-time
+ *                           description:
+ *                             type: string
+ *                           candidates:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 fullName:
+ *                                   type: string
+ *                                 partyName:
+ *                                   type: string
+ *                                 partyCode:
+ *                                   type: string
+ *                                 profileImageUrl:
+ *                                   type: string
+ *                           candidateCount:
+ *                             type: integer
+ *                             description: Total number of candidates
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         pages:
+ *                           type: integer
+ *                     voterStatus:
+ *                       type: object
+ *                       nullable: true
  */
 router.get(
   '/',
@@ -68,6 +134,9 @@ router.get(
   ]),
   electionController.getElections,
 );
+
+// All other routes require authentication
+router.use(authenticate);
 
 /**
  * @swagger

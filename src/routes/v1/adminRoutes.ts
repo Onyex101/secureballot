@@ -1006,6 +1006,127 @@ router.get(
   regionalOfficerController.getRegionStatistics,
 );
 
+/**
+ * @swagger
+ * /api/v1/admin/dashboard:
+ *   get:
+ *     summary: Get comprehensive admin dashboard data
+ *     description: |
+ *       Retrieve all administrative dashboard data in a single API call including
+ *       system statistics, admin users, polling units, verification requests,
+ *       audit logs, and suspicious activities. This endpoint consolidates multiple
+ *       data sources to optimize dashboard loading performance.
+ *     tags:
+ *       - Electoral Commissioner
+ *       - Admin Dashboard
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: includeAuditLogs
+ *         in: query
+ *         description: Include audit logs in the response (default: true)
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *       - name: auditLogsLimit
+ *         in: query
+ *         description: Limit number of audit log entries returned
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *       - name: suspiciousActivitiesLimit
+ *         in: query
+ *         description: Limit number of suspicious activities returned
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Dashboard data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     systemStatistics:
+ *                       type: object
+ *                       properties:
+ *                         totalVoters:
+ *                           type: integer
+ *                           example: 2847392
+ *                         activeElections:
+ *                           type: integer
+ *                           example: 3
+ *                         totalVotes:
+ *                           type: integer
+ *                           example: 1923847
+ *                         completedElections:
+ *                           type: integer
+ *                           example: 12
+ *                         pendingVerifications:
+ *                           type: integer
+ *                           example: 156
+ *                         totalPollingUnits:
+ *                           type: integer
+ *                           example: 8842
+ *                         systemUptime:
+ *                           type: number
+ *                           format: float
+ *                           example: 99.97
+ *                         averageTurnout:
+ *                           type: number
+ *                           format: float
+ *                           example: 67.4
+ *                         lastUpdated:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2024-12-19T10:30:00Z"
+ *                 message:
+ *                   type: string
+ *                   example: "Dashboard data retrieved successfully"
+ *       401:
+ *         description: Unauthorized - Invalid or missing authentication token
+ *       403:
+ *         description: Forbidden - Insufficient permissions (not an admin user)
+ *       429:
+ *         description: Too Many Requests - Rate limit exceeded
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get(
+  '/dashboard',
+  requireRole([UserRole.SYSTEM_ADMIN, UserRole.ELECTORAL_COMMISSIONER]),
+  adminLimiter,
+  validate([
+    query('includeAuditLogs')
+      .optional()
+      .isBoolean()
+      .withMessage('includeAuditLogs must be a boolean'),
+    query('auditLogsLimit')
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage('auditLogsLimit must be between 1 and 100'),
+    query('suspiciousActivitiesLimit')
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage('suspiciousActivitiesLimit must be between 1 and 100'),
+  ]),
+  systemAdminController.getDashboard,
+);
+
 // Add more admin routes as needed...
 
 export default router;

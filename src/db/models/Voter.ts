@@ -1,10 +1,8 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
-import bcrypt from 'bcrypt';
+import { encryptIdentity, decryptIdentity } from '../../services/encryptionService';
 
 interface VoterAttributes {
   id: string;
-  nin: string;
-  vin: string;
   phoneNumber: string;
   dateOfBirth: Date;
   fullName: string;
@@ -13,7 +11,6 @@ interface VoterAttributes {
   gender: string;
   lga: string;
   ward: string;
-  passwordHash: string;
   recoveryToken: string | null;
   recoveryTokenExpiry: Date | null;
   isActive: boolean;
@@ -24,14 +21,18 @@ interface VoterAttributes {
   mfaEnabled: boolean;
   mfaBackupCodes: string[] | null;
   publicKey?: string;
-  password?: string;
+  ninEncrypted: string | null;
+  vinEncrypted: string | null;
+  email: string | null;
+  otpCode: string | null;
+  otpExpiresAt: Date | null;
+  otpVerified: boolean;
 }
 
 interface VoterCreationAttributes
   extends Optional<
     VoterAttributes,
     | 'id'
-    | 'passwordHash'
     | 'recoveryToken'
     | 'recoveryTokenExpiry'
     | 'isActive'
@@ -42,14 +43,19 @@ interface VoterCreationAttributes
     | 'mfaEnabled'
     | 'mfaBackupCodes'
     | 'publicKey'
+    | 'ninEncrypted'
+    | 'vinEncrypted'
+    | 'email'
+    | 'otpCode'
+    | 'otpExpiresAt'
+    | 'otpVerified'
   > {
-  password: string;
+  nin: string; // Virtual field for input
+  vin: string; // Virtual field for input
 }
 
 class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements VoterAttributes {
   public id!: string;
-  public nin!: string;
-  public vin!: string;
   public phoneNumber!: string;
   public dateOfBirth!: Date;
   public fullName!: string;
@@ -58,7 +64,6 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
   public gender!: string;
   public lga!: string;
   public ward!: string;
-  public passwordHash!: string;
   public recoveryToken!: string | null;
   public recoveryTokenExpiry!: Date | null;
   public isActive!: boolean;
@@ -69,14 +74,37 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
   public mfaEnabled!: boolean;
   public mfaBackupCodes!: string[] | null;
   public publicKey?: string;
+  public ninEncrypted!: string | null;
+  public vinEncrypted!: string | null;
+  public email!: string | null;
+  public otpCode!: string | null;
+  public otpExpiresAt!: Date | null;
+  public otpVerified!: boolean;
 
   public static readonly createdAt = 'createdAt';
   public static readonly updatedAt = 'updatedAt';
 
-  public password?: string;
+  // Virtual properties for input
+  public nin?: string;
+  public vin?: string;
 
-  public validatePassword(password: string): Promise<boolean> {
-    return bcrypt.compare(password, this.passwordHash);
+  // Getter methods to decrypt values when accessed
+  public get decryptedNin(): string | null {
+    if (!this.ninEncrypted) return null;
+    try {
+      return decryptIdentity(this.ninEncrypted);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  public get decryptedVin(): string | null {
+    if (!this.vinEncrypted) return null;
+    try {
+      return decryptIdentity(this.vinEncrypted);
+    } catch (error) {
+      return null;
+    }
   }
 
   public static associate(models: any): void {
@@ -123,24 +151,6 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           type: DataTypes.UUID,
           defaultValue: DataTypes.UUIDV4,
           primaryKey: true,
-        },
-        nin: {
-          type: DataTypes.STRING(11),
-          allowNull: false,
-          unique: true,
-          validate: {
-            len: [11, 11],
-            notEmpty: true,
-          },
-        },
-        vin: {
-          type: DataTypes.STRING(19),
-          allowNull: false,
-          unique: true,
-          validate: {
-            len: [19, 19],
-            notEmpty: true,
-          },
         },
         phoneNumber: {
           field: 'phone_number',
@@ -201,12 +211,6 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
             notEmpty: true,
           },
         },
-        passwordHash: {
-          field: 'password_hash',
-          type: DataTypes.STRING,
-          allowNull: false,
-          defaultValue: '', // Temporary default, will be overridden by hook
-        },
         recoveryToken: {
           field: 'recovery_token',
           type: DataTypes.STRING,
@@ -261,9 +265,38 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           type: DataTypes.TEXT,
           allowNull: true,
         },
-        password: {
-          type: DataTypes.VIRTUAL,
+        ninEncrypted: {
+          field: 'nin_encrypted',
+          type: DataTypes.STRING(255),
           allowNull: true,
+        },
+        vinEncrypted: {
+          field: 'vin_encrypted',
+          type: DataTypes.STRING(255),
+          allowNull: true,
+        },
+        email: {
+          type: DataTypes.STRING(100),
+          allowNull: true,
+          validate: {
+            isEmail: true,
+          },
+        },
+        otpCode: {
+          field: 'otp_code',
+          type: DataTypes.STRING(6),
+          allowNull: true,
+        },
+        otpExpiresAt: {
+          field: 'otp_expires_at',
+          type: DataTypes.DATE,
+          allowNull: true,
+        },
+        otpVerified: {
+          field: 'otp_verified',
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
         },
       },
       {
@@ -273,27 +306,35 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
         underscored: true,
         timestamps: true,
         indexes: [
-          { unique: true, fields: ['nin'] },
-          { unique: true, fields: ['vin'] },
+          { unique: true, fields: ['nin_encrypted'] },
+          { unique: true, fields: ['vin_encrypted'] },
           { fields: ['phone_number'] },
           { fields: ['polling_unit_code'] },
           { fields: ['state', 'lga', 'ward'] },
         ],
         hooks: {
-          beforeCreate: async (voter: Voter) => {
-            // Ensure password is hashed before creation
-            if (voter.password) {
-              const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
-              voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
-              delete voter.password;
+          beforeCreate: (voter: Voter) => {
+            // Encrypt nin and vin before creation
+            if (voter.nin) {
+              voter.ninEncrypted = encryptIdentity(voter.nin);
+              delete voter.nin; // Remove virtual field after encryption
+            }
+
+            if (voter.vin) {
+              voter.vinEncrypted = encryptIdentity(voter.vin);
+              delete voter.vin; // Remove virtual field after encryption
             }
           },
-          beforeUpdate: async (voter: Voter) => {
-            // Hash password on update if provided
-            if (voter.password && voter.changed('passwordHash') === false) {
-              const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
-              voter.passwordHash = await bcrypt.hash(voter.password, saltRounds);
-              delete voter.password;
+          beforeUpdate: (voter: Voter) => {
+            // Encrypt nin and vin on update if they are provided
+            if (voter.nin) {
+              voter.ninEncrypted = encryptIdentity(voter.nin);
+              delete voter.nin; // Remove virtual field after encryption
+            }
+
+            if (voter.vin) {
+              voter.vinEncrypted = encryptIdentity(voter.vin);
+              delete voter.vin; // Remove virtual field after encryption
             }
           },
         },

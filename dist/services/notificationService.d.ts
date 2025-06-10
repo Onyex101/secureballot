@@ -38,3 +38,15 @@ export declare const sendVoteReceipt: (phoneNumber: string, electionName: string
     messageId: string;
     timestamp: Date;
 }>;
+/**
+ * Send OTP via email for voter authentication
+ */
+export declare const sendOtpEmail: (email: string, otpCode: string, voterName: string) => Promise<boolean>;
+/**
+ * Send OTP via SMS as fallback
+ */
+export declare const sendOtpSms: (phoneNumber: string, otpCode: string, voterName: string) => Promise<boolean>;
+/**
+ * Send vote confirmation email
+ */
+export declare const sendVoteConfirmationEmail: (email: string, voterName: string, electionName: string, receiptCode: string) => Promise<boolean>;

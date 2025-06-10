@@ -6,6 +6,7 @@ import * as mfaController from '../../controllers/auth/mfaController';
 import * as ussdAuthController from '../../controllers/ussd/ussdAuthController';
 import { authenticate } from '../../middleware/auth';
 import { authLimiter } from '../../middleware/rateLimiter';
+import * as otpAuthController from '../../controllers/auth/otpAuthController';
 
 const router = Router();
 
@@ -171,7 +172,8 @@ router.post(
  * @swagger
  * /api/v1/auth/login:
  *   post:
- *     summary: Login a user
+ *     summary: Login a voter (POC - simplified)
+ *     description: Authenticate a voter using NIN and VIN only (no OTP required for POC)
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -180,38 +182,80 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - identifier
- *               - password
+ *               - nin
+ *               - vin
  *             properties:
- *               identifier:
+ *               nin:
  *                 type: string
- *                 description: NIN, VIN, or phone number
- *                 example: "12345678901"
- *               password:
+ *                 description: National Identification Number (11 digits)
+ *                 pattern: '^\d{11}$'
+ *                 example: '12345678901'
+ *               vin:
  *                 type: string
- *                 format: password
+ *                 description: Voter Identification Number (19 characters)
+ *                 pattern: '^[A-Z0-9]{19}$'
+ *                 example: 'VIN1234567890ABCDEF'
+ *           examples:
+ *             demo_voter:
+ *               summary: Demo voter credentials
+ *               value:
+ *                 nin: '12345678901'
+ *                 vin: 'VIN1234567890ABCDEF'
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Login successful'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT token for authentication
+ *                     voter:
+ *                       $ref: '#/components/schemas/Voter'
+ *                     poc:
+ *                       type: boolean
+ *                       example: true
+ *                     note:
+ *                       type: string
+ *                       example: 'POC: Login successful without OTP verification'
  *       400:
  *         description: Invalid input
  *       401:
  *         description: Invalid credentials
+ *       403:
+ *         description: Account not active
  */
 router.post(
   '/login',
   authLimiter,
   validate([
-    body('identifier').notEmpty().withMessage(validationMessages.required('Identifier')),
-    body('password').notEmpty().withMessage(validationMessages.required('Password')),
+    body('nin')
+      .notEmpty()
+      .withMessage('NIN is required')
+      .isNumeric()
+      .withMessage('NIN must contain only numbers')
+      .isLength({ min: 11, max: 11 })
+      .withMessage('NIN must be exactly 11 digits'),
+    body('vin')
+      .notEmpty()
+      .withMessage('VIN is required')
+      .isLength({ min: 19, max: 19 })
+      .withMessage('VIN must be exactly 19 characters')
+      .matches(/^[A-Z0-9]+$/)
+      .withMessage('VIN must contain only uppercase letters and numbers'),
   ]),
-  async (req, res, next) => {
-    try {
-      await authController.login(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  authController.login,
 );
 
 /**
@@ -759,6 +803,186 @@ router.post(
       next(error);
     }
   },
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/voter/request-login:
+ *   post:
+ *     summary: Request voter login (Step 1 of 2)
+ *     description: Initiate voter login by providing NIN and VIN. POC returns constant OTP 723111.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nin
+ *               - vin
+ *             properties:
+ *               nin:
+ *                 type: string
+ *                 description: National Identification Number (11 digits)
+ *                 pattern: '^\d{11}$'
+ *                 example: '12345678901'
+ *               vin:
+ *                 type: string
+ *                 description: Voter Identification Number (19 characters)
+ *                 pattern: '^[A-Z0-9]{19}$'
+ *                 example: 'VIN1234567890ABCDEF'
+ *           examples:
+ *             demo_request:
+ *               summary: Demo login request
+ *               value:
+ *                 nin: '12345678901'
+ *                 vin: 'VIN1234567890ABCDEF'
+ *     responses:
+ *       200:
+ *         description: OTP request successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'POC: Use constant OTP 723111 for verification'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       description: User ID for the next step
+ *                     email:
+ *                       type: string
+ *                       description: Email address (POC mode)
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: When the OTP expires
+ *                     constantOtp:
+ *                       type: string
+ *                       example: '723111'
+ *                       description: Constant OTP for POC
+ *                     poc:
+ *                       type: boolean
+ *                       example: true
+ *                     instruction:
+ *                       type: string
+ *                       example: 'Use OTP code 723111 in the next step'
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Account not active
+ */
+router.post(
+  '/voter/request-login',
+  authLimiter,
+  validate([
+    body('nin')
+      .notEmpty()
+      .withMessage('NIN is required')
+      .isNumeric()
+      .withMessage('NIN must contain only numbers')
+      .isLength({ min: 11, max: 11 })
+      .withMessage('NIN must be exactly 11 digits'),
+    body('vin')
+      .notEmpty()
+      .withMessage('VIN is required')
+      .isLength({ min: 19, max: 19 })
+      .withMessage('VIN must be exactly 19 characters')
+      .matches(/^[A-Z0-9]+$/)
+      .withMessage('VIN must contain only uppercase letters and numbers'),
+  ]),
+  otpAuthController.requestVoterLogin,
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/voter/verify-otp:
+ *   post:
+ *     summary: Verify OTP and complete login (Step 2 of 2)
+ *     description: Complete voter login by verifying OTP. POC accepts constant OTP 723111.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - otpCode
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID from step 1
+ *                 example: '123e4567-e89b-12d3-a456-426614174000'
+ *               otpCode:
+ *                 type: string
+ *                 description: OTP code (use 723111 for POC)
+ *                 example: '723111'
+ *           examples:
+ *             poc_verification:
+ *               summary: POC OTP verification
+ *               value:
+ *                 userId: '123e4567-e89b-12d3-a456-426614174000'
+ *                 otpCode: '723111'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Login successful'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT token for authentication
+ *                     user:
+ *                       $ref: '#/components/schemas/Voter'
+ *                     poc:
+ *                       type: boolean
+ *                       example: true
+ *                     loginMethod:
+ *                       type: string
+ *                       example: 'constant_otp_poc'
+ *                     constantOtp:
+ *                       type: string
+ *                       example: '723111'
+ *       400:
+ *         description: Invalid OTP or missing data
+ *       404:
+ *         description: Voter not found
+ */
+router.post(
+  '/voter/verify-otp',
+  authLimiter,
+  validate([
+    body('userId').notEmpty().withMessage('User ID is required'),
+    body('otpCode')
+      .notEmpty()
+      .withMessage('OTP code is required')
+      .isLength({ min: 6, max: 6 })
+      .withMessage('OTP must be exactly 6 digits'),
+  ]),
+  otpAuthController.verifyOtpAndLogin,
 );
 
 export default router;

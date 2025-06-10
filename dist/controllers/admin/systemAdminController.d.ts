@@ -8,3 +8,7 @@ export declare const listUsers: (req: AuthRequest, res: Response, next: NextFunc
  * Create a new admin user
  */
 export declare const createUser: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+/**
+ * Get comprehensive admin dashboard data
+ */
+export declare const getDashboard: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;

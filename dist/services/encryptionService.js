@@ -1,9 +1,32 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hashData = exports.decryptWithAES = exports.encryptWithAES = exports.generateAESKey = exports.decryptWithPrivateKey = exports.encryptWithPublicKey = exports.generateKeyPair = void 0;
+exports.generateIdentityFingerprint = exports.verifyIdentity = exports.hashIdentity = exports.decryptIdentity = exports.encryptIdentity = exports.hashData = exports.decryptWithAES = exports.encryptWithAES = exports.generateAESKey = exports.decryptWithPrivateKey = exports.encryptWithPublicKey = exports.generateKeyPair = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 /**
  * Generate RSA key pair
@@ -84,4 +107,80 @@ const hashData = (data) => {
     return crypto_1.default.createHash('sha256').update(data).digest('hex');
 };
 exports.hashData = hashData;
+/**
+ * Get encryption key from environment or generate default
+ */
+const getEncryptionKey = () => {
+    // In production, this should come from environment variables or a secure key management system
+    const envKey = process.env.IDENTITY_ENCRYPTION_KEY;
+    if (envKey && envKey.length === 64) {
+        // 32 bytes = 64 hex chars
+        return envKey;
+    }
+    // Fallback key (should be replaced in production)
+    return 'a'.repeat(64); // 32 bytes of 'a'
+};
+/**
+ * Encrypt NIN or VIN for secure storage
+ */
+const encryptIdentity = (identity) => {
+    try {
+        const key = getEncryptionKey();
+        const result = (0, exports.encryptWithAES)(identity, key);
+        // Combine IV and encrypted data for storage
+        return `${result.iv}:${result.encryptedData}`;
+    }
+    catch (error) {
+        throw new Error(`Failed to encrypt identity: ${error.message}`);
+    }
+};
+exports.encryptIdentity = encryptIdentity;
+/**
+ * Decrypt NIN or VIN for verification
+ */
+const decryptIdentity = (encryptedIdentity) => {
+    try {
+        const [iv, encryptedData] = encryptedIdentity.split(':');
+        if (!iv || !encryptedData) {
+            throw new Error('Invalid encrypted identity format');
+        }
+        const key = getEncryptionKey();
+        return (0, exports.decryptWithAES)(encryptedData, iv, key);
+    }
+    catch (error) {
+        throw new Error(`Failed to decrypt identity: ${error.message}`);
+    }
+};
+exports.decryptIdentity = decryptIdentity;
+/**
+ * Hash NIN or VIN for fast lookup (using bcrypt for security)
+ */
+const hashIdentity = async (identity) => {
+    const bcrypt = await Promise.resolve().then(() => __importStar(require('bcrypt')));
+    const saltRounds = 12; // Higher rounds for sensitive identity data
+    return bcrypt.hash(identity, saltRounds);
+};
+exports.hashIdentity = hashIdentity;
+/**
+ * Verify NIN or VIN against its hash
+ */
+const verifyIdentity = async (identity, hash) => {
+    try {
+        const bcrypt = await Promise.resolve().then(() => __importStar(require('bcrypt')));
+        return bcrypt.compare(identity, hash);
+    }
+    catch (error) {
+        return false;
+    }
+};
+exports.verifyIdentity = verifyIdentity;
+/**
+ * Generate a secure fingerprint for identity verification
+ */
+const generateIdentityFingerprint = (nin, vin) => {
+    // Create a unique fingerprint that doesn't reveal the actual values
+    const combined = `${nin}:${vin}`;
+    return crypto_1.default.createHash('sha256').update(combined).digest('hex').substring(0, 16);
+};
+exports.generateIdentityFingerprint = generateIdentityFingerprint;
 //# sourceMappingURL=encryptionService.js.map

@@ -22,9 +22,11 @@ interface AdminUserAttributes {
     mfaSecret: string | null;
     mfaEnabled: boolean;
     mfaBackupCodes: string[] | null;
+    ninEncrypted: string | null;
 }
-interface AdminUserCreationAttributes extends Optional<AdminUserAttributes, 'id' | 'isActive' | 'createdAt' | 'updatedAt' | 'lastLogin' | 'createdBy' | 'recoveryToken' | 'recoveryTokenExpiry' | 'mfaSecret' | 'mfaEnabled' | 'mfaBackupCodes'> {
+interface AdminUserCreationAttributes extends Optional<AdminUserAttributes, 'id' | 'isActive' | 'createdAt' | 'updatedAt' | 'lastLogin' | 'createdBy' | 'recoveryToken' | 'recoveryTokenExpiry' | 'mfaSecret' | 'mfaEnabled' | 'mfaBackupCodes' | 'ninEncrypted'> {
     password: string;
+    nin?: string;
 }
 declare class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttributes> implements AdminUserAttributes {
     id: string;
@@ -43,6 +45,7 @@ declare class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttr
     mfaSecret: string | null;
     mfaEnabled: boolean;
     mfaBackupCodes: string[] | null;
+    ninEncrypted: string | null;
     roles?: AdminRole[];
     permissions?: AdminPermission[];
     auditLogs?: AuditLog[];
@@ -51,6 +54,8 @@ declare class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttr
     creator?: AdminUser;
     createdUsers?: AdminUser[];
     password?: string;
+    nin?: string;
+    get decryptedNin(): string | null;
     static hashPassword(password: string): Promise<string>;
     validatePassword(password: string): Promise<boolean>;
     static associate(models: any): void;

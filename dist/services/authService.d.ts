@@ -75,4 +75,28 @@ export declare const resetPassword: (token: string, newPassword: string) => Prom
  * Note: In a real implementation, you might use a token blacklist or Redis
  */
 export declare const logoutUser: (userId: string) => Promise<boolean>;
+/**
+ * Find voter by NIN and VIN for new authentication flow
+ */
+export declare const findVoterByIdentity: (nin: string, vin: string) => Promise<Voter | null>;
+/**
+ * Find admin by NIN for new authentication flow
+ */
+export declare const findAdminByNin: (nin: string) => Promise<AdminUser | null>;
+/**
+ * Generate JWT token for voter
+ */
+export declare const generateVoterToken: (voter: Voter) => string;
+/**
+ * Generate JWT token for admin
+ */
+export declare const generateAdminToken: (admin: AdminUser) => string;
+/**
+ * Hash voter identity data for migration - Updated for encryption
+ */
+export declare const hashVoterIdentities: (voterId: string, nin: string, vin: string) => Promise<void>;
+/**
+ * Hash admin identity data for migration - Updated for encryption
+ */
+export declare const hashAdminIdentities: (adminId: string, nin: string) => Promise<void>;
 export {};

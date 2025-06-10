@@ -1,10 +1,10 @@
 import UssdSession, { UssdSessionStatus } from '../db/models/UssdSession';
 import UssdVote from '../db/models/UssdVote';
-import Voter from '../db/models/Voter';
 import Election from '../db/models/Election';
 import Candidate from '../db/models/Candidate';
 import { Op } from 'sequelize';
 import { ApiError } from '../middleware/errorHandler';
+import { findVoterByIdentity } from './authService';
 
 /**
  * Generate a random session code
@@ -30,17 +30,16 @@ export const startSession = async (
   vin: string,
   phoneNumber: string,
 ): Promise<{ sessionCode: string; expiresAt: Date }> => {
-  // Verify voter credentials
-  const voter = await Voter.findOne({
-    where: {
-      nin,
-      vin,
-      phoneNumber,
-    },
-  });
+  // Verify voter credentials using the new authentication method
+  const voter = await findVoterByIdentity(nin, vin);
 
   if (!voter) {
     throw new ApiError(401, 'Invalid voter credentials');
+  }
+
+  // Verify phone number matches
+  if (voter.phoneNumber !== phoneNumber) {
+    throw new ApiError(401, 'Phone number does not match records');
   }
 
   // Check if voter already has an active session

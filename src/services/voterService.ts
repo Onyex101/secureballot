@@ -3,6 +3,8 @@ import VerificationStatus from '../db/models/VerificationStatus';
 import PollingUnit from '../db/models/PollingUnit';
 import Vote from '../db/models/Vote';
 import { ApiError } from '../middleware/errorHandler';
+import { encryptIdentity } from './encryptionService';
+import { logger } from '../config/logger';
 
 /**
  * Get voter profile by ID
@@ -189,7 +191,7 @@ export const checkVoterEligibility = async (
       reason: 'Voter is eligible (verification status check temporarily disabled)',
     };
   } catch (error) {
-    console.error('Error in checkVoterEligibility:', error);
+    logger.error('Error in checkVoterEligibility:', error);
     throw error;
   }
 };
@@ -207,28 +209,18 @@ export const requestVerification = async (voterId: string): Promise<Verification
 };
 
 /**
- * Change voter password
+ * Change voter password - Deprecated with new authentication system
  */
-export const changePassword = async (
-  voterId: string,
-  currentPassword: string,
-  newPassword: string,
+export const changePassword = (
+  _voterId: string,
+  _currentPassword: string,
+  _newPassword: string,
 ): Promise<boolean> => {
-  const voter = await Voter.findByPk(voterId);
-
-  if (!voter) {
-    throw new ApiError(404, 'Voter not found');
-  }
-
-  const isPasswordValid = await voter.validatePassword(currentPassword);
-
-  if (!isPasswordValid) {
-    throw new ApiError(401, 'Current password is incorrect');
-  }
-
-  await (voter as any).update({ password: newPassword });
-
-  return true;
+  // Password-based authentication is no longer supported
+  throw new ApiError(
+    400,
+    'Password-based authentication is no longer supported. Please use NIN/VIN authentication.',
+  );
 };
 
 /**
@@ -250,38 +242,47 @@ export const getVoterPublicKey = async (voterId: string): Promise<string | null>
  * Get voter by NIN (National Identification Number)
  */
 export const getVoterByNin = async (nin: string): Promise<any> => {
-  const voter = await Voter.findOne({
-    where: { nin },
-    include: [
-      {
-        model: PollingUnit,
-        as: 'pollingUnit',
-        attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address', 'ward', 'lga'],
-      },
-    ],
-  });
+  try {
+    // Encrypt the input NIN to match against stored encrypted value
+    const ninEncrypted = encryptIdentity(nin);
 
-  if (!voter) {
+    // Query directly using encrypted value
+    const voter = await Voter.findOne({
+      where: { ninEncrypted },
+      include: [
+        {
+          model: PollingUnit,
+          as: 'pollingUnit',
+          attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address', 'ward', 'lga'],
+        },
+      ],
+    });
+
+    if (!voter) {
+      return null;
+    }
+
+    const pollingUnit = voter.get('pollingUnit') as PollingUnit | undefined;
+
+    return {
+      id: voter.id,
+      nin: voter.decryptedNin,
+      vin: voter.decryptedVin,
+      fullName: voter.fullName,
+      phoneNumber: voter.phoneNumber,
+      pollingUnit: pollingUnit
+        ? {
+            id: pollingUnit.id,
+            name: pollingUnit.pollingUnitName,
+            code: pollingUnit.pollingUnitCode,
+            address: pollingUnit.address,
+            ward: pollingUnit.ward,
+            lga: pollingUnit.lga,
+          }
+        : null,
+    };
+  } catch (error) {
+    // Return null if encryption or lookup fails
     return null;
   }
-
-  const pollingUnit = voter.get('pollingUnit') as PollingUnit | undefined;
-
-  return {
-    id: voter.id,
-    nin: voter.nin,
-    vin: voter.vin,
-    fullName: voter.fullName,
-    phoneNumber: voter.phoneNumber,
-    pollingUnit: pollingUnit
-      ? {
-          id: pollingUnit.id,
-          name: pollingUnit.pollingUnitName,
-          code: pollingUnit.pollingUnitCode,
-          address: pollingUnit.address,
-          ward: pollingUnit.ward,
-          lga: pollingUnit.lga,
-        }
-      : null,
-  };
 };

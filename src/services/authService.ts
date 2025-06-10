@@ -9,6 +9,7 @@ import Voter from '../db/models/Voter';
 import AdminUser from '../db/models/AdminUser';
 import { config } from '../config';
 import { logger } from '../config/logger';
+import { encryptIdentity } from './encryptionService';
 
 interface VoterRegistrationData {
   nin: string;
@@ -28,12 +29,7 @@ interface VoterRegistrationData {
  * Check if a voter exists with the given NIN or VIN
  */
 export const checkVoterExists = async (nin: string, vin: string): Promise<boolean> => {
-  const existingVoter = await Voter.findOne({
-    where: {
-      [Op.or]: [{ nin }, { vin }],
-    },
-  });
-
+  const existingVoter = await findVoterByIdentity(nin, vin);
   return existingVoter !== null;
 };
 
@@ -51,7 +47,6 @@ export const registerVoter = async (data: VoterRegistrationData): Promise<Voter>
     vin: data.vin,
     phoneNumber: data.phoneNumber,
     dateOfBirth: data.dateOfBirth,
-    password: data.password,
     fullName: data.fullName,
     pollingUnitCode: data.pollingUnitCode,
     state: data.state,
@@ -66,7 +61,7 @@ export const registerVoter = async (data: VoterRegistrationData): Promise<Voter>
 /**
  * Authenticate a voter
  */
-export const authenticateVoter = async (
+export const authenticateVoter = (
   identifier: string,
   password: string,
 ): Promise<{
@@ -87,54 +82,9 @@ export const authenticateVoter = async (
   requiresMfa: boolean;
   createdAt: Date;
 }> => {
-  // Find voter by NIN, VIN, or phone number
-  const voter = await Voter.findOne({
-    where: {
-      [Op.or]: [{ nin: identifier }, { vin: identifier }, { phoneNumber: identifier }],
-    },
-  });
-
-  if (!voter) {
-    throw new Error('Invalid credentials');
-  }
-
-  // Check if voter is active
-  if (!voter.isActive) {
-    throw new Error('Account is inactive');
-  }
-
-  // Verify password
-  const isPasswordValid = await bcrypt.compare(password, voter.passwordHash);
-  if (!isPasswordValid) {
-    throw new Error('Invalid credentials');
-  }
-
-  // Update last login
-  await voter.update({
-    lastLogin: new Date(),
-  });
-
-  // Determine if MFA is required based on voter's MFA settings
-  const requiresMfa = voter.mfaEnabled;
-
-  return {
-    id: voter.id,
-    nin: voter.nin,
-    vin: voter.vin,
-    phoneNumber: voter.phoneNumber,
-    fullName: voter.fullName,
-    dateOfBirth: voter.dateOfBirth,
-    pollingUnitCode: voter.pollingUnitCode,
-    state: voter.state,
-    lga: voter.lga,
-    ward: voter.ward,
-    gender: voter.gender,
-    isActive: voter.isActive,
-    lastLogin: voter.lastLogin,
-    mfaEnabled: voter.mfaEnabled,
-    requiresMfa,
-    createdAt: voter.createdAt,
-  };
+  throw new Error(
+    'Password-based voter authentication is no longer supported. Use NIN/VIN authentication instead.',
+  );
 };
 
 /**
@@ -301,4 +251,155 @@ export const logoutUser = (userId: string): Promise<boolean> => {
   // In a real implementation, you would invalidate the token
   // For now, we'll just return true
   return Promise.resolve(true);
+};
+
+/**
+ * Find voter by NIN and VIN for new authentication flow
+ */
+export const findVoterByIdentity = async (nin: string, vin: string): Promise<Voter | null> => {
+  try {
+    // Encrypt the input values to match against stored encrypted values
+    const ninEncrypted = encryptIdentity(nin);
+    const vinEncrypted = encryptIdentity(vin);
+
+    // Query directly using encrypted values
+    const voter = await Voter.findOne({
+      where: {
+        ninEncrypted,
+        vinEncrypted,
+      },
+    });
+
+    return voter;
+  } catch (error) {
+    logger.error('Error finding voter by identity', { error: (error as Error).message });
+    throw new Error('Authentication service error');
+  }
+};
+
+/**
+ * Find admin by NIN for new authentication flow
+ */
+export const findAdminByNin = async (nin: string): Promise<AdminUser | null> => {
+  try {
+    // Encrypt the input value to match against stored encrypted value
+    const ninEncrypted = encryptIdentity(nin);
+
+    // Query directly using encrypted value
+    const admin = await AdminUser.findOne({
+      where: {
+        ninEncrypted,
+      },
+    });
+
+    return admin;
+  } catch (error) {
+    logger.error('Error finding admin by NIN', { error: (error as Error).message });
+    throw new Error('Authentication service error');
+  }
+};
+
+/**
+ * Generate JWT token for voter
+ */
+export const generateVoterToken = (voter: Voter): string => {
+  const payload = {
+    id: voter.id,
+    type: 'voter',
+    fullName: voter.fullName,
+    pollingUnitCode: voter.pollingUnitCode,
+    state: voter.state,
+    lga: voter.lga,
+    ward: voter.ward,
+  };
+
+  const secret = config.jwt.secret || process.env.JWT_SECRET;
+  if (!secret) {
+    logger.error('JWT secret is not defined');
+    throw new Error('JWT secret is not configured');
+  }
+
+  const options: SignOptions = {
+    expiresIn: (config.jwt.expiresIn || '24h') as any,
+    issuer: 'SecureBallot',
+    subject: voter.id,
+  };
+
+  return jwt.sign(payload, secret as Secret, options);
+};
+
+/**
+ * Generate JWT token for admin
+ */
+export const generateAdminToken = (admin: AdminUser): string => {
+  const payload = {
+    id: admin.id,
+    type: 'admin',
+    fullName: admin.fullName,
+    email: admin.email,
+    role: admin.adminType,
+  };
+
+  const secret = config.jwt.secret || process.env.JWT_SECRET;
+  if (!secret) {
+    logger.error('JWT secret is not defined');
+    throw new Error('JWT secret is not configured');
+  }
+
+  const options: SignOptions = {
+    expiresIn: (config.jwt.expiresIn || '24h') as any,
+    issuer: 'SecureBallot',
+    subject: admin.id,
+  };
+
+  return jwt.sign(payload, secret as Secret, options);
+};
+
+/**
+ * Hash voter identity data for migration - Updated for encryption
+ */
+export const hashVoterIdentities = async (
+  voterId: string,
+  nin: string,
+  vin: string,
+): Promise<void> => {
+  try {
+    const ninEncrypted = encryptIdentity(nin);
+    const vinEncrypted = encryptIdentity(vin);
+
+    await Voter.update(
+      {
+        ninEncrypted,
+        vinEncrypted,
+      },
+      {
+        where: { id: voterId },
+      },
+    );
+  } catch (error) {
+    logger.error('Error encrypting voter identities', { voterId, error: (error as Error).message });
+    throw error;
+  }
+};
+
+/**
+ * Hash admin identity data for migration - Updated for encryption
+ */
+export const hashAdminIdentities = async (adminId: string, nin: string): Promise<void> => {
+  try {
+    // Encrypt NIN for storage
+    const encryptedNin = encryptIdentity(nin);
+
+    await AdminUser.update(
+      {
+        ninEncrypted: encryptedNin,
+      },
+      {
+        where: { id: adminId },
+      },
+    );
+  } catch (error) {
+    logger.error('Error encrypting admin identities', { adminId, error: (error as Error).message });
+    throw error;
+  }
 };

@@ -1,8 +1,6 @@
 import { Model, Sequelize, Optional } from 'sequelize';
 interface VoterAttributes {
     id: string;
-    nin: string;
-    vin: string;
     phoneNumber: string;
     dateOfBirth: Date;
     fullName: string;
@@ -11,7 +9,6 @@ interface VoterAttributes {
     gender: string;
     lga: string;
     ward: string;
-    passwordHash: string;
     recoveryToken: string | null;
     recoveryTokenExpiry: Date | null;
     isActive: boolean;
@@ -22,15 +19,19 @@ interface VoterAttributes {
     mfaEnabled: boolean;
     mfaBackupCodes: string[] | null;
     publicKey?: string;
-    password?: string;
+    ninEncrypted: string | null;
+    vinEncrypted: string | null;
+    email: string | null;
+    otpCode: string | null;
+    otpExpiresAt: Date | null;
+    otpVerified: boolean;
 }
-interface VoterCreationAttributes extends Optional<VoterAttributes, 'id' | 'passwordHash' | 'recoveryToken' | 'recoveryTokenExpiry' | 'isActive' | 'lastLogin' | 'createdAt' | 'updatedAt' | 'mfaSecret' | 'mfaEnabled' | 'mfaBackupCodes' | 'publicKey'> {
-    password: string;
+interface VoterCreationAttributes extends Optional<VoterAttributes, 'id' | 'recoveryToken' | 'recoveryTokenExpiry' | 'isActive' | 'lastLogin' | 'createdAt' | 'updatedAt' | 'mfaSecret' | 'mfaEnabled' | 'mfaBackupCodes' | 'publicKey' | 'ninEncrypted' | 'vinEncrypted' | 'email' | 'otpCode' | 'otpExpiresAt' | 'otpVerified'> {
+    nin: string;
+    vin: string;
 }
 declare class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements VoterAttributes {
     id: string;
-    nin: string;
-    vin: string;
     phoneNumber: string;
     dateOfBirth: Date;
     fullName: string;
@@ -39,7 +40,6 @@ declare class Voter extends Model<VoterAttributes, VoterCreationAttributes> impl
     gender: string;
     lga: string;
     ward: string;
-    passwordHash: string;
     recoveryToken: string | null;
     recoveryTokenExpiry: Date | null;
     isActive: boolean;
@@ -50,10 +50,18 @@ declare class Voter extends Model<VoterAttributes, VoterCreationAttributes> impl
     mfaEnabled: boolean;
     mfaBackupCodes: string[] | null;
     publicKey?: string;
+    ninEncrypted: string | null;
+    vinEncrypted: string | null;
+    email: string | null;
+    otpCode: string | null;
+    otpExpiresAt: Date | null;
+    otpVerified: boolean;
     static readonly createdAt = "createdAt";
     static readonly updatedAt = "updatedAt";
-    password?: string;
-    validatePassword(password: string): Promise<boolean>;
+    nin?: string;
+    vin?: string;
+    get decryptedNin(): string | null;
+    get decryptedVin(): string | null;
     static associate(models: any): void;
     static initialize(sequelize: Sequelize): typeof Voter;
 }

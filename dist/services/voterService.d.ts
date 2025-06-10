@@ -28,7 +28,7 @@ export declare const checkVoterEligibility: (voterId: string, electionId: string
  */
 export declare const requestVerification: (voterId: string) => Promise<VerificationStatus>;
 /**
- * Change voter password
+ * Change voter password - Deprecated with new authentication system
  */
 export declare const changePassword: (voterId: string, currentPassword: string, newPassword: string) => Promise<boolean>;
 /**

@@ -7,8 +7,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const auth_1 = require("../../types/auth");
+const encryptionService_1 = require("../../services/encryptionService");
 // Remove @Table decorator
 class AdminUser extends sequelize_1.Model {
+    // Getter method to decrypt NIN when accessed
+    get decryptedNin() {
+        if (!this.ninEncrypted)
+            return null;
+        try {
+            return (0, encryptionService_1.decryptIdentity)(this.ninEncrypted);
+        }
+        catch (error) {
+            return null;
+        }
+    }
     // Password validation and hashing (keep static hash method if used elsewhere)
     static hashPassword(password) {
         const saltRounds = 10;
@@ -172,6 +184,12 @@ class AdminUser extends sequelize_1.Model {
                 allowNull: true,
                 field: 'mfa_backup_codes',
             },
+            // New authentication fields
+            ninEncrypted: {
+                field: 'nin_encrypted',
+                type: sequelize_1.DataTypes.STRING(255),
+                allowNull: true,
+            },
         }, {
             sequelize,
             modelName: 'AdminUser',
@@ -184,12 +202,22 @@ class AdminUser extends sequelize_1.Model {
                         user.passwordHash = await AdminUser.hashPassword(user.password);
                         user.password = undefined;
                     }
+                    // Encrypt NIN before creation
+                    if (user.nin) {
+                        user.ninEncrypted = (0, encryptionService_1.encryptIdentity)(user.nin);
+                        delete user.nin; // Remove virtual field after encryption
+                    }
                 },
                 beforeUpdate: async (user) => {
                     // Only hash if password is provided and changed
                     if (user.password && user.changed('passwordHash') === false) {
                         user.passwordHash = await AdminUser.hashPassword(user.password);
                         user.password = undefined;
+                    }
+                    // Encrypt NIN on update if provided
+                    if (user.nin) {
+                        user.ninEncrypted = (0, encryptionService_1.encryptIdentity)(user.nin);
+                        delete user.nin; // Remove virtual field after encryption
                     }
                 },
             },

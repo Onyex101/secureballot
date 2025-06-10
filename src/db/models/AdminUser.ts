@@ -2,6 +2,7 @@
 import { Model, DataTypes, Sequelize, Optional } from 'sequelize';
 import bcrypt from 'bcrypt';
 import { UserRole } from '../../types/auth';
+import { encryptIdentity, decryptIdentity } from '../../services/encryptionService';
 import AdminRole from './AdminRole';
 import AdminPermission from './AdminPermission';
 import AuditLog from './AuditLog'; // Correct import name
@@ -26,6 +27,7 @@ interface AdminUserAttributes {
   mfaSecret: string | null;
   mfaEnabled: boolean;
   mfaBackupCodes: string[] | null;
+  ninEncrypted: string | null;
 }
 
 interface AdminUserCreationAttributes
@@ -42,8 +44,10 @@ interface AdminUserCreationAttributes
     | 'mfaSecret'
     | 'mfaEnabled'
     | 'mfaBackupCodes'
+    | 'ninEncrypted'
   > {
   password: string;
+  nin?: string; // Virtual field for input
 }
 
 // Remove @Table decorator
@@ -68,6 +72,7 @@ class AdminUser
   public mfaSecret!: string | null;
   public mfaEnabled!: boolean;
   public mfaBackupCodes!: string[] | null;
+  public ninEncrypted!: string | null;
 
   // Associations (defined in associate method)
   public roles?: AdminRole[];
@@ -82,6 +87,17 @@ class AdminUser
 
   // Virtual fields
   public password?: string;
+  public nin?: string;
+
+  // Getter method to decrypt NIN when accessed
+  public get decryptedNin(): string | null {
+    if (!this.ninEncrypted) return null;
+    try {
+      return decryptIdentity(this.ninEncrypted);
+    } catch (error) {
+      return null;
+    }
+  }
 
   // Password validation and hashing (keep static hash method if used elsewhere)
   public static hashPassword(password: string): Promise<string> {
@@ -258,6 +274,12 @@ class AdminUser
           allowNull: true,
           field: 'mfa_backup_codes',
         },
+        // New authentication fields
+        ninEncrypted: {
+          field: 'nin_encrypted',
+          type: DataTypes.STRING(255),
+          allowNull: true,
+        },
       },
       {
         sequelize,
@@ -271,12 +293,24 @@ class AdminUser
               user.passwordHash = await AdminUser.hashPassword(user.password);
               user.password = undefined;
             }
+
+            // Encrypt NIN before creation
+            if (user.nin) {
+              user.ninEncrypted = encryptIdentity(user.nin);
+              delete user.nin; // Remove virtual field after encryption
+            }
           },
           beforeUpdate: async (user: AdminUser) => {
             // Only hash if password is provided and changed
             if (user.password && user.changed('passwordHash') === false) {
               user.passwordHash = await AdminUser.hashPassword(user.password);
               user.password = undefined;
+            }
+
+            // Encrypt NIN on update if provided
+            if (user.nin) {
+              user.ninEncrypted = encryptIdentity(user.nin);
+              delete user.nin; // Remove virtual field after encryption
             }
           },
         },

@@ -9,6 +9,7 @@ const VerificationStatus_1 = __importDefault(require("../db/models/VerificationS
 const PollingUnit_1 = __importDefault(require("../db/models/PollingUnit"));
 const Vote_1 = __importDefault(require("../db/models/Vote"));
 const errorHandler_1 = require("../middleware/errorHandler");
+const encryptionService_1 = require("./encryptionService");
 /**
  * Get voter profile by ID
  */
@@ -184,19 +185,11 @@ const requestVerification = async (voterId) => {
 };
 exports.requestVerification = requestVerification;
 /**
- * Change voter password
+ * Change voter password - Deprecated with new authentication system
  */
 const changePassword = async (voterId, currentPassword, newPassword) => {
-    const voter = await Voter_1.default.findByPk(voterId);
-    if (!voter) {
-        throw new errorHandler_1.ApiError(404, 'Voter not found');
-    }
-    const isPasswordValid = await voter.validatePassword(currentPassword);
-    if (!isPasswordValid) {
-        throw new errorHandler_1.ApiError(401, 'Current password is incorrect');
-    }
-    await voter.update({ password: newPassword });
-    return true;
+    // Password-based authentication is no longer supported
+    throw new errorHandler_1.ApiError(400, 'Password-based authentication is no longer supported. Please use NIN/VIN authentication.');
 };
 exports.changePassword = changePassword;
 /**
@@ -216,37 +209,46 @@ exports.getVoterPublicKey = getVoterPublicKey;
  * Get voter by NIN (National Identification Number)
  */
 const getVoterByNin = async (nin) => {
-    const voter = await Voter_1.default.findOne({
-        where: { nin },
-        include: [
-            {
-                model: PollingUnit_1.default,
-                as: 'pollingUnit',
-                attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address', 'ward', 'lga'],
-            },
-        ],
-    });
-    if (!voter) {
+    try {
+        // Encrypt the input NIN to match against stored encrypted value
+        const ninEncrypted = (0, encryptionService_1.encryptIdentity)(nin);
+        // Query directly using encrypted value
+        const voter = await Voter_1.default.findOne({
+            where: { ninEncrypted },
+            include: [
+                {
+                    model: PollingUnit_1.default,
+                    as: 'pollingUnit',
+                    attributes: ['id', 'pollingUnitName', 'pollingUnitCode', 'address', 'ward', 'lga'],
+                },
+            ],
+        });
+        if (!voter) {
+            return null;
+        }
+        const pollingUnit = voter.get('pollingUnit');
+        return {
+            id: voter.id,
+            nin: voter.decryptedNin,
+            vin: voter.decryptedVin,
+            fullName: voter.fullName,
+            phoneNumber: voter.phoneNumber,
+            pollingUnit: pollingUnit
+                ? {
+                    id: pollingUnit.id,
+                    name: pollingUnit.pollingUnitName,
+                    code: pollingUnit.pollingUnitCode,
+                    address: pollingUnit.address,
+                    ward: pollingUnit.ward,
+                    lga: pollingUnit.lga,
+                }
+                : null,
+        };
+    }
+    catch (error) {
+        // Return null if encryption or lookup fails
         return null;
     }
-    const pollingUnit = voter.get('pollingUnit');
-    return {
-        id: voter.id,
-        nin: voter.nin,
-        vin: voter.vin,
-        fullName: voter.fullName,
-        phoneNumber: voter.phoneNumber,
-        pollingUnit: pollingUnit
-            ? {
-                id: pollingUnit.id,
-                name: pollingUnit.pollingUnitName,
-                code: pollingUnit.pollingUnitCode,
-                address: pollingUnit.address,
-                ward: pollingUnit.ward,
-                lga: pollingUnit.lga,
-            }
-            : null,
-    };
 };
 exports.getVoterByNin = getVoterByNin;
 //# sourceMappingURL=voterService.js.map

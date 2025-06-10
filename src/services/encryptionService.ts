@@ -95,3 +95,80 @@ export const decryptWithAES = (encryptedData: string, iv: string, key: string) =
 export const hashData = (data: string) => {
   return crypto.createHash('sha256').update(data).digest('hex');
 };
+
+/**
+ * Get encryption key from environment or generate default
+ */
+const getEncryptionKey = (): string => {
+  // In production, this should come from environment variables or a secure key management system
+  const envKey = process.env.IDENTITY_ENCRYPTION_KEY;
+  if (envKey && envKey.length === 64) {
+    // 32 bytes = 64 hex chars
+    return envKey;
+  }
+
+  // Fallback key (should be replaced in production)
+  return 'a'.repeat(64); // 32 bytes of 'a'
+};
+
+/**
+ * Encrypt NIN or VIN for secure storage
+ */
+export const encryptIdentity = (identity: string): string => {
+  try {
+    const key = getEncryptionKey();
+    const result = encryptWithAES(identity, key);
+
+    // Combine IV and encrypted data for storage
+    return `${result.iv}:${result.encryptedData}`;
+  } catch (error) {
+    throw new Error(`Failed to encrypt identity: ${(error as Error).message}`);
+  }
+};
+
+/**
+ * Decrypt NIN or VIN for verification
+ */
+export const decryptIdentity = (encryptedIdentity: string): string => {
+  try {
+    const [iv, encryptedData] = encryptedIdentity.split(':');
+    if (!iv || !encryptedData) {
+      throw new Error('Invalid encrypted identity format');
+    }
+
+    const key = getEncryptionKey();
+    return decryptWithAES(encryptedData, iv, key);
+  } catch (error) {
+    throw new Error(`Failed to decrypt identity: ${(error as Error).message}`);
+  }
+};
+
+/**
+ * Hash NIN or VIN for fast lookup (using bcrypt for security)
+ */
+export const hashIdentity = async (identity: string): Promise<string> => {
+  const bcrypt = await import('bcrypt');
+  const saltRounds = 12; // Higher rounds for sensitive identity data
+  return bcrypt.hash(identity, saltRounds);
+};
+
+/**
+ * Verify NIN or VIN against its hash
+ */
+export const verifyIdentity = async (identity: string, hash: string): Promise<boolean> => {
+  try {
+    const bcrypt = await import('bcrypt');
+    return bcrypt.compare(identity, hash);
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Generate a secure fingerprint for identity verification
+ */
+export const generateIdentityFingerprint = (nin: string, vin: string): string => {
+  // Create a unique fingerprint that doesn't reveal the actual values
+  const combined = `${nin}:${vin}`;
+  return crypto.createHash('sha256').update(combined).digest('hex').substring(0, 16);
+};

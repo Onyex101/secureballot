@@ -34,6 +34,30 @@ export const getElections = async (
 
     const { elections } = result;
 
+    // Fetch candidates for each election
+    const electionsWithCandidates = await Promise.all(
+      elections.map(async election => {
+        try {
+          // Get candidates for this election (limit to first 50 candidates for list view)
+          const candidatesResult = await electionService.getElectionCandidates(election.id, 1, 50);
+
+          return {
+            ...election.toJSON(),
+            candidates: candidatesResult.candidates,
+            candidateCount: candidatesResult.pagination.total,
+          };
+        } catch (error) {
+          // If there's an error fetching candidates, return election without candidates
+          logger.warn(`Failed to fetch candidates for election ${election.id}:`, error);
+          return {
+            ...election.toJSON(),
+            candidates: [],
+            candidateCount: 0,
+          };
+        }
+      }),
+    );
+
     // Get voter profile using voterService
     let voterProfile = null;
     if (userId) {
@@ -61,7 +85,7 @@ export const getElections = async (
       code: 'ELECTIONS_RETRIEVED',
       message: 'Elections retrieved successfully',
       data: {
-        elections,
+        elections: electionsWithCandidates,
         pagination: result.pagination,
         // Extract verification status from profile
         voterStatus: voterProfile?.verification

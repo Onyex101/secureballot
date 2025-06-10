@@ -88,6 +88,11 @@ const validatePhoneNumber = (phone) => {
   return phoneRegex.test(phone);
 };
 
+const validateNIN = (nin) => {
+  const ninRegex = /^[0-9]{11}$/;
+  return ninRegex.test(nin);
+};
+
 const validatePassword = (password) => {
   if (password.length < 8) {
     return { valid: false, message: 'Password must be at least 8 characters long' };
@@ -197,6 +202,34 @@ async function createAdmin() {
       }
     } while (!phoneNumber);
 
+    // NIN (National Identification Number)
+    let nin;
+    do {
+      nin = await question('🆔 NIN (National Identification Number - 11 digits): ');
+      if (!nin.trim()) {
+        console.log('❌ NIN is required');
+        continue;
+      }
+      if (!validateNIN(nin)) {
+        console.log('❌ Please enter a valid 11-digit NIN');
+        continue;
+      }
+
+      // Check if NIN encrypted already exists (we need to encrypt and compare)
+      try {
+        const encryptionService = require('../../services/encryptionService.ts');
+        const ninEncrypted = encryptionService.encryptIdentity(nin);
+        const existingNin = await AdminUser.findOne({ where: { ninEncrypted } });
+        if (existingNin) {
+          console.log('❌ An admin with this NIN already exists');
+          nin = '';
+        }
+      } catch (error) {
+        console.log('⚠️  Warning: Could not verify NIN uniqueness, continuing...');
+        break;
+      }
+    } while (!nin);
+
     // Password
     let password;
     do {
@@ -239,6 +272,7 @@ async function createAdmin() {
     console.log(`👤 Name: ${fullName}`);
     console.log(`📧 Email: ${email}`);
     console.log(`📱 Phone: ${phoneNumber}`);
+    console.log(`🆔 NIN: ${nin.substring(0, 3)}****${nin.substring(7)} (masked)`);
     console.log(`🎯 Role: ${adminType}`);
 
     const confirm = await question('\n✅ Create this admin user? (y/N): ');
@@ -253,6 +287,16 @@ async function createAdmin() {
     // Hash password using AdminUser model's hashPassword method
     const passwordHash = await AdminUser.hashPassword(password);
 
+    // Encrypt NIN for secure storage
+    let ninEncrypted = null;
+    try {
+      const encryptionService = require('../../services/encryptionService.ts');
+      ninEncrypted = encryptionService.encryptIdentity(nin);
+      console.log('✅ NIN encrypted successfully');
+    } catch (error) {
+      console.log('⚠️  Warning: Could not encrypt NIN, admin creation may fail during login');
+    }
+
     // Create admin user
     const newAdmin = await AdminUser.create({
       id: uuidv4(),
@@ -264,6 +308,8 @@ async function createAdmin() {
       isActive: true,
       createdBy: isFirstAdmin ? null : null, // In a real scenario, this would be the creating admin's ID
       mfaEnabled: false,
+      ninEncrypted,
+      nin, // Virtual field for encryption
     });
 
     console.log('\n🎉 Admin user created successfully!');
@@ -276,7 +322,7 @@ async function createAdmin() {
     console.log(`📅 Created: ${newAdmin.createdAt}`);
 
     console.log('\n🔐 Login Information:');
-    console.log(`📧 Email: ${newAdmin.email}`);
+    console.log(`🆔 NIN: ${nin.substring(0, 3)}****${nin.substring(7)} (use full NIN for login)`);
     console.log(`🔑 Password: [Use the password you entered]`);
     console.log(`🌐 Login URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/login`);
 

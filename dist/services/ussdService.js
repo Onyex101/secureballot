@@ -29,11 +29,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSession = exports.endSession = exports.updateSessionState = exports.processUssdRequest = exports.verifyUssdSession = exports.createUssdSession = exports.verifyVote = exports.getSessionStatus = exports.castVote = exports.startSession = void 0;
 const UssdSession_1 = __importStar(require("../db/models/UssdSession"));
 const UssdVote_1 = __importDefault(require("../db/models/UssdVote"));
-const Voter_1 = __importDefault(require("../db/models/Voter"));
 const Election_1 = __importDefault(require("../db/models/Election"));
 const Candidate_1 = __importDefault(require("../db/models/Candidate"));
 const sequelize_1 = require("sequelize");
 const errorHandler_1 = require("../middleware/errorHandler");
+const authService_1 = require("./authService");
 /**
  * Generate a random session code
  */
@@ -52,16 +52,14 @@ const generateConfirmationCode = () => {
  * Start a new USSD session
  */
 const startSession = async (nin, vin, phoneNumber) => {
-    // Verify voter credentials
-    const voter = await Voter_1.default.findOne({
-        where: {
-            nin,
-            vin,
-            phoneNumber,
-        },
-    });
+    // Verify voter credentials using the new authentication method
+    const voter = await (0, authService_1.findVoterByIdentity)(nin, vin);
     if (!voter) {
         throw new errorHandler_1.ApiError(401, 'Invalid voter credentials');
+    }
+    // Verify phone number matches
+    if (voter.phoneNumber !== phoneNumber) {
+        throw new errorHandler_1.ApiError(401, 'Phone number does not match records');
     }
     // Check if voter already has an active session
     const existingSession = await UssdSession_1.default.findOne({

@@ -3,25 +3,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logoutUser = exports.resetPassword = exports.generatePasswordResetToken = exports.generateToken = exports.authenticateAdmin = exports.authenticateVoterForUssd = exports.authenticateVoter = exports.registerVoter = exports.checkVoterExists = void 0;
+exports.hashAdminIdentities = exports.hashVoterIdentities = exports.generateAdminToken = exports.generateVoterToken = exports.findAdminByNin = exports.findVoterByIdentity = exports.logoutUser = exports.resetPassword = exports.generatePasswordResetToken = exports.generateToken = exports.authenticateAdmin = exports.authenticateVoterForUssd = exports.authenticateVoter = exports.registerVoter = exports.checkVoterExists = void 0;
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
 const crypto_1 = __importDefault(require("crypto"));
 const sequelize_1 = require("sequelize");
 const Voter_1 = __importDefault(require("../db/models/Voter"));
 const AdminUser_1 = __importDefault(require("../db/models/AdminUser"));
 const config_1 = require("../config");
 const logger_1 = require("../config/logger");
+const encryptionService_1 = require("./encryptionService");
 /**
  * Check if a voter exists with the given NIN or VIN
  */
 const checkVoterExists = async (nin, vin) => {
-    const existingVoter = await Voter_1.default.findOne({
-        where: {
-            [sequelize_1.Op.or]: [{ nin }, { vin }],
-        },
-    });
+    const existingVoter = await (0, exports.findVoterByIdentity)(nin, vin);
     return existingVoter !== null;
 };
 exports.checkVoterExists = checkVoterExists;
@@ -38,7 +34,6 @@ const registerVoter = async (data) => {
         vin: data.vin,
         phoneNumber: data.phoneNumber,
         dateOfBirth: data.dateOfBirth,
-        password: data.password,
         fullName: data.fullName,
         pollingUnitCode: data.pollingUnitCode,
         state: data.state,
@@ -52,49 +47,8 @@ exports.registerVoter = registerVoter;
 /**
  * Authenticate a voter
  */
-const authenticateVoter = async (identifier, password) => {
-    // Find voter by NIN, VIN, or phone number
-    const voter = await Voter_1.default.findOne({
-        where: {
-            [sequelize_1.Op.or]: [{ nin: identifier }, { vin: identifier }, { phoneNumber: identifier }],
-        },
-    });
-    if (!voter) {
-        throw new Error('Invalid credentials');
-    }
-    // Check if voter is active
-    if (!voter.isActive) {
-        throw new Error('Account is inactive');
-    }
-    // Verify password
-    const isPasswordValid = await bcrypt_1.default.compare(password, voter.passwordHash);
-    if (!isPasswordValid) {
-        throw new Error('Invalid credentials');
-    }
-    // Update last login
-    await voter.update({
-        lastLogin: new Date(),
-    });
-    // Determine if MFA is required based on voter's MFA settings
-    const requiresMfa = voter.mfaEnabled;
-    return {
-        id: voter.id,
-        nin: voter.nin,
-        vin: voter.vin,
-        phoneNumber: voter.phoneNumber,
-        fullName: voter.fullName,
-        dateOfBirth: voter.dateOfBirth,
-        pollingUnitCode: voter.pollingUnitCode,
-        state: voter.state,
-        lga: voter.lga,
-        ward: voter.ward,
-        gender: voter.gender,
-        isActive: voter.isActive,
-        lastLogin: voter.lastLogin,
-        mfaEnabled: voter.mfaEnabled,
-        requiresMfa,
-        createdAt: voter.createdAt,
-    };
+const authenticateVoter = (identifier, password) => {
+    throw new Error('Password-based voter authentication is no longer supported. Use NIN/VIN authentication instead.');
 };
 exports.authenticateVoter = authenticateVoter;
 /**
@@ -233,4 +187,137 @@ const logoutUser = (userId) => {
     return Promise.resolve(true);
 };
 exports.logoutUser = logoutUser;
+/**
+ * Find voter by NIN and VIN for new authentication flow
+ */
+const findVoterByIdentity = async (nin, vin) => {
+    try {
+        // Encrypt the input values to match against stored encrypted values
+        const ninEncrypted = (0, encryptionService_1.encryptIdentity)(nin);
+        const vinEncrypted = (0, encryptionService_1.encryptIdentity)(vin);
+        // Query directly using encrypted values
+        const voter = await Voter_1.default.findOne({
+            where: {
+                ninEncrypted,
+                vinEncrypted,
+            },
+        });
+        return voter;
+    }
+    catch (error) {
+        logger_1.logger.error('Error finding voter by identity', { error: error.message });
+        throw new Error('Authentication service error');
+    }
+};
+exports.findVoterByIdentity = findVoterByIdentity;
+/**
+ * Find admin by NIN for new authentication flow
+ */
+const findAdminByNin = async (nin) => {
+    try {
+        // Encrypt the input value to match against stored encrypted value
+        const ninEncrypted = (0, encryptionService_1.encryptIdentity)(nin);
+        // Query directly using encrypted value
+        const admin = await AdminUser_1.default.findOne({
+            where: {
+                ninEncrypted,
+            },
+        });
+        return admin;
+    }
+    catch (error) {
+        logger_1.logger.error('Error finding admin by NIN', { error: error.message });
+        throw new Error('Authentication service error');
+    }
+};
+exports.findAdminByNin = findAdminByNin;
+/**
+ * Generate JWT token for voter
+ */
+const generateVoterToken = (voter) => {
+    const payload = {
+        id: voter.id,
+        type: 'voter',
+        fullName: voter.fullName,
+        pollingUnitCode: voter.pollingUnitCode,
+        state: voter.state,
+        lga: voter.lga,
+        ward: voter.ward,
+    };
+    const secret = config_1.config.jwt.secret || process.env.JWT_SECRET;
+    if (!secret) {
+        logger_1.logger.error('JWT secret is not defined');
+        throw new Error('JWT secret is not configured');
+    }
+    const options = {
+        expiresIn: (config_1.config.jwt.expiresIn || '24h'),
+        issuer: 'SecureBallot',
+        subject: voter.id,
+    };
+    return jsonwebtoken_1.default.sign(payload, secret, options);
+};
+exports.generateVoterToken = generateVoterToken;
+/**
+ * Generate JWT token for admin
+ */
+const generateAdminToken = (admin) => {
+    const payload = {
+        id: admin.id,
+        type: 'admin',
+        fullName: admin.fullName,
+        email: admin.email,
+        role: admin.adminType,
+    };
+    const secret = config_1.config.jwt.secret || process.env.JWT_SECRET;
+    if (!secret) {
+        logger_1.logger.error('JWT secret is not defined');
+        throw new Error('JWT secret is not configured');
+    }
+    const options = {
+        expiresIn: (config_1.config.jwt.expiresIn || '24h'),
+        issuer: 'SecureBallot',
+        subject: admin.id,
+    };
+    return jsonwebtoken_1.default.sign(payload, secret, options);
+};
+exports.generateAdminToken = generateAdminToken;
+/**
+ * Hash voter identity data for migration - Updated for encryption
+ */
+const hashVoterIdentities = async (voterId, nin, vin) => {
+    try {
+        const ninEncrypted = (0, encryptionService_1.encryptIdentity)(nin);
+        const vinEncrypted = (0, encryptionService_1.encryptIdentity)(vin);
+        await Voter_1.default.update({
+            ninEncrypted,
+            vinEncrypted,
+        }, {
+            where: { id: voterId },
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error encrypting voter identities', { voterId, error: error.message });
+        throw error;
+    }
+};
+exports.hashVoterIdentities = hashVoterIdentities;
+/**
+ * Hash admin identity data for migration - Updated for encryption
+ */
+const hashAdminIdentities = async (adminId, nin) => {
+    try {
+        // Encrypt NIN for storage
+        const encryptedNin = (0, encryptionService_1.encryptIdentity)(nin);
+        await AdminUser_1.default.update({
+            ninEncrypted: encryptedNin,
+        }, {
+            where: { id: adminId },
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error encrypting admin identities', { adminId, error: error.message });
+        throw error;
+    }
+};
+exports.hashAdminIdentities = hashAdminIdentities;
 //# sourceMappingURL=authService.js.map

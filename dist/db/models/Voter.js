@@ -1,13 +1,28 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
-const bcrypt_1 = __importDefault(require("bcrypt"));
+const encryptionService_1 = require("../../services/encryptionService");
 class Voter extends sequelize_1.Model {
-    validatePassword(password) {
-        return bcrypt_1.default.compare(password, this.passwordHash);
+    // Getter methods to decrypt values when accessed
+    get decryptedNin() {
+        if (!this.ninEncrypted)
+            return null;
+        try {
+            return (0, encryptionService_1.decryptIdentity)(this.ninEncrypted);
+        }
+        catch (error) {
+            return null;
+        }
+    }
+    get decryptedVin() {
+        if (!this.vinEncrypted)
+            return null;
+        try {
+            return (0, encryptionService_1.decryptIdentity)(this.vinEncrypted);
+        }
+        catch (error) {
+            return null;
+        }
     }
     static associate(models) {
         Voter.hasOne(models.VerificationStatus, {
@@ -46,24 +61,6 @@ class Voter extends sequelize_1.Model {
                 type: sequelize_1.DataTypes.UUID,
                 defaultValue: sequelize_1.DataTypes.UUIDV4,
                 primaryKey: true,
-            },
-            nin: {
-                type: sequelize_1.DataTypes.STRING(11),
-                allowNull: false,
-                unique: true,
-                validate: {
-                    len: [11, 11],
-                    notEmpty: true,
-                },
-            },
-            vin: {
-                type: sequelize_1.DataTypes.STRING(19),
-                allowNull: false,
-                unique: true,
-                validate: {
-                    len: [19, 19],
-                    notEmpty: true,
-                },
             },
             phoneNumber: {
                 field: 'phone_number',
@@ -124,12 +121,6 @@ class Voter extends sequelize_1.Model {
                     notEmpty: true,
                 },
             },
-            passwordHash: {
-                field: 'password_hash',
-                type: sequelize_1.DataTypes.STRING,
-                allowNull: false,
-                defaultValue: '', // Temporary default, will be overridden by hook
-            },
             recoveryToken: {
                 field: 'recovery_token',
                 type: sequelize_1.DataTypes.STRING,
@@ -184,9 +175,38 @@ class Voter extends sequelize_1.Model {
                 type: sequelize_1.DataTypes.TEXT,
                 allowNull: true,
             },
-            password: {
-                type: sequelize_1.DataTypes.VIRTUAL,
+            ninEncrypted: {
+                field: 'nin_encrypted',
+                type: sequelize_1.DataTypes.STRING(255),
                 allowNull: true,
+            },
+            vinEncrypted: {
+                field: 'vin_encrypted',
+                type: sequelize_1.DataTypes.STRING(255),
+                allowNull: true,
+            },
+            email: {
+                type: sequelize_1.DataTypes.STRING(100),
+                allowNull: true,
+                validate: {
+                    isEmail: true,
+                },
+            },
+            otpCode: {
+                field: 'otp_code',
+                type: sequelize_1.DataTypes.STRING(6),
+                allowNull: true,
+            },
+            otpExpiresAt: {
+                field: 'otp_expires_at',
+                type: sequelize_1.DataTypes.DATE,
+                allowNull: true,
+            },
+            otpVerified: {
+                field: 'otp_verified',
+                type: sequelize_1.DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: false,
             },
         }, {
             sequelize,
@@ -195,27 +215,33 @@ class Voter extends sequelize_1.Model {
             underscored: true,
             timestamps: true,
             indexes: [
-                { unique: true, fields: ['nin'] },
-                { unique: true, fields: ['vin'] },
+                { unique: true, fields: ['nin_encrypted'] },
+                { unique: true, fields: ['vin_encrypted'] },
                 { fields: ['phone_number'] },
                 { fields: ['polling_unit_code'] },
                 { fields: ['state', 'lga', 'ward'] },
             ],
             hooks: {
-                beforeCreate: async (voter) => {
-                    // Ensure password is hashed before creation
-                    if (voter.password) {
-                        const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
-                        voter.passwordHash = await bcrypt_1.default.hash(voter.password, saltRounds);
-                        delete voter.password;
+                beforeCreate: (voter) => {
+                    // Encrypt nin and vin before creation
+                    if (voter.nin) {
+                        voter.ninEncrypted = (0, encryptionService_1.encryptIdentity)(voter.nin);
+                        delete voter.nin; // Remove virtual field after encryption
+                    }
+                    if (voter.vin) {
+                        voter.vinEncrypted = (0, encryptionService_1.encryptIdentity)(voter.vin);
+                        delete voter.vin; // Remove virtual field after encryption
                     }
                 },
-                beforeUpdate: async (voter) => {
-                    // Hash password on update if provided
-                    if (voter.password && voter.changed('passwordHash') === false) {
-                        const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
-                        voter.passwordHash = await bcrypt_1.default.hash(voter.password, saltRounds);
-                        delete voter.password;
+                beforeUpdate: (voter) => {
+                    // Encrypt nin and vin on update if they are provided
+                    if (voter.nin) {
+                        voter.ninEncrypted = (0, encryptionService_1.encryptIdentity)(voter.nin);
+                        delete voter.nin; // Remove virtual field after encryption
+                    }
+                    if (voter.vin) {
+                        voter.vinEncrypted = (0, encryptionService_1.encryptIdentity)(voter.vin);
+                        delete voter.vin; // Remove virtual field after encryption
                     }
                 },
             },

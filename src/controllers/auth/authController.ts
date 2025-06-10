@@ -89,28 +89,68 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 };
 
 /**
- * Login a voter
+ * Login a voter - Simplified for POC (only NIN and VIN required)
  * @route POST /api/v1/auth/login
  * @access Public
  */
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { identifier, password } = req.body;
+    const { nin, vin } = req.body;
+
+    // Validate required fields
+    if (!nin || !vin) {
+      throw new ApiError(400, 'NIN and VIN are required', 'MISSING_CREDENTIALS');
+    }
+
+    // Validate NIN format (11 digits)
+    if (!/^\d{11}$/.test(nin)) {
+      throw new ApiError(400, 'Invalid NIN format', 'INVALID_NIN');
+    }
+
+    // Validate VIN format (19 characters)
+    if (!/^[A-Z0-9]{19}$/.test(vin)) {
+      throw new ApiError(400, 'Invalid VIN format', 'INVALID_VIN');
+    }
 
     try {
-      // Authenticate voter
-      const voter = await authService.authenticateVoter(identifier, password);
+      // Find voter by NIN and VIN using new encrypted system
+      const voter = await authService.findVoterByIdentity(nin, vin);
 
-      // Generate token
-      const token = authService.generateToken(voter.id);
+      if (!voter) {
+        // Log failed login attempt
+        await auditService.createAuditLog(
+          null,
+          AuditActionType.LOGIN,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          {
+            nin: nin.substring(0, 3) + '*'.repeat(8),
+            success: false,
+            reason: 'invalid_credentials',
+          },
+        );
 
-      // Log the login
+        throw new ApiError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+      }
+
+      // Check if voter is active
+      if (!voter.isActive) {
+        throw new ApiError(403, 'Account is not active', 'ACCOUNT_INACTIVE');
+      }
+
+      // Generate token (no OTP required for POC)
+      const token = authService.generateVoterToken(voter);
+
+      // Update last login
+      await voter.update({ lastLogin: new Date() });
+
+      // Log successful login
       await auditService.createAuditLog(
         voter.id,
         AuditActionType.LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { identifier, success: true },
+        { nin: nin.substring(0, 3) + '*'.repeat(8), success: true, method: 'legacy_route_poc' },
       );
 
       res.status(200).json({
@@ -120,8 +160,8 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
           token,
           voter: {
             id: voter.id,
-            nin: voter.nin,
-            vin: voter.vin,
+            nin: voter.decryptedNin,
+            vin: voter.decryptedVin,
             phoneNumber: voter.phoneNumber,
             fullName: voter.fullName,
             dateOfBirth: voter.dateOfBirth,
@@ -135,27 +175,29 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
             mfaEnabled: voter.mfaEnabled,
             createdAt: voter.createdAt,
           },
-          requiresMfa: voter.requiresMfa,
+          poc: true, // Indicates this is POC mode
+          note: 'POC: Login successful without OTP verification',
         },
       });
     } catch (error) {
       // Log failed login attempt
       await auditService.createAuditLog(
-        null, // Use null instead of 'unknown' for failed login attempts
+        null,
         AuditActionType.LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { identifier, success: false, error: (error as Error).message },
+        {
+          nin: nin.substring(0, 3) + '*'.repeat(8),
+          success: false,
+          error: (error as Error).message,
+        },
       );
 
-      const apiError = new ApiError(
-        401,
-        'Invalid credentials',
-        'INVALID_CREDENTIALS',
-        undefined,
-        true,
-      );
-      throw apiError;
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
+      throw new ApiError(401, 'Authentication failed', 'AUTH_FAILED');
     }
   } catch (error) {
     next(error);
