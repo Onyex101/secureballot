@@ -193,7 +193,7 @@ const BATCH_SIZE = process.env.SEED_BATCH_SIZE ? parseInt(process.env.SEED_BATCH
 
 // Configuration for scaling data generation - reduced for debugging
 const POLLING_UNITS_PER_STATE = 5;
-const VOTERS_PER_POLLING_UNIT = 200;
+const VOTERS_PER_POLLING_UNIT = 100;
 
 // Default values if not set
 const DEFAULT_MAX_VOTERS_PER_STATE = 1000;
@@ -288,13 +288,13 @@ const rolePermissionsMap = {
   Voter: ['view_elections', 'cast_vote'],
 };
 
-// Observer report types
+// Observer report types (matching ObserverReport model enum)
 const reportTypes = [
-  'PollingUnitOpening',
-  'VoterTurnout',
-  'Irregularity',
-  'PollingUnitClosing',
-  'VoteCounting',
+  'opening',       // ReportType.OPENING
+  'voting_process', // ReportType.VOTING_PROCESS  
+  'closing',       // ReportType.CLOSING
+  'incident',      // ReportType.INCIDENT
+  'general',       // ReportType.GENERAL
 ];
 
 // Presidential candidates
@@ -357,10 +357,10 @@ const lagosGubernatorialCandidates = [
 function validateVoterRecord(record) {
   const validationIssues = [];
 
-  // Check required fields (updated for encrypted fields)
+  // Check required fields (for seeder-generated records)
   if (!record.id) validationIssues.push('Missing id');
-  if (!record.nin_encrypted) validationIssues.push('Missing nin_encrypted');
-  if (!record.vin_encrypted) validationIssues.push('Missing vin_encrypted');
+  if (!record.nin) validationIssues.push('Missing nin field');
+  if (!record.vin) validationIssues.push('Missing vin field');
   if (!record.phone_number) validationIssues.push('Missing phone_number');
   if (!record.date_of_birth) validationIssues.push('Missing date_of_birth');
   if (record.mfa_enabled === undefined) validationIssues.push('Missing mfa_enabled');
@@ -371,18 +371,28 @@ function validateVoterRecord(record) {
     return { valid: false, issues: validationIssues };
   }
 
-  // Check encrypted fields exist (we can't validate length since they're encrypted)
-  if (typeof record.nin_encrypted !== 'string' || record.nin_encrypted.length === 0) {
-    validationIssues.push('NIN encrypted field must be a non-empty string');
+  // Check NIN and VIN fields exist (these will be encrypted manually in seeder)
+  if (typeof record.nin !== 'string' || record.nin.length !== 11) {
+    validationIssues.push('NIN must be exactly 11 digits');
   }
 
-  if (typeof record.vin_encrypted !== 'string' || record.vin_encrypted.length === 0) {
-    validationIssues.push('VIN encrypted field must be a non-empty string');
+  if (typeof record.vin !== 'string' || record.vin.length !== 19) {
+    validationIssues.push('VIN must be exactly 19 characters');
   }
 
   // Check phone number format (Nigeria format: +234...)
-  if (typeof record.phone_number !== 'string' || !record.phone_number.startsWith('+234')) {
-    validationIssues.push('Phone number must be in Nigeria format (+234...)');
+  if (typeof record.phone_number !== 'string' || !/^\+234[0-9]{10}$/.test(record.phone_number)) {
+    validationIssues.push('Phone number must be in format +234XXXXXXXXXX (13 characters total)');
+  }
+
+  // Check gender is valid
+  if (!['male', 'female'].includes(record.gender)) {
+    validationIssues.push('Gender must be either "male" or "female"');
+  }
+
+  // Check email format if provided
+  if (record.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email)) {
+    validationIssues.push('Email must be in valid format');
   }
 
   // Return validation result
@@ -395,6 +405,8 @@ function validateVoterRecord(record) {
 // Sets to track used identifiers
 const usedNINs = new Set();
 const usedVINs = new Set();
+const usedPhoneNumbers = new Set();
+const usedEmails = new Set();
 
 // Generate a unique ID (UUID v4)
 const generateUniqueId = () => {
@@ -406,21 +418,12 @@ const generateUniqueNIN = () => {
   let nin;
   let attempts = 0;
   do {
-    // NIN must be exactly 11 digits
     nin = faker.string.numeric(11);
-    attempts++;
-    // Safety valve to prevent infinite loops
-    if (attempts > 10) {
-      // Just generate a valid format and accept potential duplicates
-      nin = faker.string.numeric(11);
-      break;
+    if (attempts++ > 100) {
+      // If we struggle to find a unique NIN, add a random suffix
+      nin = `${faker.string.numeric(10)}${Math.floor(Math.random() * 10)}`;
     }
   } while (usedNINs.has(nin));
-
-  // Ensure exact length of 11
-  if (nin.length !== 11) {
-    nin = nin.padEnd(11, '0').substring(0, 11);
-  }
 
   usedNINs.add(nin);
   return nin;
@@ -431,40 +434,67 @@ const generateUniqueVIN = (prefix = '') => {
   let vin;
   let attempts = 0;
   do {
-    // Generate a VIN that is exactly 19 characters
     if (prefix) {
-      // If prefix is provided, use it and pad the rest
       const remainingChars = 19 - prefix.length;
       if (remainingChars > 0) {
-        // Generate alphanumeric characters to fill the remaining space
         vin = `${prefix}${faker.string.alphanumeric(remainingChars).toUpperCase()}`;
       } else {
-        // If prefix is too long, truncate it
         vin = prefix.substring(0, 19);
       }
     } else {
-      // Standard format: 3 alpha + 10 numeric + 6 alpha = 19 chars
       vin = `${faker.string.alpha(3).toUpperCase()}${faker.string.numeric(10)}${faker.string.alpha(6).toUpperCase()}`;
     }
 
-    // Double-check length is exactly 19
     if (vin.length !== 19) {
-      vin = vin.padEnd(19, '0').substring(0, 19);
+      vin = vin.padEnd(19, 'A').substring(0, 19);
     }
-
-    attempts++;
-    // Safety valve to prevent infinite loops
-    if (attempts > 10) {
-      // Just ensure the length is correct and accept potential duplicates
-      if (vin.length !== 19) {
-        vin = vin.padEnd(19, '0').substring(0, 19);
-      }
-      break;
+    if (attempts++ > 100) {
+      // If we struggle to find a unique VIN, add a random suffix
+      vin = `${vin.substring(0, 18)}${faker.string.alphanumeric(1).toUpperCase()}`;
     }
   } while (usedVINs.has(vin));
 
   usedVINs.add(vin);
   return vin;
+};
+
+// Generate a unique Nigerian phone number using naijafaker
+const generateUniquePhoneNumber = () => {
+  let phoneNumber;
+  let attempts = 0;
+  do {
+    // Use naijafaker's phone number generator
+    phoneNumber = naijaFaker.phoneNumber();
+    
+    if (attempts++ > 100) {
+      // If we struggle to find a unique phone number, add randomization
+      phoneNumber = naijaFaker.phoneNumber();
+    }
+  } while (usedPhoneNumbers.has(phoneNumber));
+
+  usedPhoneNumbers.add(phoneNumber);
+  return phoneNumber;
+};
+
+// Generate a unique email address
+const generateUniqueEmail = (stateIndex, voterIndex) => {
+  let email;
+  let attempts = 0;
+  do {
+    // Create a more unique email to avoid conflicts
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(Math.random() * 10000);
+    email = `voter${stateIndex}_${voterIndex}_${randomSuffix}_${timestamp}@test.com`;
+    
+    if (attempts++ > 100) {
+      // Fallback with even more randomization
+      const extraRandom = Math.floor(Math.random() * 100000);
+      email = `voter${stateIndex}_${voterIndex}_${extraRandom}_${Date.now()}@test.com`;
+    }
+  } while (usedEmails.has(email));
+
+  usedEmails.add(email);
+  return email;
 };
 
 // Check for existing data in a table before inserting
@@ -606,6 +636,13 @@ async function enhancedBatchInsert(
     verification_statuses: {
       user_id: { table: 'voters', column: 'id', onDelete: 'CASCADE' },
     },
+    admin_roles: {
+      admin_id: { table: 'admin_users', column: 'id', onDelete: 'CASCADE' },
+    },
+    admin_permissions: {
+      admin_id: { table: 'admin_users', column: 'id', onDelete: 'CASCADE' },
+      granted_by: { table: 'admin_users', column: 'id', onDelete: 'SET NULL' },
+    },
     ussd_votes: {
       user_id: { table: 'voters', column: 'id', onDelete: 'RESTRICT' },
       election_id: { table: 'elections', column: 'id', onDelete: 'RESTRICT' },
@@ -613,10 +650,20 @@ async function enhancedBatchInsert(
       session_code: { table: 'ussd_sessions', column: 'session_code', onDelete: 'CASCADE' },
     },
     observer_reports: {
-      observer_id: { table: 'admin_users', column: 'id', onDelete: 'SET NULL' },
+      observer_id: { table: 'admin_users', column: 'id', onDelete: 'CASCADE' },
       election_id: { table: 'elections', column: 'id', onDelete: 'CASCADE' },
-      polling_unit_id: { table: 'polling_units', column: 'id', onDelete: 'CASCADE' },
+      polling_unit_id: { table: 'polling_units', column: 'id', onDelete: 'RESTRICT' },
       reviewed_by: { table: 'admin_users', column: 'id', onDelete: 'SET NULL' },
+    },
+    audit_logs: {
+      user_id: { table: 'voters', column: 'id', onDelete: 'SET NULL' },
+      admin_id: { table: 'admin_users', column: 'id', onDelete: 'SET NULL' },
+    },
+    failed_attempts: {
+      user_id: { table: 'voters', column: 'id', onDelete: 'CASCADE' },
+    },
+    election_stats: {
+      election_id: { table: 'elections', column: 'id', onDelete: 'CASCADE' },
     },
   };
 
@@ -799,13 +846,13 @@ function getRandomItem(array) {
 // Helper to generate report content based on type
 function generateReportContent(reportType, pollingUnit) {
   switch (reportType) {
-    case 'PollingUnitOpening':
+    case 'opening':
       return `Polling unit ${pollingUnit.polling_unit_name} opened ${faker.datatype.boolean(0.8) ? 'on time' : 'with a delay of about ' + faker.number.int({ min: 15, max: 60 }) + ' minutes'}. ${faker.number.int({ min: 5, max: 20 })} voters were in queue at opening. Election officials are ${faker.datatype.boolean(0.7) ? 'present and efficient' : 'understaffed but managing'}. All materials are ${faker.datatype.boolean(0.9) ? 'complete and functional' : 'mostly available with minor issues'}.`;
 
-    case 'VoterTurnout':
+    case 'voting_process':
       return `Voter turnout at ${pollingUnit.polling_unit_name} is ${getRandomItem(['excellent', 'good', 'moderate', 'below expectations'])}. Approximately ${faker.number.int({ min: 30, max: 90 })}% of registered voters have voted so far. The atmosphere is ${getRandomItem(['calm and orderly', 'busy but organized', 'slightly tense but under control', 'enthusiastic and positive'])}.`;
 
-    case 'Irregularity':
+    case 'incident':
       return `${getRandomItem([
         'Minor argument between party agents quickly resolved by security.',
         'Short delay in voting due to technical issues with card reader.',
@@ -814,7 +861,7 @@ function generateReportContent(reportType, pollingUnit) {
         'Party supporter distributing items near polling unit was moved away by security.',
       ])} The issue was ${getRandomItem(['fully resolved', 'handled appropriately', 'addressed by officials', 'documented and contained'])}.`;
 
-    case 'PollingUnitClosing':
+    case 'closing':
       // Replace faker.time.recent() with a formatted time string
       const randomHour = faker.number.int({ min: 17, max: 19 }); // 5pm to 7pm
       const randomMinute = faker.number.int({ min: 0, max: 59 });
@@ -826,7 +873,7 @@ function generateReportContent(reportType, pollingUnit) {
 
       return `Polling unit ${pollingUnit.polling_unit_name} closed at ${faker.datatype.boolean(0.8) ? '6:00 PM as scheduled' : formattedTime + ' PM'}. Final voter count was ${faker.number.int({ min: minVoterCount, max: maxVoterCount })}. Closing procedures were followed ${faker.datatype.boolean(0.7) ? 'correctly and efficiently' : 'with minor delays but properly'}. All materials have been secured. Party agents ${faker.datatype.boolean(0.9) ? 'have signed the relevant forms' : 'are in the process of reviewing the results'}.`;
 
-    case 'VoteCounting':
+    case 'general':
       return `Vote counting at ${pollingUnit.polling_unit_name} ${faker.datatype.boolean(0.7) ? 'proceeded smoothly' : 'had minor delays but was conducted properly'}. All party agents were ${faker.datatype.boolean(0.9) ? 'present and witnessed the counting' : 'mostly present during the count'}. Results were recorded on the appropriate forms and ${faker.datatype.boolean(0.9) ? 'publicly announced to the satisfaction of observers' : 'documented according to regulations'}. No significant irregularities were observed during the counting process.`;
 
     default:
@@ -840,7 +887,7 @@ const generateObserverReport = (
   pollingUnitId,
   reportType,
   content,
-  status = 'pending',
+  status = 'submitted',
   reviewerId = null,
 ) => {
   const report = {
@@ -861,7 +908,7 @@ const generateObserverReport = (
     updated_at: new Date(),
   };
 
-  if (status !== 'pending' && reviewerId) {
+  if (status !== 'submitted' && reviewerId) {
     report.reviewed_by = reviewerId;
     report.official_response = `Review completed on ${faker.date.recent({ days: 7 }).toLocaleDateString()}`;
     report.reviewed_at = faker.date.recent({ days: 7 });
@@ -1004,6 +1051,8 @@ module.exports = {
       batchVoterIds.clear();
       usedNINs.clear();
       usedVINs.clear();
+      usedPhoneNumbers.clear();
+      usedEmails.clear();
 
       // 1. Create a super admin (if doesn't exist)
       console.log('Checking for existing super admin user...');
@@ -1028,7 +1077,7 @@ module.exports = {
             password_hash: DEFAULT_PASSWORD_HASH,
             admin_type: 'SystemAdministrator',
             is_active: true,
-            nin_encrypted: encryptIdentity('12345678901'), // Properly encrypted using same method as voters
+            nin_encrypted: encryptIdentity('12345678901'), // Pre-encrypted for seeder
             created_at: new Date(),
             updated_at: new Date(),
           },
@@ -1347,6 +1396,18 @@ module.exports = {
         console.error('Please check why the polling units creation failed and try again');
         return false;
       }
+      
+      // Fetch all existing polling unit codes to ensure valid foreign keys
+      console.log('Fetching all existing polling unit codes...');
+      const [allPollingUnitRecords] = await queryInterface.sequelize.query(
+        'SELECT polling_unit_code FROM polling_units',
+      );
+      const allPollingUnitCodes = new Set(allPollingUnitRecords.map(pu => pu.polling_unit_code));
+      console.log(`Found ${allPollingUnitCodes.size} existing polling unit codes.`);
+      if (allPollingUnitCodes.size === 0) {
+        console.error('No polling unit codes found in the database. Aborting voter creation.');
+        return false;
+      }
 
       // 5. Create voters, voter cards, verification statuses, and votes in an integrated flow
       console.log(`Creating voters, cards, and votes in an integrated approach...`);
@@ -1387,9 +1448,18 @@ module.exports = {
         }
 
         // Process each polling unit in this state
-        for (const pollingUnit of statePollingUnits) {
+        for (let puIndex = 0; puIndex < statePollingUnits.length; puIndex++) {
+          const pollingUnit = statePollingUnits[puIndex];
           // Handle a specific number of voters per polling unit
           const votersToCreate = scaledVotersPerPollingUnit;
+
+          // Ensure the polling unit code for this batch exists in our set
+          if (!allPollingUnitCodes.has(pollingUnit.code)) {
+            console.warn(
+              `Polling unit code ${pollingUnit.code} from generator not found in database. Skipping voter generation for this unit.`,
+            );
+            continue;
+          }
 
           console.log(
             `Creating ${votersToCreate} voters and related data for polling unit ${pollingUnit.code}`,
@@ -1427,29 +1497,31 @@ module.exports = {
             const gender = Math.random() < 0.4 ? 'female' : 'male'; // 40% female, 60% male
             stats.voters++;
 
-            // Generate a valid Nigerian phone number that matches validation pattern
-            const phoneNumber = `+234${Math.floor(Math.random() * 900000000) + 100000000}`;
+            // Generate a unique Nigerian phone number that matches validation pattern (+234XXXXXXXXXX)
+            const phoneNumber = generateUniquePhoneNumber();
             
-            // Generate a valid email
-            const email = `voter${i}_${state.name.toLowerCase()}@test.com`;
+            // Generate a unique email using state index and voter index
+            const stateIndex = allStates.findIndex(s => s.name === state.name);
+            const globalVoterIndex = stateIndex * 1000 + puIndex * 100 + i; // Create unique global index
+            const email = generateUniqueEmail(stateIndex, globalVoterIndex);
             
             // 1. Create voter (use virtual fields nin/vin for model hooks to encrypt)
             voterBatch.push({
               id: voterId,
-              nin: nin, // Virtual field - will be encrypted by model hooks
-              vin: vin, // Virtual field - will be encrypted by model hooks
+              nin, // Virtual field - will be encrypted by model hooks
+              vin, // Virtual field - will be encrypted by model hooks
               phone_number: phoneNumber, // Guaranteed to match validation pattern
               date_of_birth: new Date(
                 1960 + Math.floor(Math.random() * 40),
                 Math.floor(Math.random() * 12),
                 1 + Math.floor(Math.random() * 28),
               ),
-              full_name: naijaFaker.name(),
+              full_name: naijaFaker.name().substring(0, 100),
               polling_unit_code: pollingUnit.code,
               state: state.name,
               gender: gender,
-              lga: `${state.name} Central`,
-              ward: `Ward ${Math.floor(i / 20) + 1}`,
+              lga: `${state.name} Central`.substring(0, 50),
+              ward: `Ward ${Math.floor(i / 20) + 1}`.substring(0, 100),
               is_active: true,
               mfa_enabled: false,
               // OTP-based authentication fields
@@ -1473,9 +1545,9 @@ module.exports = {
               verification_level: i % 10 < 9 ? 3 : Math.floor(i % 3), // 90% at level 3, others 0-2
               last_verified_at: i % 10 < 9 ? new Date() : null,
               is_verified: i % 10 < 9, // 90% fully verified
-              state: 'verified', // Required field
+              state: 'verified', // Required field - maps to VerificationStatus.state
               verified_at: i % 10 < 9 ? new Date() : null,
-              verification_method: 'biometric', // Required field
+              verification_method: 'biometric', // Required field - maps to VerificationStatus.verificationMethod
               verification_data: JSON.stringify({
                 // Required field - must be stringified for bulk insert
                 phone_verified_at: new Date().toISOString(),
@@ -1859,8 +1931,8 @@ module.exports = {
           // Determine if this report should be reviewed (30% chance)
           const isReviewed = Math.random() < 0.3;
           const status = isReviewed
-            ? getRandomItem(['reviewed', 'resolved', 'rejected'])
-            : 'pending';
+            ? getRandomItem(['under_review', 'resolved', 'dismissed'])
+            : 'submitted';
 
           // Create the report
           const report = generateObserverReport(
@@ -2337,182 +2409,83 @@ async function insertVotersWithCorrectMapping(queryInterface, voterBatch) {
   let insertedCount = 0;
   
   try {
-    // Validate and convert voter data to match the database schema exactly
-    const encryptedVoterBatch = [];
-    const processedNins = new Set();
-    const processedVins = new Set();
-    
-    for (const voter of voterBatch) {
-      // Skip if required fields are missing
-      if (!voter.id || !voter.nin || !voter.vin || !voter.phone_number || !voter.full_name) {
-        console.warn(`Skipping voter with missing required fields: ${voter.id}`);
-        continue;
-      }
-      
-      // Validate phone number format
-      if (!voter.phone_number.match(/^\+?[0-9]{10,15}$/)) {
-        console.warn(`Skipping voter with invalid phone number: ${voter.phone_number}`);
-        continue;
-      }
-      
-      // Validate email format if provided
-      if (voter.email && !voter.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        console.warn(`Skipping voter with invalid email: ${voter.email}`);
-        continue;
-      }
-      
-      // Validate gender
-      if (voter.gender && !['male', 'female'].includes(voter.gender)) {
-        voter.gender = 'male'; // Default to male
-      }
-      
-      // Generate unique encrypted values with collision detection
-      let ninEncrypted, vinEncrypted;
-      let attempts = 0;
-      
-      do {
-        ninEncrypted = encryptIdentity(`${voter.nin}-${Date.now()}-${Math.random()}`);
-        attempts++;
-      } while (processedNins.has(ninEncrypted) && attempts < 10);
-      
-      if (processedNins.has(ninEncrypted)) {
-        console.warn(`Could not generate unique encrypted NIN for voter: ${voter.id}`);
-        continue;
-      }
-      
-      attempts = 0;
-      do {
-        vinEncrypted = encryptIdentity(`${voter.vin}-${Date.now()}-${Math.random()}`);
-        attempts++;
-      } while (processedVins.has(vinEncrypted) && attempts < 10);
-      
-      if (processedVins.has(vinEncrypted)) {
-        console.warn(`Could not generate unique encrypted VIN for voter: ${voter.id}`);
-        continue;
-      }
-      
-      processedNins.add(ninEncrypted);
-      processedVins.add(vinEncrypted);
-      
-      // Create the database record with correct field mapping and validation
-      const dbRecord = {
+    // Since we can't use Model.bulkCreate in seeder context, we'll encrypt manually and use queryInterface.bulkInsert
+    const recordsToInsert = voterBatch.map(voter => {
+      // Manually encrypt the nin and vin fields
+      const encryptedRecord = {
         id: voter.id,
-        phone_number: voter.phone_number.substring(0, 15), // Ensure max length
+        nin_encrypted: encryptIdentity(voter.nin), // Encrypt manually
+        vin_encrypted: encryptIdentity(voter.vin), // Encrypt manually
+        phone_number: voter.phone_number,
         date_of_birth: voter.date_of_birth,
-        full_name: voter.full_name.substring(0, 100), // Ensure max length
-        polling_unit_code: voter.polling_unit_code.substring(0, 50), // Ensure max length
-        state: voter.state.substring(0, 50), // Ensure max length
-        gender: voter.gender || 'male',
-        lga: voter.lga.substring(0, 50), // Ensure max length
-        ward: voter.ward.substring(0, 100), // Ensure max length
-        is_active: voter.is_active !== undefined ? voter.is_active : true,
-        mfa_enabled: voter.mfa_enabled !== undefined ? voter.mfa_enabled : false,
-        email: voter.email ? voter.email.substring(0, 100) : null, // Ensure max length
-        otp_code: voter.otp_code ? voter.otp_code.substring(0, 6) : null, // Ensure max length
-        otp_expires_at: voter.otp_expires_at || null,
-        otp_verified: voter.otp_verified !== undefined ? voter.otp_verified : false,
-        created_at: voter.created_at || new Date(),
-        updated_at: voter.updated_at || new Date(),
-        // Handle encryption with uniqueness
-        nin_encrypted: ninEncrypted,
-        vin_encrypted: vinEncrypted,
-        // Optional fields with defaults
-        recovery_token: null,
-        recovery_token_expiry: null,
-        last_login: null,
-        mfa_secret: null,
-        mfa_backup_codes: null,
-        public_key: null,
+        full_name: voter.full_name,
+        polling_unit_code: voter.polling_unit_code,
+        state: voter.state,
+        gender: voter.gender,
+        lga: voter.lga,
+        ward: voter.ward,
+        is_active: voter.is_active,
+        mfa_enabled: voter.mfa_enabled,
+        email: voter.email,
+        otp_verified: voter.otp_verified,
+        otp_code: voter.otp_code,
+        otp_expires_at: voter.otp_expires_at,
+        created_at: voter.created_at,
+        updated_at: voter.updated_at,
       };
       
-      encryptedVoterBatch.push(dbRecord);
-    }
+      return encryptedRecord;
+    });
+
+    // Use queryInterface.bulkInsert instead of Model.bulkCreate
+    await queryInterface.bulkInsert('voters', recordsToInsert);
     
-    if (encryptedVoterBatch.length === 0) {
-      console.log('No valid voters to insert after validation');
-      return 0;
-    }
-    
-    console.log(`Validated ${encryptedVoterBatch.length}/${voterBatch.length} voters for insertion`);
-    
-    // Use bulk insert with the properly formatted and validated data
-    await queryInterface.bulkInsert('voters', encryptedVoterBatch);
-    insertedCount = encryptedVoterBatch.length;
+    insertedCount = recordsToInsert.length;
     
     // Update tracking
-    encryptedVoterBatch.forEach(voter => {
-      existingVoterIds.add(voter.id);
+    voterBatch.forEach((originalVoter, index) => {
+      const insertedRecord = recordsToInsert[index];
+      existingVoterIds.add(insertedRecord.id);
+      // Note: We already tracked NINs, VINs, phones, and emails during generation
     });
     
-    console.log(`Successfully inserted ${insertedCount}/${voterBatch.length} voters with correct mapping`);
+    console.log(`Successfully inserted ${insertedCount}/${voterBatch.length} voters using queryInterface.bulkInsert`);
     return insertedCount;
     
   } catch (error) {
-    console.error('Error inserting voters with correct mapping:', error.message);
+    console.error('Error inserting voters with queryInterface.bulkInsert:', error.message);
     
-    // For debugging, check if it's a specific constraint violation
-    if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
-      console.error('Unique constraint violation detected - likely duplicate encrypted values');
-    }
-    
-    // Try individual inserts for debugging
-    console.log('Attempting individual voter insertions for debugging...');
-    
-    for (let i = 0; i < Math.min(voterBatch.length, 5); i++) {
-      const voter = voterBatch[i];
-      
-      try {
-        // Apply same validation as above but for individual records
-        if (!voter.id || !voter.nin || !voter.vin || !voter.phone_number || !voter.full_name) {
-          console.warn(`Skipping individual voter with missing required fields: ${voter.id}`);
-          continue;
-        }
-        
-        if (!voter.phone_number.match(/^\+?[0-9]{10,15}$/)) {
-          console.warn(`Skipping individual voter with invalid phone number: ${voter.phone_number}`);
-          continue;
-        }
-        
-        const dbRecord = {
-          id: voter.id,
-          phone_number: voter.phone_number.substring(0, 15),
-          date_of_birth: voter.date_of_birth,
-          full_name: voter.full_name.substring(0, 100),
-          polling_unit_code: voter.polling_unit_code.substring(0, 50),
-          state: voter.state.substring(0, 50),
-          gender: voter.gender || 'male',
-          lga: voter.lga.substring(0, 50),
-          ward: voter.ward.substring(0, 100),
-          is_active: voter.is_active !== undefined ? voter.is_active : true,
-          mfa_enabled: voter.mfa_enabled !== undefined ? voter.mfa_enabled : false,
-          email: voter.email ? voter.email.substring(0, 100) : null,
-          otp_code: voter.otp_code ? voter.otp_code.substring(0, 6) : null,
-          otp_expires_at: voter.otp_expires_at || null,
-          otp_verified: voter.otp_verified !== undefined ? voter.otp_verified : false,
-          created_at: voter.created_at || new Date(),
-          updated_at: voter.updated_at || new Date(),
-          nin_encrypted: encryptIdentity(`${voter.nin}-${Date.now()}-${Math.random()}-${i}`),
-          vin_encrypted: encryptIdentity(`${voter.vin}-${Date.now()}-${Math.random()}-${i}`),
-          recovery_token: null,
-          recovery_token_expiry: null,
-          last_login: null,
-          mfa_secret: null,
-          mfa_backup_codes: null,
-          public_key: null,
-        };
-        
-        await queryInterface.bulkInsert('voters', [dbRecord]);
-        insertedCount++;
-        existingVoterIds.add(voter.id);
-        
-        console.log(`Successfully inserted individual voter ${i + 1}: ${voter.id}`);
-        
-      } catch (individualError) {
-        console.error(`Failed to insert individual voter ${i + 1}: ${individualError.message}`);
+    // Log more detailed error information
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      console.error('Unique constraint violation detected:');
+      console.error('- Fields:', error.fields);
+      console.error('- Table:', error.table);
+      if (error.parent && error.parent.constraint) {
+        console.error('- Constraint:', error.parent.constraint);
       }
+    } else if (error.name === 'SequelizeValidationError' && error.errors) {
+      console.error('Validation errors:');
+      error.errors.forEach(err => {
+        console.error(`  - ${err.path}: ${err.message} (value: ${err.value})`);
+      });
     }
     
-    return insertedCount;
+    // Log sample data for debugging (first record only)
+    if (voterBatch.length > 0) {
+      const sampleRecord = { ...voterBatch[0] };
+      // Truncate large fields for readability
+      Object.keys(sampleRecord).forEach(key => {
+        if (typeof sampleRecord[key] === 'string' && sampleRecord[key].length > 50) {
+          sampleRecord[key] = sampleRecord[key].substring(0, 47) + '...';
+        }
+      });
+      console.log(`Sample record from failed batch:`, JSON.stringify(sampleRecord, null, 2));
+      
+      // Log tracking set sizes for debugging
+      console.log(`Tracking set sizes: NIns=${usedNINs.size}, VINs=${usedVINs.size}, Phones=${usedPhoneNumbers.size}`);
+    }
+    
+    return 0; // Return 0 as no records were inserted in this batch
   }
 }
 
