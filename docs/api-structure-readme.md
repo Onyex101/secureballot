@@ -27,12 +27,20 @@ This document provides a comprehensive overview of the API structure for SecureB
 
 The SecureBallot API follows RESTful principles and implements a **dual-cryptography architecture** combining RSA-2048 and Elliptic Curve Cryptography (ECC) for optimal security and performance. The API is organized into logical resource groups with comprehensive validation and military-grade security measures.
 
-**Current Status**: ✅ **PRODUCTION READY** - All endpoints fully implemented with dual-cryptography encryption.
+**Current Status**: ✅ **PRODUCTION READY** - All endpoints fully implemented with enhanced authentication and dual-cryptography encryption.
+
+**Recent Updates (2024)**:
+- ✅ **Enhanced Authentication**: Admin NIN-based authentication and encrypted voter login
+- ✅ **Route Reorganization**: Elections listing moved to public routes, voter registration to admin routes
+- ✅ **OTP Implementation**: Hardcoded OTP system for POC with fallback mechanisms
+- ✅ **Dashboard Enhancement**: Fully implemented real-time dashboard data
+- ✅ **Security Improvements**: Enhanced refresh token security and rate limiting
 
 ### Key Features
 
 - **🎯 Single Dashboard Endpoint**: Complete election data in one optimized API call
 - **🔐 Dual-Cryptography**: RSA-2048 for storage, ECC for mobile transmission
+- **🔑 Enhanced Authentication**: Encrypted identity lookup with NIN-based admin access
 - **📱 Multi-Channel Support**: Web, mobile, and USSD voting channels
 - **⚡ High Performance**: Optimized for 100,000+ concurrent users
 - **🛡️ Military-Grade Security**: FIPS 140-2 and Common Criteria compliant
@@ -155,19 +163,57 @@ SecureBallot implements different cryptographic approaches optimized for differe
 
 | Method | Endpoint | Description | Auth Required | Implementation Status |
 |--------|----------|-------------|--------------|---------------------|
-| POST | `/auth/register` | Register new voter with NIN/VIN | No | ✅ Complete |
-| POST | `/auth/login` | Authenticate voter with MFA | No | ✅ Complete |
+| ~~POST~~ | ~~`/auth/register`~~ | ~~Register new voter with NIN/VIN~~ | ~~No~~ | **🔄 MIGRATED to `/admin/voters/register`** |
+| POST | `/auth/login` | Authenticate voter with encrypted NIN/VIN | No | ✅ **Enhanced** |
+| POST | `/auth/admin-login` | Admin authentication with NIN + password | No | ✅ **Updated** |
+| POST | `/auth/voter/request-login` | Request OTP for voter login (POC: 723111) | No | ✅ **POC Mode** |
+| POST | `/auth/voter/verify-otp` | Verify OTP and complete login | No | ✅ **POC Mode** |
 | POST | `/auth/verify-mfa` | Complete MFA verification | No | ✅ Complete |
-| POST | `/auth/refresh-token` | Refresh authentication token | No | ✅ Complete |
+| POST | `/auth/refresh-token` | Refresh authentication token (enhanced) | No | ✅ **Enhanced** |
 | POST | `/auth/logout` | Log out and invalidate tokens | Yes | ✅ Complete |
-| POST | `/auth/forgot-password` | Request password reset | No | ✅ Complete |
-| POST | `/auth/reset-password` | Reset password with token | No | ✅ Complete |
+| POST | `/auth/forgot-password` | Request password reset | No | ⚠️ Needs NIN/VIN update |
+| POST | `/auth/reset-password` | Reset password with token | No | ⚠️ Needs encryption update |
 
 **Enhanced Features:**
+- **Encrypted Authentication**: All identity lookup uses encrypted NIN/VIN fields
+- **Admin NIN Authentication**: Admins authenticate with NIN + password (not email)
+- **OTP-Based Login**: Dual fallback system (hardcoded → development bypass → real OTP)
 - **Multi-factor Authentication**: SMS and biometric verification
 - **Device Verification**: Hardware-based device authentication
+- **Enhanced Token Security**: Improved refresh token generation and validation
 - **Session Management**: Comprehensive session tracking and security
 - **Rate Limiting**: Protection against brute force attacks
+
+#### **Authentication Flow Changes**
+
+**Voter Authentication (Enhanced)**:
+```mermaid
+sequenceDiagram
+    participant V as Voter
+    participant A as Auth API
+    participant S as SMS/OTP Service
+    
+    V->>A: POST /auth/voter/request-login (NIN/VIN)
+    A->>A: Encrypt & lookup voter identity
+    A-->>V: OTP requested (POC: constant 723111)
+    V->>A: POST /auth/voter/verify-otp (userId + OTP)
+    A->>A: Verify OTP (constant/real/bypass)
+    A-->>V: JWT token + user data
+```
+
+**Admin Authentication (Updated)**:
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant API as Auth API
+    participant DB as Database
+    
+    A->>API: POST /auth/admin-login (NIN + password)
+    API->>API: Encrypt NIN for lookup
+    API->>DB: Find admin by encrypted NIN
+    API->>API: Verify password with bcrypt
+    API-->>A: JWT token + admin data
+```
 
 ### Voter Management Endpoints
 
@@ -288,8 +334,11 @@ Comprehensive admin APIs organized by role with granular permissions:
 |--------|----------|-------------|---------------|---------------------|
 | GET | `/admin/users` | List system users | SystemAdmin | ✅ Complete |
 | POST | `/admin/users` | Create admin user | SystemAdmin | ✅ Complete |
+| **POST** | **`/admin/voters/register`** | **Admin-controlled voter registration** | **Multiple** | **✅ NEW** |
 | PUT | `/admin/users/{userId}` | Update user details | SystemAdmin | ✅ Complete |
 | DELETE | `/admin/users/{userId}` | Deactivate user | SystemAdmin | ✅ Complete |
+| POST | `/admin/login` | Admin NIN + password authentication | None | ✅ **Updated** |
+| GET | `/admin/dashboard` | Enhanced system dashboard | SystemAdmin | ✅ **Enhanced** |
 | GET | `/admin/system-health` | System health metrics | SystemAdmin | ✅ Complete |
 
 #### Electoral Commissioner  

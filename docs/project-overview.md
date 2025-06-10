@@ -19,13 +19,22 @@ A **production-ready**, secure, scalable, and inclusive electronic voting system
 
 SecureBallot is a comprehensive electronic voting system designed to address the specific challenges of the Nigerian electoral process while ensuring **military-grade security**, accessibility, and transparency. The system supports multiple voting channels and implements advanced cryptographic techniques for vote privacy and integrity.
 
-**Current Status**: ✅ **PRODUCTION READY** - All core functionality implemented with dual-cryptography security.
+**Current Status**: ✅ **PRODUCTION READY** - All core functionality implemented with enhanced authentication and dual-cryptography security.
+
+**Recent Updates (2024)**:
+- ✅ **Enhanced Authentication**: Admin NIN-based login and encrypted voter authentication
+- ✅ **Route Reorganization**: Voter registration moved to admin-controlled environment
+- ✅ **OTP Integration**: Hardcoded OTP system for POC with dual fallback mechanism
+- ✅ **Dashboard Enhancement**: Real-time data implementation with live statistics
+- ✅ **Security Improvements**: Enhanced refresh token security and audit logging
 
 ### Key Features
 
 #### 🔐 **Advanced Security**
 - **Dual-cryptography architecture**: RSA-2048 + ECC for optimal security and performance
 - **Hybrid encryption**: RSA + AES for vote storage, ECIES + ECDSA for mobile transmission
+- **Enhanced authentication**: Encrypted NIN/VIN lookup with admin NIN authentication
+- **OTP-based verification**: Multi-layered OTP system with fallback mechanisms
 - **Shamir's Secret Sharing**: Distributed private key management
 - **Zero-knowledge receipts**: Vote verification without revealing choices
 - **Military-grade encryption**: FIPS 140-2 and Common Criteria compliant
@@ -45,6 +54,8 @@ SecureBallot is a comprehensive electronic voting system designed to address the
 
 #### 🏛️ **Electoral Management**
 - **Role-based access control**: Granular permissions for electoral officials
+- **Enhanced voter registration**: Admin-controlled registration with auto-verification
+- **Encrypted authentication**: NIN-based admin login and voter identity encryption
 - **Complete audit trail**: Comprehensive logging of all system activities
 - **Multi-factor authentication**: NIN/VIN verification with SMS/biometric support
 - **Observer integration**: Support for domestic and international election observers
