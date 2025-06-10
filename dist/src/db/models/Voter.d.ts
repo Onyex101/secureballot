@@ -1,0 +1,68 @@
+import { Model, Sequelize, Optional } from 'sequelize';
+interface VoterAttributes {
+    id: string;
+    phoneNumber: string;
+    dateOfBirth: Date;
+    fullName: string;
+    pollingUnitCode: string;
+    state: string;
+    gender: string;
+    lga: string;
+    ward: string;
+    recoveryToken: string | null;
+    recoveryTokenExpiry: Date | null;
+    isActive: boolean;
+    lastLogin: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    mfaSecret: string | null;
+    mfaEnabled: boolean;
+    mfaBackupCodes: string[] | null;
+    publicKey?: string;
+    ninEncrypted: string | null;
+    vinEncrypted: string | null;
+    email: string | null;
+    otpCode: string | null;
+    otpExpiresAt: Date | null;
+    otpVerified: boolean;
+}
+interface VoterCreationAttributes extends Optional<VoterAttributes, 'id' | 'recoveryToken' | 'recoveryTokenExpiry' | 'isActive' | 'lastLogin' | 'createdAt' | 'updatedAt' | 'mfaSecret' | 'mfaEnabled' | 'mfaBackupCodes' | 'publicKey' | 'ninEncrypted' | 'vinEncrypted' | 'email' | 'otpCode' | 'otpExpiresAt' | 'otpVerified'> {
+    nin: string;
+    vin: string;
+}
+declare class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements VoterAttributes {
+    id: string;
+    phoneNumber: string;
+    dateOfBirth: Date;
+    fullName: string;
+    pollingUnitCode: string;
+    state: string;
+    gender: string;
+    lga: string;
+    ward: string;
+    recoveryToken: string | null;
+    recoveryTokenExpiry: Date | null;
+    isActive: boolean;
+    lastLogin: Date | null;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+    mfaSecret: string | null;
+    mfaEnabled: boolean;
+    mfaBackupCodes: string[] | null;
+    publicKey?: string;
+    ninEncrypted: string | null;
+    vinEncrypted: string | null;
+    email: string | null;
+    otpCode: string | null;
+    otpExpiresAt: Date | null;
+    otpVerified: boolean;
+    static readonly createdAt = "createdAt";
+    static readonly updatedAt = "updatedAt";
+    nin?: string;
+    vin?: string;
+    get decryptedNin(): string | null;
+    get decryptedVin(): string | null;
+    static associate(models: any): void;
+    static initialize(sequelize: Sequelize): typeof Voter;
+}
+export default Voter;

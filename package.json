@@ -33,6 +33,7 @@
     "db:seed:debug": "DEBUG=true node src/db/seeders/run-optimized-seeder.js",
     "swagger-autogen": "ts-node src/scripts/swagger-autogen.ts",
     "admin:create": "node src/db/scripts/createAdmin.js",
+    "voter:register": "ts-node src/db/scripts/register-voter.ts",
     "prepare": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || npx husky install || true",
     "e2e": "docker compose -f docker-compose.test.yml up -d && node tests/e2e/index.js && docker compose -f docker-compose.test.yml down",
     "e2e:auth": "docker compose -f docker-compose.test.yml up -d && node tests/e2e/index.js auth && docker compose -f docker-compose.test.yml down",
@@ -87,7 +88,7 @@
   },
   "devDependencies": {
     "@codegrenade/naija-faker": "^1.0.5",
-    "@faker-js/faker": "^9.6.0",
+    "@faker-js/faker": "^8.4.1",
     "@types/bcrypt": "^5.0.2",
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",

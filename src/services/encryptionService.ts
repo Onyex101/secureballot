@@ -62,7 +62,15 @@ export const generateAESKey = () => {
  */
 export const encryptWithAES = (data: string, key: string) => {
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
+
+  let keyBuffer: Buffer;
+  try {
+    keyBuffer = Buffer.from(key, 'hex');
+  } catch (error) {
+    throw error;
+  }
+
+  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
 
   let encrypted = cipher.update(data, 'utf8', 'base64');
   encrypted += cipher.final('base64');
@@ -102,13 +110,16 @@ export const hashData = (data: string) => {
 const getEncryptionKey = (): string => {
   // In production, this should come from environment variables or a secure key management system
   const envKey = process.env.IDENTITY_ENCRYPTION_KEY;
-  if (envKey && envKey.length === 64) {
-    // 32 bytes = 64 hex chars
-    return envKey;
+
+  if (envKey) {
+    // Convert the environment key to a proper 32-byte hex key
+    // Hash the environment key to get exactly 32 bytes (64 hex chars)
+    const hashedKey = crypto.createHash('sha256').update(envKey).digest('hex');
+    return hashedKey;
   }
 
   // Fallback key (should be replaced in production)
-  return 'a'.repeat(64); // 32 bytes of 'a'
+  return 'a'.repeat(64);
 };
 
 /**

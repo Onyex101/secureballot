@@ -27,6 +27,9 @@ interface VoterAttributes {
   otpCode: string | null;
   otpExpiresAt: Date | null;
   otpVerified: boolean;
+  // Virtual fields for temporary nin and vin values
+  nin?: string;
+  vin?: string;
 }
 
 interface VoterCreationAttributes
@@ -298,6 +301,15 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
           allowNull: false,
           defaultValue: false,
         },
+        // Virtual fields for temporary nin and vin values
+        nin: {
+          type: DataTypes.VIRTUAL,
+          allowNull: true,
+        },
+        vin: {
+          type: DataTypes.VIRTUAL,
+          allowNull: true,
+        },
       },
       {
         sequelize,
@@ -336,6 +348,30 @@ class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements V
               voter.vinEncrypted = encryptIdentity(voter.vin);
               delete voter.vin; // Remove virtual field after encryption
             }
+          },
+          afterFind: (result: Voter | Voter[] | null) => {
+            // Decrypt nin and vin after finding voter(s)
+            if (!result) return;
+
+            const voters = Array.isArray(result) ? result : [result];
+
+            voters.forEach((voter: Voter) => {
+              if (voter.ninEncrypted) {
+                try {
+                  voter.nin = decryptIdentity(voter.ninEncrypted);
+                } catch (error) {
+                  voter.nin = undefined;
+                }
+              }
+
+              if (voter.vinEncrypted) {
+                try {
+                  voter.vin = decryptIdentity(voter.vinEncrypted);
+                } catch (error) {
+                  voter.vin = undefined;
+                }
+              }
+            });
           },
         },
       },

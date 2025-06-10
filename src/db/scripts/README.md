@@ -202,4 +202,94 @@ Once you've created an admin user:
 - Keep a secure record of the first admin credentials
 - Consider using a password manager for admin credentials
 - Test the admin login immediately after creation
-- Set up proper backup procedures for the admin database 
+- Set up proper backup procedures for the admin database
+
+# SecureBallot Database Scripts
+
+This directory contains database utility scripts for the SecureBallot voting platform.
+
+## Voter Registration Script
+
+The `register-voter.ts` script allows you to register a single voter with realistic Nigerian data.
+
+### Features
+
+- **Realistic Nigerian Data**: Uses `@codegrenade/naija-faker` to generate authentic Nigerian names and phone numbers
+- **Lagos-based Voter**: Sets polling unit to 'PULA100' (Lagos state)
+- **Election Eligibility**: Shows available elections (Presidential and Lagos Gubernatorial)
+- **Encrypted Storage**: NIN and VIN are automatically encrypted when stored
+- **Full Verification**: Creates a fully verified voter ready to vote
+- **Structured Logging**: Uses the project's winston logger for proper logging
+
+### Usage
+
+```bash
+# Run the voter registration script
+npm run voter:register
+
+# Or run directly
+ts-node src/db/scripts/register-voter.ts
+```
+
+### Prerequisites
+
+1. Database must be running and accessible
+2. Database tables must be migrated
+3. Seeded data (elections, candidates) should exist for best results
+
+### What the Script Does
+
+1. **Generates Voter Data**:
+   - Nigerian name using naijafaker
+   - Nigerian phone number (+234XXXXXXXXXX format)
+   - Email address based on the name
+   - Random date of birth (18-65 years old)
+   - Gender (male/female)
+   - Polling unit set to 'PULA100' (Lagos)
+
+2. **Creates Database Records**:
+   - Voter record with encrypted NIN/VIN
+   - Verification status (fully verified)
+   - Checks/creates polling unit if needed
+
+3. **Shows Election Information**:
+   - Lists all active elections
+   - Indicates voter eligibility
+   - Shows candidates for each election
+
+### Sample Output
+
+The script uses structured logging via winston, so output will be formatted according to your logger configuration. Key information logged includes:
+
+- Generated voter data (name, phone, email, etc.)
+- Voter identity information (ID, NIN, VIN)
+- Available elections with eligibility status
+- Candidates for each election
+- Voting instructions
+
+### Authentication System
+
+- **Voters authenticate using**: Encrypted NIN/VIN + OTP (no password required)
+- **NIN and VIN are encrypted** in the database for security
+- **OTP verification** is required for voting (currently hardcoded to 723111 for POC)
+
+### Election Eligibility
+
+- **Presidential Elections**: All Nigerian voters are eligible
+- **Gubernatorial Elections**: Only voters in the specific state are eligible
+- **Lagos Voters**: Can vote in both Presidential and Lagos Gubernatorial elections
+
+### Error Handling
+
+The script handles common errors with structured logging:
+- Database connection issues
+- Missing polling units (creates them automatically)
+- Validation errors
+- Unique constraint violations
+
+### Development Notes
+
+- Uses the project's winston logger for consistent logging
+- Imports models directly from the TypeScript source
+- Handles model loading and database connections automatically
+- Uses the same encryption and validation as the main application 

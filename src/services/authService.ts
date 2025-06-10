@@ -42,9 +42,15 @@ export const registerVoter = async (data: VoterRegistrationData): Promise<Voter>
     throw new Error('Voter already exists');
   }
 
+  // Encrypt the identity fields before creating the voter
+  const ninEncrypted = encryptIdentity(data.nin);
+  const vinEncrypted = encryptIdentity(data.vin);
+
   const voter = await Voter.create({
-    nin: data.nin,
-    vin: data.vin,
+    ninEncrypted,
+    vinEncrypted,
+    nin: data.nin, // Virtual field for the hook
+    vin: data.vin, // Virtual field for the hook
     phoneNumber: data.phoneNumber,
     dateOfBirth: data.dateOfBirth,
     fullName: data.fullName,
