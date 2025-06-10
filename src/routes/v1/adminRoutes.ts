@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
-import { validate, validationMessages } from '../../middleware/validator';
+import {
+  validate,
+  validationMessages,
+  ninValidation,
+  vinValidation,
+  phoneValidation,
+} from '../../middleware/validator';
 import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/accessControl';
 import { UserRole } from '../../types';
@@ -585,6 +591,170 @@ router.post(
       .withMessage('Publish level must be either preliminary or final'),
   ]),
   resultVerificationController.verifyAndPublishResults,
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/register-voter:
+ *   post:
+ *     summary: Register a new voter (Admin only)
+ *     tags: [Voter Management]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nin
+ *               - vin
+ *               - phoneNumber
+ *               - dateOfBirth
+ *               - fullName
+ *               - pollingUnitCode
+ *               - state
+ *               - gender
+ *               - lga
+ *               - ward
+ *             properties:
+ *               nin:
+ *                 type: string
+ *                 description: 11-character National Identification Number
+ *                 example: "12345678901"
+ *               vin:
+ *                 type: string
+ *                 description: 19-character Voter Identification Number
+ *                 example: "1234567890123456789"
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Phone number for MFA
+ *                 example: "+2348012345678"
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 description: Date of birth for verification
+ *                 example: "1990-01-01"
+ *               fullName:
+ *                 type: string
+ *                 description: Full name of the voter
+ *                 example: "John Doe"
+ *               pollingUnitCode:
+ *                 type: string
+ *                 description: Assigned polling unit code
+ *                 example: "PU001"
+ *               state:
+ *                 type: string
+ *                 description: State of residence
+ *                 example: "Lagos"
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female]
+ *                 description: Gender of the voter
+ *                 example: "male"
+ *               lga:
+ *                 type: string
+ *                 description: Local Government Area
+ *                 example: "Ikeja"
+ *               ward:
+ *                 type: string
+ *                 description: Ward within the LGA
+ *                 example: "Ward 1"
+ *               autoVerify:
+ *                 type: boolean
+ *                 description: Whether to automatically verify the voter after registration
+ *                 default: false
+ *     responses:
+ *       201:
+ *         description: Voter registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Voter registered successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     voter:
+ *                       type: object
+ *                       description: Registered voter details
+ *                     verification:
+ *                       type: object
+ *                       description: Verification status (if auto-verified)
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       409:
+ *         description: Voter already exists
+ */
+router.post(
+  '/register-voter',
+  requireRole([
+    UserRole.SYSTEM_ADMIN,
+    UserRole.VOTER_REGISTRATION_OFFICER,
+    UserRole.ELECTORAL_COMMISSIONER,
+  ]),
+  adminLimiter,
+  validate([
+    ninValidation(),
+    vinValidation(),
+    phoneValidation(),
+
+    body('dateOfBirth')
+      .notEmpty()
+      .withMessage(validationMessages.required('Date of birth'))
+      .isISO8601()
+      .withMessage('Date of birth must be a valid date'),
+
+    body('fullName')
+      .notEmpty()
+      .withMessage(validationMessages.required('Full name'))
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Full name must be between 2 and 100 characters'),
+
+    body('pollingUnitCode')
+      .notEmpty()
+      .withMessage(validationMessages.required('Polling unit code'))
+      .isLength({ min: 1, max: 50 })
+      .withMessage('Polling unit code must be between 1 and 50 characters'),
+
+    body('state')
+      .notEmpty()
+      .withMessage(validationMessages.required('State'))
+      .isLength({ min: 2, max: 50 })
+      .withMessage('State must be between 2 and 50 characters'),
+
+    body('gender')
+      .notEmpty()
+      .withMessage(validationMessages.required('Gender'))
+      .isIn(['male', 'female'])
+      .withMessage('Gender must be either male or female'),
+
+    body('lga')
+      .notEmpty()
+      .withMessage(validationMessages.required('LGA'))
+      .isLength({ min: 2, max: 50 })
+      .withMessage('LGA must be between 2 and 50 characters'),
+
+    body('ward')
+      .notEmpty()
+      .withMessage(validationMessages.required('Ward'))
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Ward must be between 1 and 100 characters'),
+
+    body('autoVerify').optional().isBoolean().withMessage('autoVerify must be a boolean'),
+  ]),
+  authController.register,
 );
 
 /**

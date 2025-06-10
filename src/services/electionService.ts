@@ -265,8 +265,8 @@ export const getVoterDetails = async (userId: string) => {
 
   return {
     id: voter.id,
-    nin: voter.nin,
-    vin: voter.vin,
+    nin: voter.decryptedNin,
+    vin: voter.decryptedVin,
     phoneNumber: voter.phoneNumber,
     pollingUnit: pollingUnit
       ? {

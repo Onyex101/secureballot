@@ -1,16 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
+import { AuthRequest } from '../../middleware/auth';
 import { authService, auditService, mfaService } from '../../services';
+import * as verificationService from '../../services/verificationService';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { logger } from '../../config/logger';
 import { logError } from '../../utils/logger';
+import AdminUser from '../../db/models/AdminUser';
+import Voter from '../../db/models/Voter';
 
 /**
  * Register a new voter
- * @route POST /api/v1/auth/register
- * @access Public
+ * @route POST /api/v1/admin/register-voter (Admin access)
+ * @route POST /api/v1/auth/register (Legacy - removed)
+ * @access Admin only
  */
-export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const register = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const {
       nin,
@@ -24,6 +33,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       gender,
       lga,
       ward,
+      autoVerify = true, // Admin can choose to auto-verify
     } = req.body;
 
     // Check if voter already exists
@@ -60,27 +70,80 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       AuditActionType.REGISTRATION,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { nin, phoneNumber },
+      { nin, phoneNumber, registeredByAdmin: true },
     );
+
+    let verificationStatus = null;
+
+    // Handle auto-verification if requested (admin privilege)
+    if (autoVerify && req.user) {
+      try {
+        // Create initial verification status
+        await verificationService.submitVerificationRequest(
+          voter.id,
+          'admin_registration',
+          'auto-verified',
+          'admin-direct-registration',
+        );
+
+        // Get the verification ID (we need to find it since submitVerificationRequest doesn't return the ID)
+        const verificationRecord = await verificationService.getVerificationStatus(voter.id);
+
+        // Auto-approve the verification
+        verificationStatus = await verificationService.approveVerification(
+          verificationRecord.id,
+          req.user.id,
+          'Auto-verified during admin registration',
+        );
+
+        // Log the auto-verification
+        await auditService.createAuditLog(
+          voter.id,
+          AuditActionType.VERIFICATION,
+          req.ip || '',
+          req.headers['user-agent'] || '',
+          {
+            autoVerified: true,
+            approvedBy: req.user.id,
+            method: 'admin_auto_verification',
+          },
+        );
+      } catch (verificationError) {
+        // Log verification error but don't fail the registration
+        logger.warn('Auto-verification failed during voter registration', {
+          voterId: voter.id,
+          error: verificationError,
+        });
+      }
+    }
+
+    const responseMessage =
+      autoVerify && verificationStatus
+        ? 'Voter registered and verified successfully'
+        : 'Voter registered successfully';
 
     res.status(201).json({
       success: true,
-      message: 'Voter registered successfully',
+      message: responseMessage,
       data: {
-        id: voter.id,
-        nin: voter.nin,
-        vin: voter.vin,
-        phoneNumber: voter.phoneNumber,
-        fullName: voter.fullName,
-        dateOfBirth: voter.dateOfBirth,
-        pollingUnitCode: voter.pollingUnitCode,
-        state: voter.state,
-        lga: voter.lga,
-        ward: voter.ward,
-        gender: voter.gender,
-        isActive: voter.isActive,
-        mfaEnabled: voter.mfaEnabled,
-        createdAt: voter.createdAt,
+        voter: {
+          id: voter.id,
+          nin: voter.decryptedNin,
+          vin: voter.decryptedVin,
+          phoneNumber: voter.phoneNumber,
+          fullName: voter.fullName,
+          dateOfBirth: voter.dateOfBirth,
+          pollingUnitCode: voter.pollingUnitCode,
+          state: voter.state,
+          lga: voter.lga,
+          ward: voter.ward,
+          gender: voter.gender,
+          isActive: voter.isActive,
+          mfaEnabled: voter.mfaEnabled,
+          createdAt: voter.createdAt,
+        },
+        verification: verificationStatus,
+        autoVerified: !!verificationStatus,
       },
     });
   } catch (error) {
@@ -292,26 +355,26 @@ export const adminLogin = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { nin, password } = req.body;
 
-    if (!email || !password) {
-      throw new ApiError(400, 'Email and password are required', 'MISSING_FIELDS');
+    if (!nin || !password) {
+      throw new ApiError(400, 'NIN and password are required', 'MISSING_FIELDS');
     }
 
     try {
-      // Authenticate admin
-      const admin = await authService.authenticateAdmin(email, password);
+      // Authenticate admin using NIN and password
+      const authenticatedAdmin = await authService.authenticateAdminByNin(nin, password);
 
       // Generate token with admin role
-      const token = authService.generateToken(admin.id, 'admin');
+      const token = authService.generateToken(authenticatedAdmin.id, 'admin');
 
       // Log the login
       await auditService.createAdminAuditLog(
-        admin.id,
+        authenticatedAdmin.id,
         AuditActionType.ADMIN_LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { email, success: true },
+        { nin: nin.substring(0, 3) + '*'.repeat(8), success: true },
       );
 
       res.status(200).json({
@@ -320,12 +383,13 @@ export const adminLogin = async (
         data: {
           token,
           user: {
-            id: admin.id,
-            email: admin.email,
-            fullName: admin.fullName,
-            role: admin.adminType,
+            id: authenticatedAdmin.id,
+            nin: authenticatedAdmin.decryptedNin, // Use decrypted NIN
+            email: authenticatedAdmin.email,
+            fullName: authenticatedAdmin.fullName,
+            role: authenticatedAdmin.adminType,
           },
-          requiresMfa: admin.mfaEnabled,
+          requiresMfa: authenticatedAdmin.mfaEnabled,
         },
       });
     } catch (error) {
@@ -336,7 +400,11 @@ export const adminLogin = async (
         AuditActionType.ADMIN_LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
-        { email, success: false, error: (error as Error).message },
+        {
+          nin: nin.substring(0, 3) + '*'.repeat(8),
+          success: false,
+          error: (error as Error).message,
+        },
       );
 
       const apiError = new ApiError(
@@ -359,17 +427,35 @@ export const adminLogin = async (
  * @access Private
  */
 export const refreshToken = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    // The user ID and role should be available from the authentication middleware
-    const userId = (req as any).userId;
-    const role = (req as any).role || 'voter';
+    // Get user information from authentication middleware
+    const userId = req.userId;
+    const role = req.role || 'voter';
+    const userType = req.userType;
 
-    // Generate a new token with the same role
-    const token = authService.generateToken(userId, role);
+    if (!userId) {
+      throw new ApiError(401, 'User ID not found in token', 'INVALID_TOKEN');
+    }
+
+    // Verify user still exists and is active
+    if (userType === 'admin') {
+      const admin = await AdminUser.findByPk(userId);
+      if (!admin || !admin.isActive) {
+        throw new ApiError(401, 'Admin user not found or inactive', 'USER_INVALID');
+      }
+    } else if (userType === 'voter') {
+      const voter = await Voter.findByPk(userId);
+      if (!voter || !voter.isActive) {
+        throw new ApiError(401, 'Voter not found or inactive', 'USER_INVALID');
+      }
+    }
+
+    // Generate a new token with longer expiry for refresh
+    const token = authService.generateToken(userId, role, '24h');
 
     // Log the token refresh
     await auditService.createAuditLog(
@@ -377,7 +463,7 @@ export const refreshToken = async (
       AuditActionType.TOKEN_REFRESH,
       req.ip || '',
       req.headers['user-agent'] || '',
-      { success: true, role },
+      { success: true, role, userType },
     );
 
     res.status(200).json({
@@ -385,6 +471,8 @@ export const refreshToken = async (
       message: 'Token refreshed successfully',
       data: {
         token,
+        expiresIn: '24h',
+        tokenType: 'Bearer',
       },
     });
   } catch (error) {
@@ -418,97 +506,6 @@ export const logout = async (req: Request, res: Response, next: NextFunction): P
       success: true,
       message: 'Logout successful',
     });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Request password reset
- * @route POST /api/v1/auth/forgot-password
- * @access Public
- */
-export const forgotPassword = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { email } = req.body;
-
-    try {
-      // Generate password reset token
-      const result = await authService.generatePasswordResetToken(email);
-
-      // In a real implementation, you would send an email with the token
-      // For now, we'll just log it
-      logger.debug(`Password reset token for ${email}: ${result.token}`);
-
-      // Log the password reset request
-      await auditService.createAuditLog(
-        'system',
-        AuditActionType.PASSWORD_RESET,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { email },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Password reset instructions sent to your email',
-      });
-    } catch (error) {
-      // Don't reveal if the email exists or not
-      res.status(200).json({
-        success: true,
-        message: 'If your email is registered, you will receive password reset instructions',
-      });
-    }
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Reset password
- * @route POST /api/v1/auth/reset-password
- * @access Public
- */
-export const resetPassword = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const { token, newPassword } = req.body;
-
-    try {
-      // Reset the password
-      await authService.resetPassword(token, newPassword);
-
-      // Log the password reset
-      await auditService.createAuditLog(
-        'system',
-        AuditActionType.PASSWORD_CHANGE,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: true },
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Password reset successful',
-      });
-    } catch (error) {
-      const apiError = new ApiError(
-        400,
-        'Invalid or expired token',
-        'INVALID_RESET_TOKEN',
-        undefined,
-        true,
-      );
-      throw apiError;
-    }
   } catch (error) {
     next(error);
   }

@@ -68,9 +68,6 @@ router.put(
   voterController.updateProfile,
 );
 
-// Note: Password change route has been removed as it's inconsistent with
-// the new NIN/VIN encryption-based authentication system.
-
 /**
  * @swagger
  * /api/v1/voter/polling-unit:
@@ -492,9 +489,5 @@ router.get(
   ]),
   dashboardController.getDashboardData,
 );
-
-// Note: Placeholder routes for verify-identity, verify-address, and voting-history
-// have been removed as they were implemented with empty functions.
-// These routes should be implemented with proper controller functions when needed.
 
 export default router;

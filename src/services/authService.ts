@@ -152,6 +152,54 @@ export const authenticateAdmin = async (email: string, password: string): Promis
 };
 
 /**
+ * Authenticate admin using NIN and password
+ */
+export const authenticateAdminByNin = async (nin: string, password: string): Promise<AdminUser> => {
+  try {
+    // Find admin by encrypted NIN
+    const admin = await findAdminByNin(nin);
+
+    if (!admin) {
+      logger.debug(
+        `Admin authentication failed: No admin found with NIN ${nin.substring(0, 3)}********`,
+      );
+      throw new Error('Invalid credentials');
+    }
+
+    // Check if admin is active
+    if (!admin.isActive) {
+      logger.debug(
+        `Admin authentication failed: Admin account is inactive for NIN ${nin.substring(0, 3)}********`,
+      );
+      throw new Error('Account is inactive');
+    }
+
+    // Verify password
+    const isPasswordValid = await admin.validatePassword(password);
+
+    if (!isPasswordValid) {
+      logger.debug(
+        `Admin authentication failed: Invalid password for NIN ${nin.substring(0, 3)}********`,
+      );
+      throw new Error('Invalid credentials');
+    }
+
+    // Update last login
+    await admin.update({
+      lastLogin: new Date(),
+    });
+
+    return admin;
+  } catch (error) {
+    logger.error('Error authenticating admin by NIN', {
+      nin: nin.substring(0, 3) + '*'.repeat(8),
+      error: (error as Error).message,
+    });
+    throw error;
+  }
+};
+
+/**
  * Generate JWT token
  */
 export const generateToken = (
