@@ -151,8 +151,8 @@ export const hasPermission = (requiredPermission: string) => {
         throw new ApiError(403, 'Admin access required', 'ADMIN_REQUIRED');
       }
 
-      // Check if user is a superadmin (always has all permissions)
-      if (req.user.adminType === 'superadmin') {
+      // Check if user is a system administrator (always has all permissions)
+      if (req.user.adminType === 'SystemAdministrator') {
         return next();
       }
 

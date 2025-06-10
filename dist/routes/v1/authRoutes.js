@@ -35,130 +35,6 @@ const otpAuthController = __importStar(require("../../controllers/auth/otpAuthCo
 const router = (0, express_1.Router)();
 /**
  * @swagger
- * /api/v1/auth/register:
- *   post:
- *     summary: Register a new voter
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - nin
- *               - vin
- *               - phoneNumber
- *               - dateOfBirth
- *               - password
- *               - fullName
- *               - pollingUnitCode
- *               - state
- *               - gender
- *               - lga
- *               - ward
- *             properties:
- *               nin:
- *                 type: string
- *                 description: 11-character National Identification Number
- *                 example: "12345678901"
- *               vin:
- *                 type: string
- *                 description: 19-character Voter Identification Number
- *                 example: "1234567890123456789"
- *               phoneNumber:
- *                 type: string
- *                 description: Phone number for MFA
- *                 example: "+2348012345678"
- *               dateOfBirth:
- *                 type: string
- *                 format: date
- *                 description: Date of birth for verification
- *                 example: "1990-01-01"
- *               password:
- *                 type: string
- *                 format: password
- *                 description: User password
- *               fullName:
- *                 type: string
- *                 description: Full name of the voter
- *                 example: "John Doe"
- *               pollingUnitCode:
- *                 type: string
- *                 description: Assigned polling unit code
- *                 example: "PU001"
- *               state:
- *                 type: string
- *                 description: State of residence
- *                 example: "Lagos"
- *               gender:
- *                 type: string
- *                 enum: [male, female]
- *                 description: Gender of the voter
- *                 example: "male"
- *               lga:
- *                 type: string
- *                 description: Local Government Area
- *                 example: "Ikeja"
- *               ward:
- *                 type: string
- *                 description: Ward within the LGA
- *                 example: "Ward 1"
- *     responses:
- *       201:
- *         description: Voter registered successfully
- *       400:
- *         description: Invalid input
- *       409:
- *         description: Voter already exists
- */
-router.post('/register', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, validator_1.ninValidation)(),
-    (0, validator_1.vinValidation)(),
-    (0, validator_1.phoneValidation)(),
-    (0, express_validator_1.body)('dateOfBirth')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Date of birth'))
-        .isISO8601()
-        .withMessage('Date of birth must be a valid date'),
-    (0, express_validator_1.body)('password')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Password'))
-        .isLength({ min: 8 })
-        .withMessage('Password must be at least 8 characters'),
-    (0, express_validator_1.body)('fullName')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Full name'))
-        .isLength({ min: 2, max: 100 })
-        .withMessage('Full name must be between 2 and 100 characters'),
-    (0, express_validator_1.body)('pollingUnitCode')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Polling unit code'))
-        .isLength({ min: 1, max: 50 })
-        .withMessage('Polling unit code must be between 1 and 50 characters'),
-    (0, express_validator_1.body)('state')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('State'))
-        .isLength({ min: 2, max: 50 })
-        .withMessage('State must be between 2 and 50 characters'),
-    (0, express_validator_1.body)('gender')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Gender'))
-        .isIn(['male', 'female'])
-        .withMessage('Gender must be either male or female'),
-    (0, express_validator_1.body)('lga')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('LGA'))
-        .isLength({ min: 2, max: 50 })
-        .withMessage('LGA must be between 2 and 50 characters'),
-    (0, express_validator_1.body)('ward')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Ward'))
-        .isLength({ min: 1, max: 100 })
-        .withMessage('Ward must be between 1 and 100 characters'),
-]), authController.register);
-/**
- * @swagger
  * /api/v1/auth/login:
  *   post:
  *     summary: Login a voter (POC - simplified)
@@ -496,8 +372,10 @@ router.post('/verify-backup-code', rateLimiter_1.authLimiter, (0, validator_1.va
  *         description: Token refreshed successfully
  *       401:
  *         description: Unauthorized
+ *       429:
+ *         description: Too many requests
  */
-router.post('/refresh-token', auth_1.authenticate, authController.refreshToken);
+router.post('/refresh-token', rateLimiter_1.authLimiter, auth_1.authenticate, authController.refreshToken);
 /**
  * @swagger
  * /api/v1/auth/logout:
@@ -515,66 +393,6 @@ router.post('/refresh-token', auth_1.authenticate, authController.refreshToken);
 router.post('/logout', auth_1.authenticate, authController.logout);
 /**
  * @swagger
- * /api/v1/auth/forgot-password:
- *   post:
- *     summary: Request password reset
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *     responses:
- *       200:
- *         description: Password reset instructions sent
- *       400:
- *         description: Invalid input
- */
-router.post('/forgot-password', rateLimiter_1.authLimiter, (0, validator_1.validate)([(0, validator_1.emailValidation)()]), authController.forgotPassword);
-/**
- * @swagger
- * /api/v1/auth/reset-password:
- *   post:
- *     summary: Reset password with token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - token
- *               - newPassword
- *             properties:
- *               token:
- *                 type: string
- *               newPassword:
- *                 type: string
- *                 format: password
- *     responses:
- *       200:
- *         description: Password reset successful
- *       400:
- *         description: Invalid input or token
- */
-router.post('/reset-password', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('token').notEmpty().withMessage(validator_1.validationMessages.required('Token')),
-    (0, express_validator_1.body)('newPassword')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('New password'))
-        .isLength({ min: 8 })
-        .withMessage('Password must be at least 8 characters'),
-]), authController.resetPassword);
-/**
- * @swagger
  * /api/v1/auth/admin-login:
  *   post:
  *     summary: Login as an admin
@@ -586,12 +404,14 @@ router.post('/reset-password', rateLimiter_1.authLimiter, (0, validator_1.valida
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - nin
  *               - password
  *             properties:
- *               email:
+ *               nin:
  *                 type: string
- *                 format: email
+ *                 description: National Identification Number (11 digits)
+ *                 pattern: '^\d{11}$'
+ *                 example: '12345678901'
  *               password:
  *                 type: string
  *                 format: password
@@ -607,7 +427,7 @@ router.post('/reset-password', rateLimiter_1.authLimiter, (0, validator_1.valida
  *         description: Account inactive
  */
 router.post('/admin-login', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, validator_1.emailValidation)(),
+    (0, validator_1.ninValidation)(),
     (0, express_validator_1.body)('password').notEmpty().withMessage(validator_1.validationMessages.required('Password')),
 ]), authController.adminLogin);
 /**

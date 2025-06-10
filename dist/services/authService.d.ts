@@ -56,6 +56,10 @@ export declare const authenticateVoterForUssd: (nin: string, vin: string, phoneN
  */
 export declare const authenticateAdmin: (email: string, password: string) => Promise<AdminUser>;
 /**
+ * Authenticate admin using NIN and password
+ */
+export declare const authenticateAdminByNin: (nin: string, password: string) => Promise<AdminUser>;
+/**
  * Generate JWT token
  */
 export declare const generateToken: (userId: string, role?: string, expiresIn?: string) => string;

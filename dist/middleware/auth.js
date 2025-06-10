@@ -126,8 +126,8 @@ const hasPermission = (requiredPermission) => {
             if (!req.user || req.userType !== 'admin') {
                 throw new errorHandler_1.ApiError(403, 'Admin access required', 'ADMIN_REQUIRED');
             }
-            // Check if user is a superadmin (always has all permissions)
-            if (req.user.adminType === 'superadmin') {
+            // Check if user is a system administrator (always has all permissions)
+            if (req.user.adminType === 'SystemAdministrator') {
                 return next();
             }
             // Check specific permission

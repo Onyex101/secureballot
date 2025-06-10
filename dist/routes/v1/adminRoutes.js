@@ -554,6 +554,155 @@ router.post('/results/publish', (0, accessControl_1.requireRole)([types_1.UserRo
 ]), resultVerificationController.verifyAndPublishResults);
 /**
  * @swagger
+ * /api/v1/admin/register-voter:
+ *   post:
+ *     summary: Register a new voter (Admin only)
+ *     tags: [Voter Management]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nin
+ *               - vin
+ *               - phoneNumber
+ *               - dateOfBirth
+ *               - fullName
+ *               - pollingUnitCode
+ *               - state
+ *               - gender
+ *               - lga
+ *               - ward
+ *             properties:
+ *               nin:
+ *                 type: string
+ *                 description: 11-character National Identification Number
+ *                 example: "12345678901"
+ *               vin:
+ *                 type: string
+ *                 description: 19-character Voter Identification Number
+ *                 example: "1234567890123456789"
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Phone number for MFA
+ *                 example: "+2348012345678"
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 description: Date of birth for verification
+ *                 example: "1990-01-01"
+ *               fullName:
+ *                 type: string
+ *                 description: Full name of the voter
+ *                 example: "John Doe"
+ *               pollingUnitCode:
+ *                 type: string
+ *                 description: Assigned polling unit code
+ *                 example: "PU001"
+ *               state:
+ *                 type: string
+ *                 description: State of residence
+ *                 example: "Lagos"
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female]
+ *                 description: Gender of the voter
+ *                 example: "male"
+ *               lga:
+ *                 type: string
+ *                 description: Local Government Area
+ *                 example: "Ikeja"
+ *               ward:
+ *                 type: string
+ *                 description: Ward within the LGA
+ *                 example: "Ward 1"
+ *               autoVerify:
+ *                 type: boolean
+ *                 description: Whether to automatically verify the voter after registration
+ *                 default: false
+ *     responses:
+ *       201:
+ *         description: Voter registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Voter registered successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     voter:
+ *                       type: object
+ *                       description: Registered voter details
+ *                     verification:
+ *                       type: object
+ *                       description: Verification status (if auto-verified)
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       409:
+ *         description: Voter already exists
+ */
+router.post('/register-voter', (0, accessControl_1.requireRole)([
+    types_1.UserRole.SYSTEM_ADMIN,
+    types_1.UserRole.VOTER_REGISTRATION_OFFICER,
+    types_1.UserRole.ELECTORAL_COMMISSIONER,
+]), rateLimiter_1.adminLimiter, (0, validator_1.validate)([
+    (0, validator_1.ninValidation)(),
+    (0, validator_1.vinValidation)(),
+    (0, validator_1.phoneValidation)(),
+    (0, express_validator_1.body)('dateOfBirth')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Date of birth'))
+        .isISO8601()
+        .withMessage('Date of birth must be a valid date'),
+    (0, express_validator_1.body)('fullName')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Full name'))
+        .isLength({ min: 2, max: 100 })
+        .withMessage('Full name must be between 2 and 100 characters'),
+    (0, express_validator_1.body)('pollingUnitCode')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Polling unit code'))
+        .isLength({ min: 1, max: 50 })
+        .withMessage('Polling unit code must be between 1 and 50 characters'),
+    (0, express_validator_1.body)('state')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('State'))
+        .isLength({ min: 2, max: 50 })
+        .withMessage('State must be between 2 and 50 characters'),
+    (0, express_validator_1.body)('gender')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Gender'))
+        .isIn(['male', 'female'])
+        .withMessage('Gender must be either male or female'),
+    (0, express_validator_1.body)('lga')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('LGA'))
+        .isLength({ min: 2, max: 50 })
+        .withMessage('LGA must be between 2 and 50 characters'),
+    (0, express_validator_1.body)('ward')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Ward'))
+        .isLength({ min: 1, max: 100 })
+        .withMessage('Ward must be between 1 and 100 characters'),
+    (0, express_validator_1.body)('autoVerify').optional().isBoolean().withMessage('autoVerify must be a boolean'),
+]), authController.register);
+/**
+ * @swagger
  * /api/v1/admin/pending-verifications:
  *   get:
  *     summary: Get pending voter verification requests (Voter Registration Officer only)
@@ -1115,14 +1264,14 @@ router.get('/regions/:state/statistics', (0, accessControl_1.requireRole)([types
  *     parameters:
  *       - name: includeAuditLogs
  *         in: query
- *         description: Include audit logs in the response (default: true)
+ *         description: "Include audit logs in the response (default: true)"
  *         required: false
  *         schema:
  *           type: boolean
  *           default: true
  *       - name: auditLogsLimit
  *         in: query
- *         description: Limit number of audit log entries returned
+ *         description: "Limit number of audit log entries returned"
  *         required: false
  *         schema:
  *           type: integer
@@ -1131,7 +1280,7 @@ router.get('/regions/:state/statistics', (0, accessControl_1.requireRole)([types
  *           default: 50
  *       - name: suspiciousActivitiesLimit
  *         in: query
- *         description: Limit number of suspicious activities returned
+ *         description: "Limit number of suspicious activities returned"
  *         required: false
  *         schema:
  *           type: integer

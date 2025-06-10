@@ -18,8 +18,8 @@ const getVoterProfile = async (voterId) => {
     const voter = await Voter_1.default.findByPk(voterId, {
         attributes: [
             'id',
-            'nin',
-            'vin',
+            'ninEncrypted',
+            'vinEncrypted',
             'phoneNumber',
             'dateOfBirth',
             'fullName',
@@ -62,8 +62,8 @@ const getVoterProfile = async (voterId) => {
     const pollingUnit = voter.get('pollingUnit');
     return {
         id: voter.id,
-        nin: voter.nin,
-        vin: voter.vin,
+        nin: voter.decryptedNin,
+        vin: voter.decryptedVin,
         phoneNumber: voter.phoneNumber,
         dateOfBirth: voter.dateOfBirth,
         fullName: voter.fullName,
@@ -84,7 +84,7 @@ const getVoterProfile = async (voterId) => {
             }
             : null,
         voterCard: {
-            vin: voter.vin,
+            vin: voter.decryptedVin,
             pollingUnitCode: voter.pollingUnitCode,
             pollingUnit: pollingUnit
                 ? {
@@ -132,8 +132,22 @@ exports.getVoterPollingUnit = getVoterPollingUnit;
  */
 const checkVoterEligibility = async (voterId, electionId) => {
     try {
-        // First, try to find the voter without includes to isolate the issue
-        const voter = await Voter_1.default.findByPk(voterId);
+        // Find voter with verification status
+        const voter = await Voter_1.default.findByPk(voterId, {
+            include: [
+                {
+                    model: VerificationStatus_1.default,
+                    as: 'verificationStatus',
+                    attributes: [
+                        'isPhoneVerified',
+                        'isEmailVerified',
+                        'isIdentityVerified',
+                        'isAddressVerified',
+                        'verificationLevel',
+                    ],
+                },
+            ],
+        });
         if (!voter) {
             return {
                 isEligible: false,
@@ -146,8 +160,21 @@ const checkVoterEligibility = async (voterId, electionId) => {
                 reason: 'Voter account is inactive',
             };
         }
-        // For now, skip verification status check to isolate the database issue
-        // TODO: Re-enable verification status check once database issues are resolved
+        // Check verification status requirements
+        const verificationStatus = voter.get('verificationStatus');
+        if (!verificationStatus) {
+            return {
+                isEligible: false,
+                reason: 'Voter verification status not found',
+            };
+        }
+        // Require minimum verification level (identity + phone)
+        if (!verificationStatus.isIdentityVerified || !verificationStatus.isPhoneVerified) {
+            return {
+                isEligible: false,
+                reason: 'Voter must complete identity and phone verification to be eligible',
+            };
+        }
         // Check if voter has already voted
         const hasVoted = await Vote_1.default.findOne({
             where: {
@@ -161,11 +188,9 @@ const checkVoterEligibility = async (voterId, electionId) => {
                 reason: 'Voter has already cast a vote in this election',
             };
         }
-        // For now, return eligible if voter exists and is active
-        // TODO: Add back verification status check
         return {
             isEligible: true,
-            reason: 'Voter is eligible (verification status check temporarily disabled)',
+            reason: 'Voter is eligible to vote',
         };
     }
     catch (error) {

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hashAdminIdentities = exports.hashVoterIdentities = exports.generateAdminToken = exports.generateVoterToken = exports.findAdminByNin = exports.findVoterByIdentity = exports.logoutUser = exports.resetPassword = exports.generatePasswordResetToken = exports.generateToken = exports.authenticateAdmin = exports.authenticateVoterForUssd = exports.authenticateVoter = exports.registerVoter = exports.checkVoterExists = void 0;
+exports.hashAdminIdentities = exports.hashVoterIdentities = exports.generateAdminToken = exports.generateVoterToken = exports.findAdminByNin = exports.findVoterByIdentity = exports.logoutUser = exports.resetPassword = exports.generatePasswordResetToken = exports.generateToken = exports.authenticateAdminByNin = exports.authenticateAdmin = exports.authenticateVoterForUssd = exports.authenticateVoter = exports.registerVoter = exports.checkVoterExists = void 0;
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -105,6 +105,43 @@ const authenticateAdmin = async (email, password) => {
     return admin;
 };
 exports.authenticateAdmin = authenticateAdmin;
+/**
+ * Authenticate admin using NIN and password
+ */
+const authenticateAdminByNin = async (nin, password) => {
+    try {
+        // Find admin by encrypted NIN
+        const admin = await (0, exports.findAdminByNin)(nin);
+        if (!admin) {
+            logger_1.logger.debug(`Admin authentication failed: No admin found with NIN ${nin.substring(0, 3)}********`);
+            throw new Error('Invalid credentials');
+        }
+        // Check if admin is active
+        if (!admin.isActive) {
+            logger_1.logger.debug(`Admin authentication failed: Admin account is inactive for NIN ${nin.substring(0, 3)}********`);
+            throw new Error('Account is inactive');
+        }
+        // Verify password
+        const isPasswordValid = await admin.validatePassword(password);
+        if (!isPasswordValid) {
+            logger_1.logger.debug(`Admin authentication failed: Invalid password for NIN ${nin.substring(0, 3)}********`);
+            throw new Error('Invalid credentials');
+        }
+        // Update last login
+        await admin.update({
+            lastLogin: new Date(),
+        });
+        return admin;
+    }
+    catch (error) {
+        logger_1.logger.error('Error authenticating admin by NIN', {
+            nin: nin.substring(0, 3) + '*'.repeat(8),
+            error: error.message,
+        });
+        throw error;
+    }
+};
+exports.authenticateAdminByNin = authenticateAdminByNin;
 /**
  * Generate JWT token
  */

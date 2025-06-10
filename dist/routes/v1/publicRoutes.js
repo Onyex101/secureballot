@@ -28,7 +28,123 @@ const express_validator_1 = require("express-validator");
 const validator_1 = require("../../middleware/validator");
 const rateLimiter_1 = require("../../middleware/rateLimiter");
 const pollingUnitController = __importStar(require("../../controllers/voter/pollingUnitController"));
+const electionController = __importStar(require("../../controllers/election/electionController"));
 const router = (0, express_1.Router)();
+/**
+ * @swagger
+ * /api/v1/public/elections:
+ *   get:
+ *     summary: Get list of elections with candidates (Public)
+ *     tags: [Public, Elections]
+ *     parameters:
+ *       - name: status
+ *         in: query
+ *         schema:
+ *           type: string
+ *           enum: [active, upcoming, past, all]
+ *           default: active
+ *       - name: type
+ *         in: query
+ *         schema:
+ *           type: string
+ *       - name: page
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: List of elections with candidates returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 code:
+ *                   type: string
+ *                   example: "ELECTIONS_RETRIEVED"
+ *                 message:
+ *                   type: string
+ *                   example: "Elections retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     elections:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           electionName:
+ *                             type: string
+ *                           electionType:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                           startDate:
+ *                             type: string
+ *                             format: date-time
+ *                           endDate:
+ *                             type: string
+ *                             format: date-time
+ *                           description:
+ *                             type: string
+ *                           candidates:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                   format: uuid
+ *                                 fullName:
+ *                                   type: string
+ *                                 partyName:
+ *                                   type: string
+ *                                 partyCode:
+ *                                   type: string
+ *                                 profileImageUrl:
+ *                                   type: string
+ *                           candidateCount:
+ *                             type: integer
+ *                             description: Total number of candidates
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         pages:
+ *                           type: integer
+ *                     voterStatus:
+ *                       type: object
+ *                       nullable: true
+ */
+router.get('/elections', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
+    (0, express_validator_1.query)('status')
+        .optional()
+        .isIn(['active', 'upcoming', 'past', 'all'])
+        .withMessage('Status must be one of: active, upcoming, past, all'),
+    (0, express_validator_1.query)('type').optional(),
+    (0, express_validator_1.query)('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    (0, express_validator_1.query)('limit')
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage('Limit must be between 1 and 100'),
+]), electionController.getElections);
 /**
  * @swagger
  * /api/v1/public/polling-units:

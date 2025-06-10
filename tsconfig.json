@@ -26,6 +26,6 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.d.ts"
-  ],
+, "src/db/seeders/20250309194037-demo-elections.js"  ],
   "exclude": ["node_modules", "dist", "tests"]
 }

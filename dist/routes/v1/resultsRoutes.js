@@ -156,14 +156,21 @@ router.get('/live', rateLimiter_1.defaultLimiter, statisticsController.getRealTi
  *         schema:
  *           type: string
  *           format: uuid
- *       - name: regionId
+ *       - name: regionType
  *         in: query
  *         schema:
  *           type: string
- *           format: uuid
+ *           enum: [state, lga, ward]
+ *           default: state
+ *       - name: regionCode
+ *         in: query
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Results by region returned
+ *       400:
+ *         description: Invalid region type or missing region code
  *       404:
  *         description: Election not found
  */
@@ -173,7 +180,11 @@ router.get('/region/:electionId', rateLimiter_1.defaultLimiter, (0, validator_1.
         .withMessage(validator_1.validationMessages.required('Election ID'))
         .isUUID()
         .withMessage(validator_1.validationMessages.uuid('Election ID')),
-    (0, express_validator_1.query)('regionId').optional().isUUID().withMessage(validator_1.validationMessages.uuid('Region ID')),
+    (0, express_validator_1.query)('regionType')
+        .optional()
+        .isIn(['state', 'lga', 'ward'])
+        .withMessage('Region type must be one of: state, lga, ward'),
+    (0, express_validator_1.query)('regionCode').optional().isString().withMessage('Region code must be a string'),
 ]), resultsController.getResultsByRegion);
 exports.default = router;
 //# sourceMappingURL=resultsRoutes.js.map

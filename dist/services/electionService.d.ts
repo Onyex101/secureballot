@@ -61,8 +61,8 @@ export declare const getElectionCandidates: (electionId: string, page?: number, 
  */
 export declare const getVoterDetails: (userId: string) => Promise<{
     id: string;
-    nin: string | undefined;
-    vin: string | undefined;
+    nin: string | null;
+    vin: string | null;
     phoneNumber: string;
     pollingUnit: {
         id: string;

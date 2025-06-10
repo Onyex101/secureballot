@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
-import { dashboardService } from '../../services/dashboardService.js';
+import { dashboardService } from '../../services/dashboardService';
 import logger from '../../utils/logger';
 
 interface AuthenticatedRequest extends Request {

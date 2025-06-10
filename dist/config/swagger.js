@@ -26,8 +26,12 @@ const swaggerDefinition = {
     },
     servers: [
         {
-            url: process.env.SWAGGER_SERVER_URL || 'http://localhost:8080',
+            url: 'http://localhost:8080',
             description: 'Development Server',
+        },
+        {
+            url: process.env.SWAGGER_SERVER_URL,
+            description: 'Production Server',
         },
     ],
     components: {
@@ -108,7 +112,7 @@ const swaggerDefinition = {
 const options = {
     swaggerDefinition,
     // Paths to files containing OpenAPI definitions
-    apis: ['./src/routes/**/*.ts', './src/docs/**/*.ts', './src/types/**/*.ts'],
+    apis: ['./src/routes/**/*.ts'],
 };
 // Initialize swagger-jsdoc -> returns validated swagger spec in json format
 const swaggerSpec = (0, swagger_jsdoc_1.default)(options);

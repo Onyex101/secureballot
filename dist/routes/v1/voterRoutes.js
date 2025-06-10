@@ -32,7 +32,6 @@ const verificationController = __importStar(require("../../controllers/voter/ver
 const dashboardController = __importStar(require("../../controllers/dashboard/dashboardController"));
 const auth_1 = require("../../middleware/auth");
 const validator_1 = require("../../middleware/validator");
-const rateLimiter_1 = require("../../middleware/rateLimiter");
 const router = (0, express_1.Router)();
 // All voter routes require authentication
 router.use(auth_1.authenticate);
@@ -85,48 +84,6 @@ router.put('/profile', (0, validator_1.validate)([
         .matches(/^\+?[0-9]{10,15}$/)
         .withMessage(validator_1.validationMessages.phoneNumber()),
 ]), voterController.updateProfile);
-/**
- * @swagger
- * /api/v1/voter/change-password:
- *   put:
- *     summary: Change voter password
- *     tags: [Voter Management]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - currentPassword
- *               - newPassword
- *             properties:
- *               currentPassword:
- *                 type: string
- *                 format: password
- *               newPassword:
- *                 type: string
- *                 format: password
- *     responses:
- *       200:
- *         description: Password changed successfully
- *       400:
- *         description: Invalid input or current password incorrect
- *       401:
- *         description: Unauthorized
- */
-router.put('/change-password', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('currentPassword').notEmpty().withMessage(validator_1.validationMessages.required('Current password')),
-    (0, express_validator_1.body)('newPassword')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('New password'))
-        .isLength({ min: 8 })
-        .withMessage(validator_1.validationMessages.min('New password', 8))
-        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-        .withMessage(validator_1.validationMessages.password()),
-]), voterController.changePassword);
 /**
  * @swagger
  * /api/v1/voter/polling-unit:
@@ -512,8 +469,5 @@ router.get('/dashboard/:electionId', (0, validator_1.validate)([
         .isUUID()
         .withMessage(validator_1.validationMessages.uuid('Election ID')),
 ]), dashboardController.getDashboardData);
-// Note: Placeholder routes for verify-identity, verify-address, and voting-history
-// have been removed as they were implemented with empty functions.
-// These routes should be implemented with proper controller functions when needed.
 exports.default = router;
 //# sourceMappingURL=voterRoutes.js.map

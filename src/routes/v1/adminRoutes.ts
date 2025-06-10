@@ -1372,14 +1372,14 @@ router.get(
  *     parameters:
  *       - name: includeAuditLogs
  *         in: query
- *         description: Include audit logs in the response (default: true)
+ *         description: "Include audit logs in the response (default: true)"
  *         required: false
  *         schema:
  *           type: boolean
  *           default: true
  *       - name: auditLogsLimit
  *         in: query
- *         description: Limit number of audit log entries returned
+ *         description: "Limit number of audit log entries returned"
  *         required: false
  *         schema:
  *           type: integer
@@ -1388,7 +1388,7 @@ router.get(
  *           default: 50
  *       - name: suspiciousActivitiesLimit
  *         in: query
- *         description: Limit number of suspicious activities returned
+ *         description: "Limit number of suspicious activities returned"
  *         required: false
  *         schema:
  *           type: integer

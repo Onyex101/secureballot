@@ -349,11 +349,17 @@ module.exports = {
       await removeColumnIfExists('admin_users', 'nin');
     }
 
+    // 9. Remove password_hash column from voters since we now use encrypted NIN/VIN + OTP authentication
+    if (await columnExists('voters', 'password_hash')) {
+      console.log('🗑️  Removing password_hash column from voters (replaced by encrypted NIN/VIN + OTP authentication)...');
+      await removeColumnIfExists('voters', 'password_hash');
+    }
+
     console.log('Migration completed successfully');
     console.log('IMPORTANT: Remember to:');
     console.log('1. Verify encrypted data was migrated correctly');
     console.log('2. Update models to use new encrypted fields');
-    console.log('3. Remove password_hash from voters table after confirming new auth works');
+    console.log('3. ✅ Password_hash column removed from voters table (now using encrypted NIN/VIN + OTP)');
     console.log('4. Test authentication with encrypted NIN/VIN values');
   },
 
@@ -421,6 +427,9 @@ module.exports = {
         }
       }
     }
+
+    // Note: password_hash column is not restored in rollback since it's no longer needed
+    console.log('ℹ️  Note: password_hash column not restored as it\'s replaced by encrypted NIN/VIN + OTP authentication');
 
     // Remove columns from admin_users table
     const adminColumnsToRemove = ['nin_encrypted'];

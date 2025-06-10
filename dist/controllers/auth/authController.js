@@ -1,19 +1,50 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.forgotPassword = exports.logout = exports.refreshToken = exports.adminLogin = exports.verifyMfa = exports.login = exports.register = void 0;
+exports.logout = exports.refreshToken = exports.adminLogin = exports.verifyMfa = exports.login = exports.register = void 0;
 const services_1 = require("../../services");
+const verificationService = __importStar(require("../../services/verificationService"));
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const logger_1 = require("../../config/logger");
 const logger_2 = require("../../utils/logger");
+const AdminUser_1 = __importDefault(require("../../db/models/AdminUser"));
+const Voter_1 = __importDefault(require("../../db/models/Voter"));
 /**
  * Register a new voter
- * @route POST /api/v1/auth/register
- * @access Public
+ * @route POST /api/v1/admin/register-voter (Admin access)
+ * @route POST /api/v1/auth/register (Legacy - removed)
+ * @access Admin only
  */
 const register = async (req, res, next) => {
     try {
-        const { nin, vin, phoneNumber, dateOfBirth, password, fullName, pollingUnitCode, state, gender, lga, ward, } = req.body;
+        const { nin, vin, phoneNumber, dateOfBirth, password, fullName, pollingUnitCode, state, gender, lga, ward, autoVerify = true, // Admin can choose to auto-verify
+         } = req.body;
         // Check if voter already exists
         const voterExists = await services_1.authService.checkVoterExists(nin, vin);
         if (voterExists) {
@@ -35,25 +66,57 @@ const register = async (req, res, next) => {
             ward,
         });
         // Log the registration
-        await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.REGISTRATION, req.ip || '', req.headers['user-agent'] || '', { nin, phoneNumber });
+        await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.REGISTRATION, req.ip || '', req.headers['user-agent'] || '', { nin, phoneNumber, registeredByAdmin: true });
+        let verificationStatus = null;
+        // Handle auto-verification if requested (admin privilege)
+        if (autoVerify && req.user) {
+            try {
+                // Create initial verification status
+                await verificationService.submitVerificationRequest(voter.id, 'admin_registration', 'auto-verified', 'admin-direct-registration');
+                // Get the verification ID (we need to find it since submitVerificationRequest doesn't return the ID)
+                const verificationRecord = await verificationService.getVerificationStatus(voter.id);
+                // Auto-approve the verification
+                verificationStatus = await verificationService.approveVerification(verificationRecord.id, req.user.id, 'Auto-verified during admin registration');
+                // Log the auto-verification
+                await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.VERIFICATION, req.ip || '', req.headers['user-agent'] || '', {
+                    autoVerified: true,
+                    approvedBy: req.user.id,
+                    method: 'admin_auto_verification',
+                });
+            }
+            catch (verificationError) {
+                // Log verification error but don't fail the registration
+                logger_1.logger.warn('Auto-verification failed during voter registration', {
+                    voterId: voter.id,
+                    error: verificationError,
+                });
+            }
+        }
+        const responseMessage = autoVerify && verificationStatus
+            ? 'Voter registered and verified successfully'
+            : 'Voter registered successfully';
         res.status(201).json({
             success: true,
-            message: 'Voter registered successfully',
+            message: responseMessage,
             data: {
-                id: voter.id,
-                nin: voter.nin,
-                vin: voter.vin,
-                phoneNumber: voter.phoneNumber,
-                fullName: voter.fullName,
-                dateOfBirth: voter.dateOfBirth,
-                pollingUnitCode: voter.pollingUnitCode,
-                state: voter.state,
-                lga: voter.lga,
-                ward: voter.ward,
-                gender: voter.gender,
-                isActive: voter.isActive,
-                mfaEnabled: voter.mfaEnabled,
-                createdAt: voter.createdAt,
+                voter: {
+                    id: voter.id,
+                    nin: voter.decryptedNin,
+                    vin: voter.decryptedVin,
+                    phoneNumber: voter.phoneNumber,
+                    fullName: voter.fullName,
+                    dateOfBirth: voter.dateOfBirth,
+                    pollingUnitCode: voter.pollingUnitCode,
+                    state: voter.state,
+                    lga: voter.lga,
+                    ward: voter.ward,
+                    gender: voter.gender,
+                    isActive: voter.isActive,
+                    mfaEnabled: voter.mfaEnabled,
+                    createdAt: voter.createdAt,
+                },
+                verification: verificationStatus,
+                autoVerified: !!verificationStatus,
             },
         });
     }
@@ -208,36 +271,41 @@ exports.verifyMfa = verifyMfa;
  */
 const adminLogin = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            throw new errorHandler_1.ApiError(400, 'Email and password are required', 'MISSING_FIELDS');
+        const { nin, password } = req.body;
+        if (!nin || !password) {
+            throw new errorHandler_1.ApiError(400, 'NIN and password are required', 'MISSING_FIELDS');
         }
         try {
-            // Authenticate admin
-            const admin = await services_1.authService.authenticateAdmin(email, password);
+            // Authenticate admin using NIN and password
+            const authenticatedAdmin = await services_1.authService.authenticateAdminByNin(nin, password);
             // Generate token with admin role
-            const token = services_1.authService.generateToken(admin.id, 'admin');
+            const token = services_1.authService.generateToken(authenticatedAdmin.id, 'admin');
             // Log the login
-            await services_1.auditService.createAdminAuditLog(admin.id, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', { email, success: true });
+            await services_1.auditService.createAdminAuditLog(authenticatedAdmin.id, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', { nin: nin.substring(0, 3) + '*'.repeat(8), success: true });
             res.status(200).json({
                 success: true,
                 message: 'Admin login successful',
                 data: {
                     token,
                     user: {
-                        id: admin.id,
-                        email: admin.email,
-                        fullName: admin.fullName,
-                        role: admin.adminType,
+                        id: authenticatedAdmin.id,
+                        nin: authenticatedAdmin.decryptedNin,
+                        email: authenticatedAdmin.email,
+                        fullName: authenticatedAdmin.fullName,
+                        role: authenticatedAdmin.adminType,
                     },
-                    requiresMfa: admin.mfaEnabled,
+                    requiresMfa: authenticatedAdmin.mfaEnabled,
                 },
             });
         }
         catch (error) {
             logger_1.logger.info('Error:', { error });
             // Log failed login attempt
-            await services_1.auditService.createAdminAuditLog(null, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', { email, success: false, error: error.message });
+            await services_1.auditService.createAdminAuditLog(null, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+                nin: nin.substring(0, 3) + '*'.repeat(8),
+                success: false,
+                error: error.message,
+            });
             const apiError = new errorHandler_1.ApiError(401, 'Invalid admin credentials', 'INVALID_ADMIN_CREDENTIALS', undefined, true);
             throw apiError;
         }
@@ -254,18 +322,37 @@ exports.adminLogin = adminLogin;
  */
 const refreshToken = async (req, res, next) => {
     try {
-        // The user ID and role should be available from the authentication middleware
+        // Get user information from authentication middleware
         const userId = req.userId;
         const role = req.role || 'voter';
-        // Generate a new token with the same role
-        const token = services_1.authService.generateToken(userId, role);
+        const userType = req.userType;
+        if (!userId) {
+            throw new errorHandler_1.ApiError(401, 'User ID not found in token', 'INVALID_TOKEN');
+        }
+        // Verify user still exists and is active
+        if (userType === 'admin') {
+            const admin = await AdminUser_1.default.findByPk(userId);
+            if (!admin || !admin.isActive) {
+                throw new errorHandler_1.ApiError(401, 'Admin user not found or inactive', 'USER_INVALID');
+            }
+        }
+        else if (userType === 'voter') {
+            const voter = await Voter_1.default.findByPk(userId);
+            if (!voter || !voter.isActive) {
+                throw new errorHandler_1.ApiError(401, 'Voter not found or inactive', 'USER_INVALID');
+            }
+        }
+        // Generate a new token with longer expiry for refresh
+        const token = services_1.authService.generateToken(userId, role, '24h');
         // Log the token refresh
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.TOKEN_REFRESH, req.ip || '', req.headers['user-agent'] || '', { success: true, role });
+        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.TOKEN_REFRESH, req.ip || '', req.headers['user-agent'] || '', { success: true, role, userType });
         res.status(200).json({
             success: true,
             message: 'Token refreshed successfully',
             data: {
                 token,
+                expiresIn: '24h',
+                tokenType: 'Bearer',
             },
         });
     }
@@ -297,66 +384,4 @@ const logout = async (req, res, next) => {
     }
 };
 exports.logout = logout;
-/**
- * Request password reset
- * @route POST /api/v1/auth/forgot-password
- * @access Public
- */
-const forgotPassword = async (req, res, next) => {
-    try {
-        const { email } = req.body;
-        try {
-            // Generate password reset token
-            const result = await services_1.authService.generatePasswordResetToken(email);
-            // In a real implementation, you would send an email with the token
-            // For now, we'll just log it
-            logger_1.logger.debug(`Password reset token for ${email}: ${result.token}`);
-            // Log the password reset request
-            await services_1.auditService.createAuditLog('system', AuditLog_1.AuditActionType.PASSWORD_RESET, req.ip || '', req.headers['user-agent'] || '', { email });
-            res.status(200).json({
-                success: true,
-                message: 'Password reset instructions sent to your email',
-            });
-        }
-        catch (error) {
-            // Don't reveal if the email exists or not
-            res.status(200).json({
-                success: true,
-                message: 'If your email is registered, you will receive password reset instructions',
-            });
-        }
-    }
-    catch (error) {
-        next(error);
-    }
-};
-exports.forgotPassword = forgotPassword;
-/**
- * Reset password
- * @route POST /api/v1/auth/reset-password
- * @access Public
- */
-const resetPassword = async (req, res, next) => {
-    try {
-        const { token, newPassword } = req.body;
-        try {
-            // Reset the password
-            await services_1.authService.resetPassword(token, newPassword);
-            // Log the password reset
-            await services_1.auditService.createAuditLog('system', AuditLog_1.AuditActionType.PASSWORD_CHANGE, req.ip || '', req.headers['user-agent'] || '', { success: true });
-            res.status(200).json({
-                success: true,
-                message: 'Password reset successful',
-            });
-        }
-        catch (error) {
-            const apiError = new errorHandler_1.ApiError(400, 'Invalid or expired token', 'INVALID_RESET_TOKEN', undefined, true);
-            throw apiError;
-        }
-    }
-    catch (error) {
-        next(error);
-    }
-};
-exports.resetPassword = resetPassword;
 //# sourceMappingURL=authController.js.map

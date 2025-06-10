@@ -234,8 +234,8 @@ const getVoterDetails = async (userId) => {
     const pollingUnit = voter.get('pollingUnit');
     return {
         id: voter.id,
-        nin: voter.nin,
-        vin: voter.vin,
+        nin: voter.decryptedNin,
+        vin: voter.decryptedVin,
         phoneNumber: voter.phoneNumber,
         pollingUnit: pollingUnit
             ? {
