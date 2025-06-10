@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { validationResult, ValidationChain } from 'express-validator';
+import { validationResult, ValidationChain, body } from 'express-validator';
 import { ApiError } from './errorHandler';
 
 /**
@@ -121,3 +121,36 @@ export const validateRequest = (schema: any) => {
     }
   };
 };
+
+// Standard validation rules for common fields
+export const ninValidation = (): ValidationChain =>
+  body('nin')
+    .notEmpty()
+    .withMessage('NIN is required')
+    .isNumeric()
+    .withMessage('NIN must contain only numbers')
+    .isLength({ min: 11, max: 11 })
+    .withMessage('NIN must be exactly 11 digits');
+
+export const vinValidation = (): ValidationChain =>
+  body('vin')
+    .notEmpty()
+    .withMessage('VIN is required')
+    .isLength({ min: 19, max: 19 })
+    .withMessage('VIN must be exactly 19 characters')
+    .matches(/^[A-Z0-9]+$/)
+    .withMessage('VIN must contain only uppercase letters and numbers');
+
+export const phoneValidation = (): ValidationChain =>
+  body('phoneNumber')
+    .notEmpty()
+    .withMessage(validationMessages.required('Phone number'))
+    .matches(/^\+?[0-9]{10,15}$/)
+    .withMessage(validationMessages.phoneNumber());
+
+export const emailValidation = (): ValidationChain =>
+  body('email')
+    .notEmpty()
+    .withMessage(validationMessages.required('Email'))
+    .isEmail()
+    .withMessage(validationMessages.email());

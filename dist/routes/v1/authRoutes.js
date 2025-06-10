@@ -31,6 +31,7 @@ const mfaController = __importStar(require("../../controllers/auth/mfaController
 const ussdAuthController = __importStar(require("../../controllers/ussd/ussdAuthController"));
 const auth_1 = require("../../middleware/auth");
 const rateLimiter_1 = require("../../middleware/rateLimiter");
+const otpAuthController = __importStar(require("../../controllers/auth/otpAuthController"));
 const router = (0, express_1.Router)();
 /**
  * @swagger
@@ -112,21 +113,9 @@ const router = (0, express_1.Router)();
  *         description: Voter already exists
  */
 router.post('/register', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('nin')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('NIN'))
-        .isLength({ min: 11, max: 11 })
-        .withMessage(validator_1.validationMessages.nin()),
-    (0, express_validator_1.body)('vin')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('VIN'))
-        .isLength({ min: 19, max: 19 })
-        .withMessage(validator_1.validationMessages.vin()),
-    (0, express_validator_1.body)('phoneNumber')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Phone number'))
-        .matches(/^\+?[0-9]{10,15}$/)
-        .withMessage(validator_1.validationMessages.phoneNumber()),
+    (0, validator_1.ninValidation)(),
+    (0, validator_1.vinValidation)(),
+    (0, validator_1.phoneValidation)(),
     (0, express_validator_1.body)('dateOfBirth')
         .notEmpty()
         .withMessage(validator_1.validationMessages.required('Date of birth'))
@@ -167,19 +156,13 @@ router.post('/register', rateLimiter_1.authLimiter, (0, validator_1.validate)([
         .withMessage(validator_1.validationMessages.required('Ward'))
         .isLength({ min: 1, max: 100 })
         .withMessage('Ward must be between 1 and 100 characters'),
-]), async (req, res, next) => {
-    try {
-        await authController.register(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), authController.register);
 /**
  * @swagger
  * /api/v1/auth/login:
  *   post:
- *     summary: Login a user
+ *     summary: Login a voter (POC - simplified)
+ *     description: Authenticate a voter using NIN and VIN only (no OTP required for POC)
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -188,35 +171,61 @@ router.post('/register', rateLimiter_1.authLimiter, (0, validator_1.validate)([
  *           schema:
  *             type: object
  *             required:
- *               - identifier
- *               - password
+ *               - nin
+ *               - vin
  *             properties:
- *               identifier:
+ *               nin:
  *                 type: string
- *                 description: NIN, VIN, or phone number
- *                 example: "12345678901"
- *               password:
+ *                 description: National Identification Number (11 digits)
+ *                 pattern: '^\d{11}$'
+ *                 example: '12345678901'
+ *               vin:
  *                 type: string
- *                 format: password
+ *                 description: Voter Identification Number (19 characters)
+ *                 pattern: '^[A-Z0-9]{19}$'
+ *                 example: 'VIN1234567890ABCDEF'
+ *           examples:
+ *             demo_voter:
+ *               summary: Demo voter credentials
+ *               value:
+ *                 nin: '12345678901'
+ *                 vin: 'VIN1234567890ABCDEF'
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Login successful'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT token for authentication
+ *                     voter:
+ *                       $ref: '#/components/schemas/Voter'
+ *                     poc:
+ *                       type: boolean
+ *                       example: true
+ *                     note:
+ *                       type: string
+ *                       example: 'POC: Login successful without OTP verification'
  *       400:
  *         description: Invalid input
  *       401:
  *         description: Invalid credentials
+ *       403:
+ *         description: Account not active
  */
-router.post('/login', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('identifier').notEmpty().withMessage(validator_1.validationMessages.required('Identifier')),
-    (0, express_validator_1.body)('password').notEmpty().withMessage(validator_1.validationMessages.required('Password')),
-]), async (req, res, next) => {
-    try {
-        await authController.login(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/login', rateLimiter_1.authLimiter, (0, validator_1.validate)([(0, validator_1.ninValidation)(), (0, validator_1.vinValidation)()]), authController.login);
 /**
  * @swagger
  * /api/v1/auth/ussd/authenticate:
@@ -251,30 +260,7 @@ router.post('/login', rateLimiter_1.authLimiter, (0, validator_1.validate)([
  *       401:
  *         description: Invalid credentials
  */
-router.post('/ussd/authenticate', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('nin')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('NIN'))
-        .isLength({ min: 11, max: 11 })
-        .withMessage(validator_1.validationMessages.nin()),
-    (0, express_validator_1.body)('vin')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('VIN'))
-        .isLength({ min: 19, max: 19 })
-        .withMessage(validator_1.validationMessages.vin()),
-    (0, express_validator_1.body)('phoneNumber')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Phone number'))
-        .matches(/^\+?[0-9]{10,15}$/)
-        .withMessage(validator_1.validationMessages.phoneNumber()),
-]), async (req, res, next) => {
-    try {
-        await ussdAuthController.authenticateViaUssd(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/ussd/authenticate', rateLimiter_1.authLimiter, (0, validator_1.validate)([(0, validator_1.ninValidation)(), (0, validator_1.vinValidation)(), (0, validator_1.phoneValidation)()]), ussdAuthController.authenticateViaUssd);
 /**
  * @swagger
  * /api/v1/auth/ussd/verify-session:
@@ -307,14 +293,7 @@ router.post('/ussd/verify-session', rateLimiter_1.authLimiter, (0, validator_1.v
         .withMessage(validator_1.validationMessages.required('Session code'))
         .isLength({ min: 6, max: 10 })
         .withMessage('Session code must be 6-10 characters'),
-]), async (req, res, next) => {
-    try {
-        await ussdAuthController.verifyUssdSession(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), ussdAuthController.verifyUssdSession);
 /**
  * @swagger
  * /api/v1/auth/verify-mfa:
@@ -359,14 +338,7 @@ router.post('/verify-mfa', rateLimiter_1.authLimiter, (0, validator_1.validate)(
         .withMessage('MFA token must be 6 digits')
         .isNumeric()
         .withMessage('MFA token must contain only numbers'),
-]), async (req, res, next) => {
-    try {
-        await authController.verifyMfa(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), authController.verifyMfa);
 /**
  * @swagger
  * /api/v1/auth/setup-mfa:
@@ -381,14 +353,7 @@ router.post('/verify-mfa', rateLimiter_1.authLimiter, (0, validator_1.validate)(
  *       401:
  *         description: Unauthorized
  */
-router.post('/setup-mfa', auth_1.authenticate, async (req, res, next) => {
-    try {
-        await mfaController.setupMfa(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/setup-mfa', auth_1.authenticate, mfaController.setupMfa);
 /**
  * @swagger
  * /api/v1/auth/enable-mfa:
@@ -426,14 +391,7 @@ router.post('/enable-mfa', auth_1.authenticate, (0, validator_1.validate)([
         .withMessage('MFA token must be 6 digits')
         .isNumeric()
         .withMessage('MFA token must contain only numbers'),
-]), async (req, res, next) => {
-    try {
-        await mfaController.enableMfa(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), mfaController.enableMfa);
 /**
  * @swagger
  * /api/v1/auth/disable-mfa:
@@ -471,14 +429,7 @@ router.post('/disable-mfa', auth_1.authenticate, (0, validator_1.validate)([
         .withMessage('MFA token must be 6 digits')
         .isNumeric()
         .withMessage('MFA token must contain only numbers'),
-]), async (req, res, next) => {
-    try {
-        await mfaController.disableMfa(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), mfaController.disableMfa);
 /**
  * @swagger
  * /api/v1/auth/generate-backup-codes:
@@ -493,14 +444,7 @@ router.post('/disable-mfa', auth_1.authenticate, (0, validator_1.validate)([
  *       401:
  *         description: Unauthorized
  */
-router.post('/generate-backup-codes', auth_1.authenticate, async (req, res, next) => {
-    try {
-        await mfaController.generateBackupCodes(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/generate-backup-codes', auth_1.authenticate, mfaController.generateBackupCodes);
 /**
  * @swagger
  * /api/v1/auth/verify-backup-code:
@@ -538,14 +482,7 @@ router.post('/verify-backup-code', rateLimiter_1.authLimiter, (0, validator_1.va
         .isUUID()
         .withMessage(validator_1.validationMessages.uuid('User ID')),
     (0, express_validator_1.body)('backupCode').notEmpty().withMessage(validator_1.validationMessages.required('Backup code')),
-]), async (req, res, next) => {
-    try {
-        await mfaController.verifyBackupCode(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), mfaController.verifyBackupCode);
 /**
  * @swagger
  * /api/v1/auth/refresh-token:
@@ -560,14 +497,7 @@ router.post('/verify-backup-code', rateLimiter_1.authLimiter, (0, validator_1.va
  *       401:
  *         description: Unauthorized
  */
-router.post('/refresh-token', auth_1.authenticate, async (req, res, next) => {
-    try {
-        await authController.refreshToken(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/refresh-token', auth_1.authenticate, authController.refreshToken);
 /**
  * @swagger
  * /api/v1/auth/logout:
@@ -582,14 +512,7 @@ router.post('/refresh-token', auth_1.authenticate, async (req, res, next) => {
  *       401:
  *         description: Unauthorized
  */
-router.post('/logout', auth_1.authenticate, async (req, res, next) => {
-    try {
-        await authController.logout(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/logout', auth_1.authenticate, authController.logout);
 /**
  * @swagger
  * /api/v1/auth/forgot-password:
@@ -614,20 +537,7 @@ router.post('/logout', auth_1.authenticate, async (req, res, next) => {
  *       400:
  *         description: Invalid input
  */
-router.post('/forgot-password', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('email')
-        .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Email'))
-        .isEmail()
-        .withMessage(validator_1.validationMessages.email()),
-]), async (req, res, next) => {
-    try {
-        await authController.forgotPassword(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+router.post('/forgot-password', rateLimiter_1.authLimiter, (0, validator_1.validate)([(0, validator_1.emailValidation)()]), authController.forgotPassword);
 /**
  * @swagger
  * /api/v1/auth/reset-password:
@@ -662,14 +572,7 @@ router.post('/reset-password', rateLimiter_1.authLimiter, (0, validator_1.valida
         .withMessage(validator_1.validationMessages.required('New password'))
         .isLength({ min: 8 })
         .withMessage('Password must be at least 8 characters'),
-]), async (req, res, next) => {
-    try {
-        await authController.resetPassword(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), authController.resetPassword);
 /**
  * @swagger
  * /api/v1/auth/admin-login:
@@ -704,15 +607,161 @@ router.post('/reset-password', rateLimiter_1.authLimiter, (0, validator_1.valida
  *         description: Account inactive
  */
 router.post('/admin-login', rateLimiter_1.authLimiter, (0, validator_1.validate)([
-    (0, express_validator_1.body)('email').isEmail().withMessage(validator_1.validationMessages.email()),
+    (0, validator_1.emailValidation)(),
     (0, express_validator_1.body)('password').notEmpty().withMessage(validator_1.validationMessages.required('Password')),
-]), async (req, res, next) => {
-    try {
-        await authController.adminLogin(req, res, next);
-    }
-    catch (error) {
-        next(error);
-    }
-});
+]), authController.adminLogin);
+/**
+ * @swagger
+ * /api/v1/auth/voter/request-login:
+ *   post:
+ *     summary: Request voter login (Step 1 of 2)
+ *     description: Initiate voter login by providing NIN and VIN. POC returns constant OTP 723111.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nin
+ *               - vin
+ *             properties:
+ *               nin:
+ *                 type: string
+ *                 description: National Identification Number (11 digits)
+ *                 pattern: '^\d{11}$'
+ *                 example: '12345678901'
+ *               vin:
+ *                 type: string
+ *                 description: Voter Identification Number (19 characters)
+ *                 pattern: '^[A-Z0-9]{19}$'
+ *                 example: 'VIN1234567890ABCDEF'
+ *           examples:
+ *             demo_request:
+ *               summary: Demo login request
+ *               value:
+ *                 nin: '12345678901'
+ *                 vin: 'VIN1234567890ABCDEF'
+ *     responses:
+ *       200:
+ *         description: OTP request successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'POC: Use constant OTP 723111 for verification'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       description: User ID for the next step
+ *                     email:
+ *                       type: string
+ *                       description: Email address (POC mode)
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: When the OTP expires
+ *                     constantOtp:
+ *                       type: string
+ *                       example: '723111'
+ *                       description: Constant OTP for POC
+ *                     poc:
+ *                       type: boolean
+ *                       example: true
+ *                     instruction:
+ *                       type: string
+ *                       example: 'Use OTP code 723111 in the next step'
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Account not active
+ */
+router.post('/voter/request-login', rateLimiter_1.authLimiter, (0, validator_1.validate)([(0, validator_1.ninValidation)(), (0, validator_1.vinValidation)()]), otpAuthController.requestVoterLogin);
+/**
+ * @swagger
+ * /api/v1/auth/voter/verify-otp:
+ *   post:
+ *     summary: Verify OTP and complete login (Step 2 of 2)
+ *     description: Complete voter login by verifying OTP. POC accepts constant OTP 723111.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - otpCode
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID from step 1
+ *                 example: '123e4567-e89b-12d3-a456-426614174000'
+ *               otpCode:
+ *                 type: string
+ *                 description: OTP code (use 723111 for POC)
+ *                 example: '723111'
+ *           examples:
+ *             poc_verification:
+ *               summary: POC OTP verification
+ *               value:
+ *                 userId: '123e4567-e89b-12d3-a456-426614174000'
+ *                 otpCode: '723111'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Login successful'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT token for authentication
+ *                     user:
+ *                       $ref: '#/components/schemas/Voter'
+ *                     poc:
+ *                       type: boolean
+ *                       example: true
+ *                     loginMethod:
+ *                       type: string
+ *                       example: 'constant_otp_poc'
+ *                     constantOtp:
+ *                       type: string
+ *                       example: '723111'
+ *       400:
+ *         description: Invalid OTP or missing data
+ *       404:
+ *         description: Voter not found
+ */
+router.post('/voter/verify-otp', rateLimiter_1.authLimiter, (0, validator_1.validate)([
+    (0, express_validator_1.body)('userId').notEmpty().withMessage('User ID is required'),
+    (0, express_validator_1.body)('otpCode')
+        .notEmpty()
+        .withMessage('OTP code is required')
+        .isLength({ min: 6, max: 6 })
+        .withMessage('OTP must be exactly 6 digits'),
+]), otpAuthController.verifyOtpAndLogin);
 exports.default = router;
 //# sourceMappingURL=authRoutes.js.map

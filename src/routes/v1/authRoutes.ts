@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { validate, validationMessages } from '../../middleware/validator';
+import {
+  validate,
+  validationMessages,
+  ninValidation,
+  vinValidation,
+  phoneValidation,
+  emailValidation,
+} from '../../middleware/validator';
 import * as authController from '../../controllers/auth/authController';
 import * as mfaController from '../../controllers/auth/mfaController';
 import * as ussdAuthController from '../../controllers/ussd/ussdAuthController';
@@ -93,23 +100,9 @@ router.post(
   '/register',
   authLimiter,
   validate([
-    body('nin')
-      .notEmpty()
-      .withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 })
-      .withMessage(validationMessages.nin()),
-
-    body('vin')
-      .notEmpty()
-      .withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 })
-      .withMessage(validationMessages.vin()),
-
-    body('phoneNumber')
-      .notEmpty()
-      .withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/)
-      .withMessage(validationMessages.phoneNumber()),
+    ninValidation(),
+    vinValidation(),
+    phoneValidation(),
 
     body('dateOfBirth')
       .notEmpty()
@@ -159,13 +152,7 @@ router.post(
       .isLength({ min: 1, max: 100 })
       .withMessage('Ward must be between 1 and 100 characters'),
   ]),
-  async (req, res, next) => {
-    try {
-      await authController.register(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  authController.register,
 );
 
 /**
@@ -239,22 +226,7 @@ router.post(
 router.post(
   '/login',
   authLimiter,
-  validate([
-    body('nin')
-      .notEmpty()
-      .withMessage('NIN is required')
-      .isNumeric()
-      .withMessage('NIN must contain only numbers')
-      .isLength({ min: 11, max: 11 })
-      .withMessage('NIN must be exactly 11 digits'),
-    body('vin')
-      .notEmpty()
-      .withMessage('VIN is required')
-      .isLength({ min: 19, max: 19 })
-      .withMessage('VIN must be exactly 19 characters')
-      .matches(/^[A-Z0-9]+$/)
-      .withMessage('VIN must contain only uppercase letters and numbers'),
-  ]),
+  validate([ninValidation(), vinValidation()]),
   authController.login,
 );
 
@@ -295,32 +267,8 @@ router.post(
 router.post(
   '/ussd/authenticate',
   authLimiter,
-  validate([
-    body('nin')
-      .notEmpty()
-      .withMessage(validationMessages.required('NIN'))
-      .isLength({ min: 11, max: 11 })
-      .withMessage(validationMessages.nin()),
-
-    body('vin')
-      .notEmpty()
-      .withMessage(validationMessages.required('VIN'))
-      .isLength({ min: 19, max: 19 })
-      .withMessage(validationMessages.vin()),
-
-    body('phoneNumber')
-      .notEmpty()
-      .withMessage(validationMessages.required('Phone number'))
-      .matches(/^\+?[0-9]{10,15}$/)
-      .withMessage(validationMessages.phoneNumber()),
-  ]),
-  async (req, res, next) => {
-    try {
-      await ussdAuthController.authenticateViaUssd(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  validate([ninValidation(), vinValidation(), phoneValidation()]),
+  ussdAuthController.authenticateViaUssd,
 );
 
 /**
@@ -359,13 +307,7 @@ router.post(
       .isLength({ min: 6, max: 10 })
       .withMessage('Session code must be 6-10 characters'),
   ]),
-  async (req, res, next) => {
-    try {
-      await ussdAuthController.verifyUssdSession(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  ussdAuthController.verifyUssdSession,
 );
 
 /**
@@ -417,13 +359,7 @@ router.post(
       .isNumeric()
       .withMessage('MFA token must contain only numbers'),
   ]),
-  async (req, res, next) => {
-    try {
-      await authController.verifyMfa(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  authController.verifyMfa,
 );
 
 /**
@@ -440,13 +376,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/setup-mfa', authenticate, async (req, res, next) => {
-  try {
-    await mfaController.setupMfa(req, res, next);
-  } catch (error) {
-    next(error);
-  }
-});
+router.post('/setup-mfa', authenticate, mfaController.setupMfa);
 
 /**
  * @swagger
@@ -489,13 +419,7 @@ router.post(
       .isNumeric()
       .withMessage('MFA token must contain only numbers'),
   ]),
-  async (req, res, next) => {
-    try {
-      await mfaController.enableMfa(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  mfaController.enableMfa,
 );
 
 /**
@@ -539,13 +463,7 @@ router.post(
       .isNumeric()
       .withMessage('MFA token must contain only numbers'),
   ]),
-  async (req, res, next) => {
-    try {
-      await mfaController.disableMfa(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  mfaController.disableMfa,
 );
 
 /**
@@ -562,13 +480,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/generate-backup-codes', authenticate, async (req, res, next) => {
-  try {
-    await mfaController.generateBackupCodes(req, res, next);
-  } catch (error) {
-    next(error);
-  }
-});
+router.post('/generate-backup-codes', authenticate, mfaController.generateBackupCodes);
 
 /**
  * @swagger
@@ -612,13 +524,7 @@ router.post(
 
     body('backupCode').notEmpty().withMessage(validationMessages.required('Backup code')),
   ]),
-  async (req, res, next) => {
-    try {
-      await mfaController.verifyBackupCode(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  mfaController.verifyBackupCode,
 );
 
 /**
@@ -635,13 +541,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.post('/refresh-token', authenticate, async (req, res, next) => {
-  try {
-    await authController.refreshToken(req, res, next);
-  } catch (error) {
-    next(error);
-  }
-});
+router.post('/refresh-token', authenticate, authController.refreshToken);
 
 /**
  * @swagger
@@ -657,13 +557,7 @@ router.post('/refresh-token', authenticate, async (req, res, next) => {
  *       401:
  *         description: Unauthorized
  */
-router.post('/logout', authenticate, async (req, res, next) => {
-  try {
-    await authController.logout(req, res, next);
-  } catch (error) {
-    next(error);
-  }
-});
+router.post('/logout', authenticate, authController.logout);
 
 /**
  * @swagger
@@ -692,20 +586,8 @@ router.post('/logout', authenticate, async (req, res, next) => {
 router.post(
   '/forgot-password',
   authLimiter,
-  validate([
-    body('email')
-      .notEmpty()
-      .withMessage(validationMessages.required('Email'))
-      .isEmail()
-      .withMessage(validationMessages.email()),
-  ]),
-  async (req, res, next) => {
-    try {
-      await authController.forgotPassword(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  validate([emailValidation()]),
+  authController.forgotPassword,
 );
 
 /**
@@ -747,13 +629,7 @@ router.post(
       .isLength({ min: 8 })
       .withMessage('Password must be at least 8 characters'),
   ]),
-  async (req, res, next) => {
-    try {
-      await authController.resetPassword(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  authController.resetPassword,
 );
 
 /**
@@ -793,16 +669,10 @@ router.post(
   '/admin-login',
   authLimiter,
   validate([
-    body('email').isEmail().withMessage(validationMessages.email()),
+    emailValidation(),
     body('password').notEmpty().withMessage(validationMessages.required('Password')),
   ]),
-  async (req, res, next) => {
-    try {
-      await authController.adminLogin(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  authController.adminLogin,
 );
 
 /**
@@ -885,22 +755,7 @@ router.post(
 router.post(
   '/voter/request-login',
   authLimiter,
-  validate([
-    body('nin')
-      .notEmpty()
-      .withMessage('NIN is required')
-      .isNumeric()
-      .withMessage('NIN must contain only numbers')
-      .isLength({ min: 11, max: 11 })
-      .withMessage('NIN must be exactly 11 digits'),
-    body('vin')
-      .notEmpty()
-      .withMessage('VIN is required')
-      .isLength({ min: 19, max: 19 })
-      .withMessage('VIN must be exactly 19 characters')
-      .matches(/^[A-Z0-9]+$/)
-      .withMessage('VIN must contain only uppercase letters and numbers'),
-  ]),
+  validate([ninValidation(), vinValidation()]),
   otpAuthController.requestVoterLogin,
 );
 

@@ -32,3 +32,7 @@ export declare const validationMessages: {
     phoneNumber: () => string;
 };
 export declare const validateRequest: (schema: any) => (req: Request, res: Response, next: NextFunction) => void;
+export declare const ninValidation: () => ValidationChain;
+export declare const vinValidation: () => ValidationChain;
+export declare const phoneValidation: () => ValidationChain;
+export declare const emailValidation: () => ValidationChain;

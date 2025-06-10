@@ -10,6 +10,7 @@ const PollingUnit_1 = __importDefault(require("../db/models/PollingUnit"));
 const Vote_1 = __importDefault(require("../db/models/Vote"));
 const errorHandler_1 = require("../middleware/errorHandler");
 const encryptionService_1 = require("./encryptionService");
+const logger_1 = require("../config/logger");
 /**
  * Get voter profile by ID
  */
@@ -168,7 +169,7 @@ const checkVoterEligibility = async (voterId, electionId) => {
         };
     }
     catch (error) {
-        console.error('Error in checkVoterEligibility:', error);
+        logger_1.logger.error('Error in checkVoterEligibility:', error);
         throw error;
     }
 };
@@ -187,7 +188,7 @@ exports.requestVerification = requestVerification;
 /**
  * Change voter password - Deprecated with new authentication system
  */
-const changePassword = async (voterId, currentPassword, newPassword) => {
+const changePassword = (_voterId, _currentPassword, _newPassword) => {
     // Password-based authentication is no longer supported
     throw new errorHandler_1.ApiError(400, 'Password-based authentication is no longer supported. Please use NIN/VIN authentication.');
 };

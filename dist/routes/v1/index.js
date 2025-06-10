@@ -12,10 +12,12 @@ const resultsRoutes_1 = __importDefault(require("./resultsRoutes"));
 const ussdRoutes_1 = __importDefault(require("./ussdRoutes"));
 const mobileRoutes_1 = __importDefault(require("./mobileRoutes"));
 const adminRoutes_1 = __importDefault(require("./adminRoutes"));
+const publicRoutes_1 = __importDefault(require("./publicRoutes"));
 const router = (0, express_1.Router)();
 // Mount route modules
 router.use('/auth', authRoutes_1.default);
 router.use('/auth', otpAuthRoutes_1.default); // New OTP-based authentication
+router.use('/public', publicRoutes_1.default); // Public routes (no authentication required)
 router.use('/voter', voterRoutes_1.default);
 router.use('/elections', electionRoutes_1.default);
 router.use('/results', resultsRoutes_1.default);

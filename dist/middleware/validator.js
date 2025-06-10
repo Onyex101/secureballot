@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateRequest = exports.validationMessages = exports.sanitize = exports.validate = void 0;
+exports.emailValidation = exports.phoneValidation = exports.vinValidation = exports.ninValidation = exports.validateRequest = exports.validationMessages = exports.sanitize = exports.validate = void 0;
 const express_validator_1 = require("express-validator");
 const errorHandler_1 = require("./errorHandler");
 /**
@@ -116,4 +116,33 @@ const validateRequest = (schema) => {
     };
 };
 exports.validateRequest = validateRequest;
+// Standard validation rules for common fields
+const ninValidation = () => (0, express_validator_1.body)('nin')
+    .notEmpty()
+    .withMessage('NIN is required')
+    .isNumeric()
+    .withMessage('NIN must contain only numbers')
+    .isLength({ min: 11, max: 11 })
+    .withMessage('NIN must be exactly 11 digits');
+exports.ninValidation = ninValidation;
+const vinValidation = () => (0, express_validator_1.body)('vin')
+    .notEmpty()
+    .withMessage('VIN is required')
+    .isLength({ min: 19, max: 19 })
+    .withMessage('VIN must be exactly 19 characters')
+    .matches(/^[A-Z0-9]+$/)
+    .withMessage('VIN must contain only uppercase letters and numbers');
+exports.vinValidation = vinValidation;
+const phoneValidation = () => (0, express_validator_1.body)('phoneNumber')
+    .notEmpty()
+    .withMessage(exports.validationMessages.required('Phone number'))
+    .matches(/^\+?[0-9]{10,15}$/)
+    .withMessage(exports.validationMessages.phoneNumber());
+exports.phoneValidation = phoneValidation;
+const emailValidation = () => (0, express_validator_1.body)('email')
+    .notEmpty()
+    .withMessage(exports.validationMessages.required('Email'))
+    .isEmail()
+    .withMessage(exports.validationMessages.email());
+exports.emailValidation = emailValidation;
 //# sourceMappingURL=validator.js.map

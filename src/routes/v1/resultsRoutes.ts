@@ -153,14 +153,21 @@ router.get('/live', defaultLimiter, statisticsController.getRealTimeVotingStats)
  *         schema:
  *           type: string
  *           format: uuid
- *       - name: regionId
+ *       - name: regionType
  *         in: query
  *         schema:
  *           type: string
- *           format: uuid
+ *           enum: [state, lga, ward]
+ *           default: state
+ *       - name: regionCode
+ *         in: query
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Results by region returned
+ *       400:
+ *         description: Invalid region type or missing region code
  *       404:
  *         description: Election not found
  */
@@ -174,7 +181,12 @@ router.get(
       .isUUID()
       .withMessage(validationMessages.uuid('Election ID')),
 
-    query('regionId').optional().isUUID().withMessage(validationMessages.uuid('Region ID')),
+    query('regionType')
+      .optional()
+      .isIn(['state', 'lga', 'ward'])
+      .withMessage('Region type must be one of: state, lga, ward'),
+
+    query('regionCode').optional().isString().withMessage('Region code must be a string'),
   ]),
   resultsController.getResultsByRegion,
 );

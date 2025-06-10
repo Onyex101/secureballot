@@ -207,7 +207,7 @@ router.get(
   '/audit-logs',
   requireRole([UserRole.SYSTEM_ADMIN, UserRole.SYSTEM_AUDITOR, UserRole.SECURITY_OFFICER]),
   defaultLimiter,
-  [
+  validate([
     query('actionType')
       .optional()
       .isIn([
@@ -232,8 +232,7 @@ router.get(
       .optional()
       .isInt({ min: 1, max: 100 })
       .withMessage('Limit must be between 1 and 100'),
-  ],
-  validate([query('status'), query('page'), query('limit')]),
+  ]),
   systemAuditorController.getAuditLogs,
 );
 
@@ -359,7 +358,7 @@ router.post(
   '/elections',
   requireRole([UserRole.ELECTORAL_COMMISSIONER, UserRole.ELECTION_MANAGER]),
   defaultLimiter,
-  [
+  validate([
     body('electionName')
       .notEmpty()
       .withMessage(validationMessages.required('Election name'))
@@ -390,8 +389,7 @@ router.post(
       .withMessage(validationMessages.required('End date'))
       .isISO8601()
       .withMessage('End date must be a valid ISO date'),
-  ],
-  validate([body('electionName'), body('electionType'), body('startDate'), body('endDate')]),
+  ]),
   electoralCommissionerController.createElection,
 );
 
@@ -463,14 +461,13 @@ router.post(
   '/elections/:electionId/generate-keys',
   requireRole([UserRole.ELECTORAL_COMMISSIONER, UserRole.ELECTION_MANAGER]),
   defaultLimiter,
-  [
+  validate([
     param('electionId')
       .notEmpty()
       .withMessage(validationMessages.required('Election ID'))
       .isUUID(4)
       .withMessage('Election ID must be a valid UUID'),
-  ],
-  validate([param('electionId')]),
+  ]),
   electoralCommissionerController.generateElectionKeys,
 );
 
@@ -520,7 +517,7 @@ router.get(
   '/security-logs',
   requireRole([UserRole.SYSTEM_ADMIN, UserRole.SECURITY_OFFICER]),
   defaultLimiter,
-  [
+  validate([
     query('severity')
       .optional()
       .isIn(['low', 'medium', 'high', 'critical'])
@@ -532,13 +529,6 @@ router.get(
       .optional()
       .isInt({ min: 1, max: 100 })
       .withMessage('Limit must be between 1 and 100'),
-  ],
-  validate([
-    query('severity'),
-    query('startDate'),
-    query('endDate'),
-    query('page'),
-    query('limit'),
   ]),
   securityOfficerController.getSecurityLogs,
 );
@@ -583,7 +573,7 @@ router.post(
   '/results/publish',
   requireRole([UserRole.ELECTORAL_COMMISSIONER, UserRole.RESULT_VERIFICATION_OFFICER]),
   defaultLimiter,
-  [
+  validate([
     body('electionId')
       .notEmpty()
       .withMessage(validationMessages.required('Election ID'))
@@ -593,8 +583,7 @@ router.post(
       .optional()
       .isIn(['preliminary', 'final'])
       .withMessage('Publish level must be either preliminary or final'),
-  ],
-  validate([body('electionId'), body('publishLevel')]),
+  ]),
   resultVerificationController.verifyAndPublishResults,
 );
 
@@ -745,6 +734,62 @@ router.post(
   verificationController.rejectVerification,
 );
 
+/**
+ * @swagger
+ * /api/v1/admin/login:
+ *   post:
+ *     summary: Admin user login
+ *     tags: [Admin Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nin
+ *               - vin
+ *             properties:
+ *               nin:
+ *                 type: string
+ *                 description: National Identification Number (11 digits)
+ *                 pattern: '^\d{11}$'
+ *                 example: '12345678901'
+ *               vin:
+ *                 type: string
+ *                 description: Voter Identification Number (19 characters)
+ *                 pattern: '^[A-Z0-9]{19}$'
+ *                 example: 'VIN1234567890ABCDEF'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Login successful'
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       description: JWT token for authentication
+ *                     user:
+ *                       type: object
+ *                       description: Admin user information
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Account not active
+ */
 router.post('/login', async (req, res, next) => {
   try {
     await authController.login(req, res, next);
@@ -753,6 +798,31 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v1/admin/logout:
+ *   post:
+ *     summary: Admin user logout
+ *     tags: [Admin Authentication]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Logout successful'
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/logout', async (req, res, next) => {
   try {
     await authController.logout(req, res, next);
@@ -761,6 +831,39 @@ router.post('/logout', async (req, res, next) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v1/admin/verify-results:
+ *   post:
+ *     summary: Verify election results
+ *     tags: [Result Verification Officer]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - electionId
+ *             properties:
+ *               electionId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Election ID to verify results for
+ *     responses:
+ *       200:
+ *         description: Results verified successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Election not found
+ */
 router.post('/verify-results', async (req, res, next) => {
   try {
     await resultVerificationController.verifyAndPublishResults(req, res, next);
@@ -769,6 +872,44 @@ router.post('/verify-results', async (req, res, next) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v1/admin/publish-results:
+ *   post:
+ *     summary: Publish verified election results
+ *     tags: [Result Verification Officer]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - electionId
+ *             properties:
+ *               electionId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Election ID to publish results for
+ *               publishLevel:
+ *                 type: string
+ *                 enum: [preliminary, final]
+ *                 default: preliminary
+ *                 description: Level of results to publish
+ *     responses:
+ *       200:
+ *         description: Results published successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Election not found
+ */
 router.post('/publish-results', async (req, res, next) => {
   try {
     await resultVerificationController.publishResults(req, res, next);
@@ -777,6 +918,43 @@ router.post('/publish-results', async (req, res, next) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v1/admin/reject-results:
+ *   post:
+ *     summary: Reject election results
+ *     tags: [Result Verification Officer]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - electionId
+ *               - reason
+ *             properties:
+ *               electionId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Election ID to reject results for
+ *               reason:
+ *                 type: string
+ *                 description: Reason for rejecting the results
+ *     responses:
+ *       200:
+ *         description: Results rejected successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Election not found
+ */
 router.post('/reject-results', async (req, res, next) => {
   try {
     await resultVerificationController.rejectResults(req, res, next);

@@ -6,7 +6,7 @@ import { Request, Response, NextFunction } from 'express';
  */
 export declare const register: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 /**
- * Login a voter
+ * Login a voter - Simplified for POC (only NIN and VIN required)
  * @route POST /api/v1/auth/login
  * @access Public
  */

@@ -30,7 +30,7 @@ export declare const requestVerification: (voterId: string) => Promise<Verificat
 /**
  * Change voter password - Deprecated with new authentication system
  */
-export declare const changePassword: (voterId: string, currentPassword: string, newPassword: string) => Promise<boolean>;
+export declare const changePassword: (_voterId: string, _currentPassword: string, _newPassword: string) => Promise<boolean>;
 /**
  * Get voter public key
  */

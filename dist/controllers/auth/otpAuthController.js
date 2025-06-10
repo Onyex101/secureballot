@@ -34,9 +34,13 @@ const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const Voter_1 = __importDefault(require("../../db/models/Voter"));
+// Constant OTP for proof of concept
+const CONSTANT_OTP = '723111';
+// Skip OTP in development mode or for POC
+const SKIP_OTP = process.env.NODE_ENV === 'development' || process.env.SKIP_OTP === 'true';
 /**
  * Step 1: Voter login request with NIN and VIN
- * This will generate and send OTP to the voter's registered email
+ * POC: Returns constant OTP for testing, no email required
  */
 const requestVoterLogin = async (req, res, next) => {
     try {
@@ -67,25 +71,23 @@ const requestVoterLogin = async (req, res, next) => {
         if (!voter.isActive) {
             throw new errorHandler_1.ApiError(403, 'Account is not active', 'ACCOUNT_INACTIVE');
         }
-        // Check if voter has email
-        if (!voter.email) {
-            throw new errorHandler_1.ApiError(400, 'No email address registered. Please contact support.', 'NO_EMAIL');
-        }
-        // Generate and send OTP
-        const otpResult = await otpService.generateAndSendOtp(voter.id, voter.email, req.ip, req.headers['user-agent']);
-        // Log successful OTP generation
+        // POC Mode: Always return constant OTP information
+        logger_1.logger.info('POC: OTP request processed', { voterId: voter.id });
         await auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
-            step: 'otp_requested',
+            step: 'otp_requested_poc',
             success: true,
-            email: voter.email,
+            mode: 'poc',
         });
         res.status(200).json({
             success: true,
-            message: otpResult.message,
+            message: 'POC: Use constant OTP 723111 for verification',
             data: {
                 userId: voter.id,
-                email: voter.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
-                expiresAt: otpResult.expiresAt,
+                email: voter.email || 'poc-mode@example.com',
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+                constantOtp: CONSTANT_OTP,
+                poc: true,
+                instruction: 'Use OTP code 723111 in the next step',
             },
         });
     }
@@ -100,26 +102,57 @@ const requestVoterLogin = async (req, res, next) => {
 exports.requestVoterLogin = requestVoterLogin;
 /**
  * Step 2: Verify OTP and complete login
+ * POC: Accepts constant OTP 723111 or any code in development mode
  */
 const verifyOtpAndLogin = async (req, res, next) => {
     try {
         const { userId, otpCode } = req.body;
-        if (!userId || !otpCode) {
-            throw new errorHandler_1.ApiError(400, 'User ID and OTP code are required', 'MISSING_OTP_DATA');
+        if (!userId) {
+            throw new errorHandler_1.ApiError(400, 'User ID is required', 'MISSING_USER_ID');
         }
-        // Validate OTP format (6 digits)
-        if (!/^\d{6}$/.test(otpCode)) {
-            throw new errorHandler_1.ApiError(400, 'Invalid OTP format', 'INVALID_OTP_FORMAT');
+        if (!otpCode) {
+            throw new errorHandler_1.ApiError(400, 'OTP code is required', 'MISSING_OTP_CODE');
         }
-        // Verify OTP
-        const otpResult = await otpService.verifyOtp(userId, otpCode, req.ip);
-        if (!otpResult.success) {
-            throw new errorHandler_1.ApiError(400, otpResult.message, 'OTP_VERIFICATION_FAILED');
-        }
-        // Get voter details
+        // Get voter details first
         const voter = await Voter_1.default.findByPk(userId);
         if (!voter) {
             throw new errorHandler_1.ApiError(404, 'Voter not found', 'VOTER_NOT_FOUND');
+        }
+        // POC: Accept constant OTP or any code in development
+        let otpValid = false;
+        let loginMethod = '';
+        if (otpCode === CONSTANT_OTP) {
+            otpValid = true;
+            loginMethod = 'constant_otp_poc';
+            logger_1.logger.info('POC: Constant OTP used', { voterId: voter.id });
+        }
+        else if (SKIP_OTP) {
+            otpValid = true;
+            loginMethod = 'development_bypass';
+            logger_1.logger.info('Development: OTP verification bypassed', { voterId: voter.id });
+        }
+        else {
+            // In production, verify against real OTP service
+            try {
+                const otpResult = await otpService.verifyOtp(userId, otpCode, req.ip);
+                otpValid = otpResult.success;
+                loginMethod = 'real_otp';
+            }
+            catch (error) {
+                otpValid = false;
+                logger_1.logger.warn('OTP verification failed, falling back to constant OTP check', {
+                    voterId: voter.id,
+                    error: error.message,
+                });
+                // Fallback to constant OTP for POC
+                if (otpCode === CONSTANT_OTP) {
+                    otpValid = true;
+                    loginMethod = 'constant_otp_fallback';
+                }
+            }
+        }
+        if (!otpValid) {
+            throw new errorHandler_1.ApiError(400, `Invalid OTP code. For POC, use: ${CONSTANT_OTP}`, 'OTP_VERIFICATION_FAILED');
         }
         // Generate JWT token
         const token = await authService.generateVoterToken(voter);
@@ -128,8 +161,9 @@ const verifyOtpAndLogin = async (req, res, next) => {
         // Log successful login
         await auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
             success: true,
-            login_method: 'otp',
-            otp_verified: true,
+            login_method: loginMethod,
+            mode: 'poc',
+            otp_used: otpCode === CONSTANT_OTP ? 'constant' : 'other',
         });
         res.status(200).json({
             success: true,
@@ -146,6 +180,9 @@ const verifyOtpAndLogin = async (req, res, next) => {
                     ward: voter.ward,
                     lastLogin: voter.lastLogin,
                 },
+                poc: true,
+                loginMethod,
+                constantOtp: CONSTANT_OTP,
             },
         });
     }

@@ -63,20 +63,47 @@ const register = async (req, res, next) => {
 };
 exports.register = register;
 /**
- * Login a voter
+ * Login a voter - Simplified for POC (only NIN and VIN required)
  * @route POST /api/v1/auth/login
  * @access Public
  */
 const login = async (req, res, next) => {
     try {
-        const { identifier, password } = req.body;
+        const { nin, vin } = req.body;
+        // Validate required fields
+        if (!nin || !vin) {
+            throw new errorHandler_1.ApiError(400, 'NIN and VIN are required', 'MISSING_CREDENTIALS');
+        }
+        // Validate NIN format (11 digits)
+        if (!/^\d{11}$/.test(nin)) {
+            throw new errorHandler_1.ApiError(400, 'Invalid NIN format', 'INVALID_NIN');
+        }
+        // Validate VIN format (19 characters)
+        if (!/^[A-Z0-9]{19}$/.test(vin)) {
+            throw new errorHandler_1.ApiError(400, 'Invalid VIN format', 'INVALID_VIN');
+        }
         try {
-            // Authenticate voter
-            const voter = await services_1.authService.authenticateVoter(identifier, password);
-            // Generate token
-            const token = services_1.authService.generateToken(voter.id);
-            // Log the login
-            await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', { identifier, success: true });
+            // Find voter by NIN and VIN using new encrypted system
+            const voter = await services_1.authService.findVoterByIdentity(nin, vin);
+            if (!voter) {
+                // Log failed login attempt
+                await services_1.auditService.createAuditLog(null, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+                    nin: nin.substring(0, 3) + '*'.repeat(8),
+                    success: false,
+                    reason: 'invalid_credentials',
+                });
+                throw new errorHandler_1.ApiError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+            }
+            // Check if voter is active
+            if (!voter.isActive) {
+                throw new errorHandler_1.ApiError(403, 'Account is not active', 'ACCOUNT_INACTIVE');
+            }
+            // Generate token (no OTP required for POC)
+            const token = services_1.authService.generateVoterToken(voter);
+            // Update last login
+            await voter.update({ lastLogin: new Date() });
+            // Log successful login
+            await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', { nin: nin.substring(0, 3) + '*'.repeat(8), success: true, method: 'legacy_route_poc' });
             res.status(200).json({
                 success: true,
                 message: 'Login successful',
@@ -84,8 +111,8 @@ const login = async (req, res, next) => {
                     token,
                     voter: {
                         id: voter.id,
-                        nin: voter.nin,
-                        vin: voter.vin,
+                        nin: voter.decryptedNin,
+                        vin: voter.decryptedVin,
                         phoneNumber: voter.phoneNumber,
                         fullName: voter.fullName,
                         dateOfBirth: voter.dateOfBirth,
@@ -99,16 +126,22 @@ const login = async (req, res, next) => {
                         mfaEnabled: voter.mfaEnabled,
                         createdAt: voter.createdAt,
                     },
-                    requiresMfa: voter.requiresMfa,
+                    poc: true,
+                    note: 'POC: Login successful without OTP verification',
                 },
             });
         }
         catch (error) {
             // Log failed login attempt
-            await services_1.auditService.createAuditLog(null, // Use null instead of 'unknown' for failed login attempts
-            AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', { identifier, success: false, error: error.message });
-            const apiError = new errorHandler_1.ApiError(401, 'Invalid credentials', 'INVALID_CREDENTIALS', undefined, true);
-            throw apiError;
+            await services_1.auditService.createAuditLog(null, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+                nin: nin.substring(0, 3) + '*'.repeat(8),
+                success: false,
+                error: error.message,
+            });
+            if (error instanceof errorHandler_1.ApiError) {
+                throw error;
+            }
+            throw new errorHandler_1.ApiError(401, 'Authentication failed', 'AUTH_FAILED');
         }
     }
     catch (error) {

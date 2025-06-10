@@ -3,7 +3,6 @@ import * as adminService from '../../services/adminService';
 import * as auditService from '../../services/auditService';
 import * as statisticsService from '../../services/statisticsService';
 import * as pollingUnitService from '../../services/pollingUnitService';
-import * as verificationService from '../../services/verificationService';
 import { UserRole } from '../../types';
 import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';

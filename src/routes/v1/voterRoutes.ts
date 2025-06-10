@@ -4,9 +4,9 @@ import * as voterController from '../../controllers/voter/voterController';
 import * as voteController from '../../controllers/election/voteController';
 import * as pollingUnitController from '../../controllers/voter/pollingUnitController';
 import * as verificationController from '../../controllers/voter/verificationController';
+import * as dashboardController from '../../controllers/dashboard/dashboardController';
 import { authenticate } from '../../middleware/auth';
 import { validate, validationMessages } from '../../middleware/validator';
-import { defaultLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
@@ -68,55 +68,8 @@ router.put(
   voterController.updateProfile,
 );
 
-/**
- * @swagger
- * /api/v1/voter/change-password:
- *   put:
- *     summary: Change voter password
- *     tags: [Voter Management]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - currentPassword
- *               - newPassword
- *             properties:
- *               currentPassword:
- *                 type: string
- *                 format: password
- *               newPassword:
- *                 type: string
- *                 format: password
- *     responses:
- *       200:
- *         description: Password changed successfully
- *       400:
- *         description: Invalid input or current password incorrect
- *       401:
- *         description: Unauthorized
- */
-router.put(
-  '/change-password',
-  authenticate,
-  defaultLimiter,
-  validate([
-    body('currentPassword').notEmpty().withMessage(validationMessages.required('Current password')),
-
-    body('newPassword')
-      .notEmpty()
-      .withMessage(validationMessages.required('New password'))
-      .isLength({ min: 8 })
-      .withMessage(validationMessages.min('New password', 8))
-      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-      .withMessage(validationMessages.password()),
-  ]),
-  voterController.changePassword,
-);
+// Note: Password change route has been removed as it's inconsistent with
+// the new NIN/VIN encryption-based authentication system.
 
 /**
  * @swagger
@@ -460,109 +413,88 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/voter/verify-identity:
- *   post:
- *     summary: Verify voter identity
- *     tags: [Voter Management]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - documentType
- *               - documentNumber
- *               - documentImage
- *             properties:
- *               documentType:
- *                 type: string
- *                 enum: [nationalId, passport, driversLicense]
- *               documentNumber:
- *                 type: string
- *               documentImage:
- *                 type: string
- *     responses:
- *       200:
- *         description: Identity verified successfully
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- */
-router.post('/verify-identity', validate([]), () => {});
-
-/**
- * @swagger
- * /api/v1/voter/verify-address:
- *   post:
- *     summary: Verify voter address
- *     tags: [Voter Management]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - addressLine1
- *               - city
- *               - state
- *               - postalCode
- *               - proofDocument
- *             properties:
- *               addressLine1:
- *                 type: string
- *               city:
- *                 type: string
- *               state:
- *                 type: string
- *               postalCode:
- *                 type: string
- *               proofDocument:
- *                 type: string
- *     responses:
- *       200:
- *         description: Address verified successfully
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- */
-router.post('/verify-address', validate([]), () => {});
-
-/**
- * @swagger
- * /api/v1/voter/voting-history:
+ * /api/v1/voter/dashboard/{electionId}:
  *   get:
- *     summary: Get voter's voting history
- *     tags: [Voter Management]
+ *     summary: Get comprehensive dashboard data
+ *     description: Retrieve all dashboard data for a specific election in a single API call
+ *     tags: [Dashboard]
  *     security:
  *       - BearerAuth: []
  *     parameters:
- *       - name: page
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Unique identifier for the election
+ *       - name: userId
  *         in: query
  *         required: false
  *         schema:
- *           type: integer
- *           minimum: 1
- *       - name: limit
+ *           type: string
+ *           format: uuid
+ *         description: User ID to get personalized voting status
+ *       - name: includeRealTime
  *         in: query
  *         required: false
  *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 50
+ *           type: boolean
+ *           default: true
+ *         description: Whether to include real-time updates
+ *       - name: includeRegionalBreakdown
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Whether to include regional breakdown data
  *     responses:
  *       200:
- *         description: Voting history returned
+ *         description: Successful response with comprehensive dashboard data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DashboardResponse'
+ *       400:
+ *         description: Bad request - Invalid election ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Election not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/voting-history', validate([]), () => {});
+router.get(
+  '/dashboard/:electionId',
+  validate([
+    param('electionId')
+      .notEmpty()
+      .withMessage(validationMessages.required('Election ID'))
+      .isUUID()
+      .withMessage(validationMessages.uuid('Election ID')),
+  ]),
+  dashboardController.getDashboardData,
+);
+
+// Note: Placeholder routes for verify-identity, verify-address, and voting-history
+// have been removed as they were implemented with empty functions.
+// These routes should be implemented with proper controller functions when needed.
 
 export default router;

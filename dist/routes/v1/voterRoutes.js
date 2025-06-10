@@ -29,6 +29,7 @@ const voterController = __importStar(require("../../controllers/voter/voterContr
 const voteController = __importStar(require("../../controllers/election/voteController"));
 const pollingUnitController = __importStar(require("../../controllers/voter/pollingUnitController"));
 const verificationController = __importStar(require("../../controllers/voter/verificationController"));
+const dashboardController = __importStar(require("../../controllers/dashboard/dashboardController"));
 const auth_1 = require("../../middleware/auth");
 const validator_1 = require("../../middleware/validator");
 const rateLimiter_1 = require("../../middleware/rateLimiter");
@@ -116,7 +117,7 @@ router.put('/profile', (0, validator_1.validate)([
  *       401:
  *         description: Unauthorized
  */
-router.put('/change-password', auth_1.authenticate, rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
+router.put('/change-password', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
     (0, express_validator_1.body)('currentPassword').notEmpty().withMessage(validator_1.validationMessages.required('Current password')),
     (0, express_validator_1.body)('newPassword')
         .notEmpty()
@@ -436,107 +437,83 @@ router.post('/report-vote-issue', (0, validator_1.validate)([
 ]), voteController.reportVoteIssue);
 /**
  * @swagger
- * /api/v1/voter/verify-identity:
- *   post:
- *     summary: Verify voter identity
- *     tags: [Voter Management]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - documentType
- *               - documentNumber
- *               - documentImage
- *             properties:
- *               documentType:
- *                 type: string
- *                 enum: [nationalId, passport, driversLicense]
- *               documentNumber:
- *                 type: string
- *               documentImage:
- *                 type: string
- *     responses:
- *       200:
- *         description: Identity verified successfully
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- */
-router.post('/verify-identity', (0, validator_1.validate)([]), () => { });
-/**
- * @swagger
- * /api/v1/voter/verify-address:
- *   post:
- *     summary: Verify voter address
- *     tags: [Voter Management]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - addressLine1
- *               - city
- *               - state
- *               - postalCode
- *               - proofDocument
- *             properties:
- *               addressLine1:
- *                 type: string
- *               city:
- *                 type: string
- *               state:
- *                 type: string
- *               postalCode:
- *                 type: string
- *               proofDocument:
- *                 type: string
- *     responses:
- *       200:
- *         description: Address verified successfully
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- */
-router.post('/verify-address', (0, validator_1.validate)([]), () => { });
-/**
- * @swagger
- * /api/v1/voter/voting-history:
+ * /api/v1/voter/dashboard/{electionId}:
  *   get:
- *     summary: Get voter's voting history
- *     tags: [Voter Management]
+ *     summary: Get comprehensive dashboard data
+ *     description: Retrieve all dashboard data for a specific election in a single API call
+ *     tags: [Dashboard]
  *     security:
  *       - BearerAuth: []
  *     parameters:
- *       - name: page
+ *       - name: electionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Unique identifier for the election
+ *       - name: userId
  *         in: query
  *         required: false
  *         schema:
- *           type: integer
- *           minimum: 1
- *       - name: limit
+ *           type: string
+ *           format: uuid
+ *         description: User ID to get personalized voting status
+ *       - name: includeRealTime
  *         in: query
  *         required: false
  *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 50
+ *           type: boolean
+ *           default: true
+ *         description: Whether to include real-time updates
+ *       - name: includeRegionalBreakdown
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Whether to include regional breakdown data
  *     responses:
  *       200:
- *         description: Voting history returned
+ *         description: Successful response with comprehensive dashboard data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DashboardResponse'
+ *       400:
+ *         description: Bad request - Invalid election ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Election not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/voting-history', (0, validator_1.validate)([]), () => { });
+router.get('/dashboard/:electionId', (0, validator_1.validate)([
+    (0, express_validator_1.param)('electionId')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Election ID'))
+        .isUUID()
+        .withMessage(validator_1.validationMessages.uuid('Election ID')),
+]), dashboardController.getDashboardData);
+// Note: Placeholder routes for verify-identity, verify-address, and voting-history
+// have been removed as they were implemented with empty functions.
+// These routes should be implemented with proper controller functions when needed.
 exports.default = router;
 //# sourceMappingURL=voterRoutes.js.map

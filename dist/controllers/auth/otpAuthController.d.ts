@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 /**
  * Step 1: Voter login request with NIN and VIN
- * This will generate and send OTP to the voter's registered email
+ * POC: Returns constant OTP for testing, no email required
  */
 export declare const requestVoterLogin: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 /**
  * Step 2: Verify OTP and complete login
+ * POC: Accepts constant OTP 723111 or any code in development mode
  */
 export declare const verifyOtpAndLogin: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 /**
