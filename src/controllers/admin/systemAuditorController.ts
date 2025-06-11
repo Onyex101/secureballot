@@ -1,9 +1,10 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import * as auditService from '../../services/auditService';
+import { createAdminLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';
-import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Get audit logs with filtering and pagination
@@ -30,30 +31,23 @@ export const getAuditLogs = async (
       Number(limit),
     );
 
-    // Log this audit log view
-    await auditService.createAdminAuditLog(
-      requesterUserId,
-      AuditActionType.AUDIT_LOG_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { query: req.query, success: true },
-    );
+    // Log this audit log view using admin logs
+    await createAdminLog(req, AdminAction.AUDIT_LOG_VIEW, ResourceType.AUDIT_LOG, null, {
+      query: req.query,
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
       data: result,
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAdminAuditLog(
-        requesterUserId || null,
-        AuditActionType.AUDIT_LOG_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { query: req.query, success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log audit log view error', logErr));
+    // Log failure using admin logs
+    await createAdminLog(req, AdminAction.AUDIT_LOG_VIEW, ResourceType.AUDIT_LOG, null, {
+      query: req.query,
+      success: false,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log audit log view error', logErr));
     next(error);
   }
 };

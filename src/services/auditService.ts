@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 
 /**
  * Create an audit log entry
+ * Used for voter actions and general system auditing
  */
 export const createAuditLog = (
   userId: string | null,
@@ -13,25 +14,6 @@ export const createAuditLog = (
 ) => {
   return AuditLog.create({
     userId,
-    actionType,
-    ipAddress,
-    userAgent,
-    actionDetails,
-  });
-};
-
-/**
- * Create an audit log entry for admin actions
- */
-export const createAdminAuditLog = (
-  adminId: string | null,
-  actionType: string,
-  ipAddress: string,
-  userAgent: string,
-  actionDetails?: any,
-) => {
-  return AuditLog.create({
-    adminId,
     actionType,
     ipAddress,
     userAgent,

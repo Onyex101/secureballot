@@ -8,6 +8,8 @@ import { logger } from '../../config/logger';
 import { logError } from '../../utils/logger';
 import AdminUser from '../../db/models/AdminUser';
 import Voter from '../../db/models/Voter';
+import { createAdminLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Register a new voter
@@ -368,13 +370,17 @@ export const adminLogin = async (
       // Generate token with admin role
       const token = authService.generateToken(authenticatedAdmin.id, 'admin');
 
-      // Log the login
-      await auditService.createAdminAuditLog(
+      // Log admin login using admin logs
+      await createAdminLog(
+        req,
+        AdminAction.ADMIN_USER_LOGIN,
+        ResourceType.ADMIN_USER,
         authenticatedAdmin.id,
-        AuditActionType.ADMIN_LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { nin: nin.substring(0, 3) + '*'.repeat(8), success: true },
+        {
+          success: true,
+          loginMethod: 'email_password',
+          sessionId: token.slice(-8), // Last 8 chars for identification
+        },
       );
 
       res.status(200).json({
@@ -395,17 +401,12 @@ export const adminLogin = async (
     } catch (error) {
       logger.info('Error:', { error });
       // Log failed login attempt
-      await auditService.createAdminAuditLog(
-        null,
-        AuditActionType.ADMIN_LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          nin: nin.substring(0, 3) + '*'.repeat(8),
-          success: false,
-          error: (error as Error).message,
-        },
-      );
+      await createAdminLog(req, AdminAction.ADMIN_USER_LOGIN, ResourceType.ADMIN_USER, null, {
+        success: false,
+        loginMethod: 'email_password',
+        email: nin,
+        error: (error as Error).message,
+      }).catch((logErr: any) => logger.error('Failed to log admin login error', logErr));
 
       const apiError = new ApiError(
         401,

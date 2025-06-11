@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 /**
- * Get all candidates for an election
+ * Get candidates for an election
  * @route GET /api/v1/elections/:electionId/candidates
  * @access Private
  */

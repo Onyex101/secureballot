@@ -280,8 +280,8 @@ const getVotingStatus = async (req, res, next) => {
         const existingVote = await models_1.default.Vote.findOne({ where: { userId, electionId } });
         const hasVoted = !!existingVote;
         // Log action using auditService
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, // Viewing election-specific status
-        req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // Viewing election-specific status
+        {
             electionId,
             view: 'voter_status',
             eligibility: eligibility.isEligible,
@@ -303,9 +303,12 @@ const getVotingStatus = async (req, res, next) => {
     }
     catch (error) {
         // Log failure using auditService
-        await services_1.auditService
-            .createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', { electionId, view: 'voter_status', success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log voter status view error', logErr));
+        await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, {
+            electionId,
+            view: 'voter_status',
+            success: false,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log voter status view error', logErr));
         next(error);
     }
 };

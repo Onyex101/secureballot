@@ -1,4 +1,5 @@
 export * as adminService from './adminService';
+export * as adminLogService from './adminLogService';
 export * as auditService from './auditService';
 export * as electionService from './electionService';
 export * as ussdService from './ussdService';

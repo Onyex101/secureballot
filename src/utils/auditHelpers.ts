@@ -2,6 +2,10 @@
  * Utility functions for audit logging
  */
 
+import { AuthRequest } from '../middleware/auth';
+import { auditService } from '../services';
+import * as adminLogService from '../services/adminLogService';
+
 /**
  * Safely get user ID for audit logging
  * Returns null if userId is not a valid UUID to avoid validation errors
@@ -32,4 +36,62 @@ export const getSafeUserIdForAudit = (userId: string | null | undefined): string
  */
 export const getUserIdFromRequest = (req: any): string | null => {
   return getSafeUserIdForAudit(req.user?.id);
+};
+
+/**
+ * Create audit log entry for voters only
+ * Admin routes should use createAdminLog instead
+ * @param req - Express request object with authentication info
+ * @param actionType - Type of action being logged
+ * @param actionDetails - Additional details about the action
+ * @param isSuspicious - Whether this action is suspicious (optional)
+ * @returns Promise that resolves when audit log is created
+ */
+export const createVoterAuditLog = (
+  req: AuthRequest,
+  actionType: string,
+  actionDetails?: any,
+  isSuspicious?: boolean,
+): Promise<any> => {
+  const ipAddress = req.ip || '';
+  const userAgent = req.headers['user-agent'] || '';
+  const userId = getSafeUserIdForAudit(req.user?.id);
+
+  return auditService.createAuditLog(userId, actionType, ipAddress, userAgent, {
+    ...actionDetails,
+    userType: req.userType || 'voter',
+    ...(isSuspicious !== undefined && { isSuspicious }),
+  });
+};
+
+/**
+ * Create admin log entry for admin-specific actions
+ * This should be used for all admin routes instead of audit logs
+ * @param req - Express request object with authentication info
+ * @param action - Admin action being performed
+ * @param resourceType - Type of resource being acted upon
+ * @param resourceId - ID of the specific resource (optional)
+ * @param details - Additional details about the action
+ * @returns Promise that resolves when admin log is created
+ */
+export const createAdminLog = (
+  req: AuthRequest,
+  action: string,
+  resourceType: string,
+  resourceId?: string | null,
+  details?: any,
+): Promise<any> => {
+  const ipAddress = req.ip || '';
+  const userAgent = req.headers['user-agent'] || '';
+  const adminId = getSafeUserIdForAudit(req.user?.id);
+
+  return adminLogService.createAdminLog(
+    adminId,
+    action,
+    resourceType,
+    resourceId,
+    details,
+    ipAddress,
+    userAgent,
+  );
 };

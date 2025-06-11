@@ -7,7 +7,7 @@ import { AuditActionType } from '../../db/models/AuditLog';
 import { VoteSource } from '../../db/models/Vote';
 import { sequelize } from '../../server';
 import { voteService, auditService, voterService, electionService } from '../../services';
-import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
+import { getSafeUserIdForAudit, createVoterAuditLog } from '../../utils/auditHelpers';
 import { logger } from '../../config/logger';
 
 /**
@@ -316,18 +316,12 @@ export const checkVotingStatus = async (
     const existingVote = await db.Vote.findOne({ where: { userId, electionId } });
     const hasVoted = !!existingVote;
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.VOTE_STATUS_CHECK,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      {
-        electionId,
-        success: true,
-        isEligible: eligibility.isEligible,
-        hasVoted,
-      },
-    );
+    await createVoterAuditLog(req, AuditActionType.VOTE_STATUS_CHECK, {
+      electionId,
+      success: true,
+      isEligible: eligibility.isEligible,
+      hasVoted,
+    });
 
     res.status(200).json({
       success: true,
@@ -342,19 +336,11 @@ export const checkVotingStatus = async (
       },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        getSafeUserIdForAudit(userId),
-        AuditActionType.VOTE_STATUS_CHECK,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          electionId,
-          success: false,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log voting status check error', logErr));
+    await createVoterAuditLog(req, AuditActionType.VOTE_STATUS_CHECK, {
+      electionId,
+      success: false,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log voting status check error', logErr));
     next(error);
   }
 };

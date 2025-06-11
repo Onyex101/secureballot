@@ -1,6 +1,7 @@
 import AuditLog from '../db/models/AuditLog';
 /**
  * Create an audit log entry
+ * Includes fallback handling for foreign key constraint violations
  */
 export declare const createAuditLog: (userId: string | null, actionType: string, ipAddress: string, userAgent: string, actionDetails?: any) => Promise<AuditLog>;
 /**

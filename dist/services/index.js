@@ -23,9 +23,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cacheService = exports.suspiciousActivityService = exports.electionKeyService = exports.voteEncryptionService = exports.encryptionService = exports.notificationService = exports.resultService = exports.voteService = exports.mfaService = exports.candidateService = exports.statisticsService = exports.verificationService = exports.pollingUnitService = exports.voterService = exports.authService = exports.ussdService = exports.electionService = exports.auditService = exports.adminService = void 0;
+exports.cacheService = exports.suspiciousActivityService = exports.electionKeyService = exports.voteEncryptionService = exports.encryptionService = exports.notificationService = exports.resultService = exports.voteService = exports.mfaService = exports.candidateService = exports.statisticsService = exports.verificationService = exports.pollingUnitService = exports.voterService = exports.authService = exports.ussdService = exports.electionService = exports.auditService = exports.adminLogService = exports.adminService = void 0;
 // Export all implemented services from this folder
 exports.adminService = __importStar(require("./adminService"));
+exports.adminLogService = __importStar(require("./adminLogService"));
 exports.auditService = __importStar(require("./auditService"));
 exports.electionService = __importStar(require("./electionService"));
 exports.ussdService = __importStar(require("./ussdService"));

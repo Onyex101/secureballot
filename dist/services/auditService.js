@@ -6,30 +6,90 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSecurityLogs = exports.getAuditLogs = exports.createAdminAuditLog = exports.createAuditLog = void 0;
 const AuditLog_1 = __importDefault(require("../db/models/AuditLog"));
 const sequelize_1 = require("sequelize");
+const logger_1 = require("../config/logger");
 /**
  * Create an audit log entry
+ * Includes fallback handling for foreign key constraint violations
  */
-const createAuditLog = (userId, actionType, ipAddress, userAgent, actionDetails) => {
-    return AuditLog_1.default.create({
-        userId,
-        actionType,
-        ipAddress,
-        userAgent,
-        actionDetails,
-    });
+const createAuditLog = async (userId, actionType, ipAddress, userAgent, actionDetails) => {
+    try {
+        return await AuditLog_1.default.create({
+            userId,
+            actionType,
+            ipAddress,
+            userAgent,
+            actionDetails,
+        });
+    }
+    catch (error) {
+        // If we get a foreign key constraint error on user_id, retry with null userId
+        if (error?.name === 'SequelizeForeignKeyConstraintError' &&
+            error?.table === 'audit_logs' &&
+            error?.constraint === 'fk_audit_logs_user_id') {
+            logger_1.logger.warn('Foreign key constraint violation on audit log user_id, retrying with null userId', {
+                originalUserId: userId,
+                actionType,
+                ipAddress,
+                error: error.message,
+            });
+            // Retry with null userId and add context to action details
+            return AuditLog_1.default.create({
+                userId: null,
+                actionType,
+                ipAddress,
+                userAgent,
+                actionDetails: {
+                    ...actionDetails,
+                    originalUserId: userId,
+                    fallbackReason: 'Foreign key constraint violation - user not found in voters table',
+                },
+            });
+        }
+        // Re-throw if it's not the specific foreign key error we're handling
+        throw error;
+    }
 };
 exports.createAuditLog = createAuditLog;
 /**
  * Create an audit log entry for admin actions
  */
-const createAdminAuditLog = (adminId, actionType, ipAddress, userAgent, actionDetails) => {
-    return AuditLog_1.default.create({
-        adminId,
-        actionType,
-        ipAddress,
-        userAgent,
-        actionDetails,
-    });
+const createAdminAuditLog = async (adminId, actionType, ipAddress, userAgent, actionDetails) => {
+    try {
+        return await AuditLog_1.default.create({
+            adminId,
+            actionType,
+            ipAddress,
+            userAgent,
+            actionDetails,
+        });
+    }
+    catch (error) {
+        // If we get a foreign key constraint error on admin_id, retry with null adminId
+        if (error?.name === 'SequelizeForeignKeyConstraintError' &&
+            error?.table === 'audit_logs' &&
+            error?.constraint === 'fk_audit_logs_admin_id') {
+            logger_1.logger.warn('Foreign key constraint violation on audit log admin_id, retrying with null adminId', {
+                originalAdminId: adminId,
+                actionType,
+                ipAddress,
+                error: error.message,
+            });
+            // Retry with null adminId and add context to action details
+            return AuditLog_1.default.create({
+                adminId: null,
+                actionType,
+                ipAddress,
+                userAgent,
+                actionDetails: {
+                    ...actionDetails,
+                    originalAdminId: adminId,
+                    fallbackReason: 'Foreign key constraint violation - admin not found in admin_users table',
+                },
+            });
+        }
+        // Re-throw if it's not the specific foreign key error we're handling
+        throw error;
+    }
 };
 exports.createAdminAuditLog = createAdminAuditLog;
 /**

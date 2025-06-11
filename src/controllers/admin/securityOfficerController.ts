@@ -2,9 +2,10 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import * as auditService from '../../services/auditService';
 import * as suspiciousActivityService from '../../services/suspiciousActivityService';
+import { createAdminLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';
-import { AuditActionType } from '../../db/models/AuditLog';
 
 /**
  * Get security logs with filtering and pagination
@@ -30,30 +31,23 @@ export const getSecurityLogs = async (
       Number(limit),
     );
 
-    // Log this security log view
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.SECURITY_LOG_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { query: req.query, success: true },
-    );
+    // Log this security log view using admin logs
+    await createAdminLog(req, AdminAction.SECURITY_LOG_VIEW, ResourceType.SECURITY_LOG, null, {
+      query: req.query,
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
       data: result,
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        userId || 'unknown',
-        AuditActionType.SECURITY_LOG_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { query: req.query, success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log security log view error', logErr));
+    // Log failure using admin logs
+    await createAdminLog(req, AdminAction.SECURITY_LOG_VIEW, ResourceType.SECURITY_LOG, null, {
+      query: req.query,
+      success: false,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log security log view error', logErr));
     next(error);
   }
 };
@@ -98,12 +92,12 @@ export const getSuspiciousActivities = async (
       Number(limit),
     );
 
-    // Log this suspicious activity view
-    await auditService.createAdminAuditLog(
-      userId,
-      AuditActionType.SUSPICIOUS_ACTIVITY_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    // Log this suspicious activity view using admin logs
+    await createAdminLog(
+      req,
+      AdminAction.SUSPICIOUS_ACTIVITY_INVESTIGATE,
+      ResourceType.AUDIT_LOG,
+      null,
       {
         query: req.query,
         success: true,
@@ -117,20 +111,18 @@ export const getSuspiciousActivities = async (
       message: 'Suspicious activities retrieved successfully',
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAdminAuditLog(
-        userId || null,
-        AuditActionType.SUSPICIOUS_ACTIVITY_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          query: req.query,
-          success: false,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log suspicious activity view error', logErr));
+    // Log failure using admin logs
+    await createAdminLog(
+      req,
+      AdminAction.SUSPICIOUS_ACTIVITY_INVESTIGATE,
+      ResourceType.AUDIT_LOG,
+      null,
+      {
+        query: req.query,
+        success: false,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log suspicious activity view error', logErr));
     next(error);
   }
 };

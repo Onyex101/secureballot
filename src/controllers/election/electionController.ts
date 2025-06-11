@@ -5,7 +5,7 @@ import { electionService, auditService, voterService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { ElectionStatus } from '../../db/models/Election';
-import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
+import { getSafeUserIdForAudit, createVoterAuditLog } from '../../utils/auditHelpers';
 
 import { logger } from '../../config/logger';
 
@@ -372,11 +372,9 @@ export const getVotingStatus = async (
     const hasVoted = !!existingVote;
 
     // Log action using auditService
-    await auditService.createAuditLog(
-      userId,
+    await createVoterAuditLog(
+      req,
       AuditActionType.ELECTION_VIEW, // Viewing election-specific status
-      req.ip || '',
-      req.headers['user-agent'] || '',
       {
         electionId,
         view: 'voter_status',
@@ -400,15 +398,12 @@ export const getVotingStatus = async (
     });
   } catch (error) {
     // Log failure using auditService
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.ELECTION_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { electionId, view: 'voter_status', success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log voter status view error', logErr));
+    await createVoterAuditLog(req, AuditActionType.ELECTION_VIEW, {
+      electionId,
+      view: 'voter_status',
+      success: false,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log voter status view error', logErr));
     next(error);
   }
 };

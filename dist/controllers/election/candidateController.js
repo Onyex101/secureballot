@@ -5,40 +5,58 @@ const services_1 = require("../../services");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const logger_1 = require("../../config/logger");
 /**
- * Get all candidates for an election
+ * Get candidates for an election
  * @route GET /api/v1/elections/:electionId/candidates
  * @access Private
  */
 const getCandidates = async (req, res, next) => {
     const { electionId } = req.params;
     const { search, page = 1, limit = 50 } = req.query;
-    const userId = (0, auditHelpers_1.getSafeUserIdForAudit)(req.user?.id);
     const queryParams = { search, page, limit };
     try {
         // Get candidates
         const result = await services_1.candidateService.getCandidates(electionId, search, Number(page), Number(limit));
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.CANDIDATE_LIST_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-            electionId,
-            query: queryParams,
-            success: true,
-        });
+        // Log the action based on user type
+        if (req.userType === 'admin') {
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_LIST_VIEW, adminLogService_1.ResourceType.CANDIDATE, electionId, {
+                query: queryParams,
+                resultsCount: result.pagination.total,
+                success: true,
+            });
+        }
+        else {
+            // For voters accessing candidate list
+            await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.CANDIDATE_LIST_VIEW, {
+                electionId,
+                query: queryParams,
+                success: true,
+            });
+        }
         res.status(200).json({
             success: true,
             data: result,
         });
     }
     catch (error) {
-        await services_1.auditService
-            .createAuditLog(userId, AuditLog_1.AuditActionType.CANDIDATE_LIST_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-            electionId,
-            query: queryParams,
-            success: false,
-            error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log candidate list view error', logErr));
+        // Log failure based on user type
+        if (req.userType === 'admin') {
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_LIST_VIEW, adminLogService_1.ResourceType.CANDIDATE, electionId, {
+                query: queryParams,
+                success: false,
+                error: error.message,
+            }).catch(logErr => logger_1.logger.error('Failed to log admin candidate list view error', logErr));
+        }
+        else {
+            await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.CANDIDATE_LIST_VIEW, {
+                electionId,
+                query: queryParams,
+                success: false,
+                error: error.message,
+            }).catch(logErr => logger_1.logger.error('Failed to log candidate list view error', logErr));
+        }
         next(error);
     }
 };
@@ -50,21 +68,44 @@ exports.getCandidates = getCandidates;
  */
 const getCandidateById = async (req, res, next) => {
     const { id } = req.params;
-    const userId = (0, auditHelpers_1.getSafeUserIdForAudit)(req.user?.id);
     try {
         // Get candidate
         const candidate = await services_1.candidateService.getCandidateById(id);
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.CANDIDATE_VIEW, req.ip || '', req.headers['user-agent'] || '', { candidateId: id, success: true });
+        // Log the action based on user type
+        if (req.userType === 'admin') {
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_DETAIL_VIEW, adminLogService_1.ResourceType.CANDIDATE, id, {
+                candidateName: candidate.fullName,
+                electionId: candidate.electionId,
+                success: true,
+            });
+        }
+        else {
+            // For voters viewing candidate details
+            await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.CANDIDATE_VIEW, {
+                candidateId: id,
+                success: true,
+            });
+        }
         res.status(200).json({
             success: true,
             data: candidate,
         });
     }
     catch (error) {
-        await services_1.auditService
-            .createAuditLog(userId, AuditLog_1.AuditActionType.CANDIDATE_VIEW, req.ip || '', req.headers['user-agent'] || '', { candidateId: id, success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log candidate view error', logErr));
+        // Log failure based on user type
+        if (req.userType === 'admin') {
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_DETAIL_VIEW, adminLogService_1.ResourceType.CANDIDATE, id, {
+                success: false,
+                error: error.message,
+            }).catch(logErr => logger_1.logger.error('Failed to log admin candidate view error', logErr));
+        }
+        else {
+            await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.CANDIDATE_VIEW, {
+                candidateId: id,
+                success: false,
+                error: error.message,
+            }).catch(logErr => logger_1.logger.error('Failed to log candidate view error', logErr));
+        }
         next(error);
     }
 };

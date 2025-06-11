@@ -6,6 +6,8 @@ import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import Voter from '../../db/models/Voter';
+import { createAdminLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 // Constant OTP for proof of concept
 const CONSTANT_OTP = '723111';
@@ -299,12 +301,12 @@ export const adminLogin = async (
     const admin = await authService.findAdminByNin(nin);
 
     if (!admin) {
-      // Log failed attempt
-      await auditService.createAdminAuditLog(
+      // Log failed attempt using admin logs
+      await createAdminLog(
+        req as any,
+        AdminAction.ADMIN_USER_LOGIN,
+        ResourceType.ADMIN_USER,
         null,
-        AuditActionType.ADMIN_LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
         {
           success: false,
           reason: 'invalid_credentials',
@@ -318,12 +320,12 @@ export const adminLogin = async (
     // Verify password
     const isValidPassword = await admin.validatePassword(password);
     if (!isValidPassword) {
-      // Log failed password attempt
-      await auditService.createAdminAuditLog(
+      // Log failed password attempt using admin logs
+      await createAdminLog(
+        { ...req, user: { id: admin.id } } as any,
+        AdminAction.ADMIN_USER_LOGIN,
+        ResourceType.ADMIN_USER,
         admin.id,
-        AuditActionType.ADMIN_LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
         {
           success: false,
           reason: 'invalid_password',
@@ -344,12 +346,12 @@ export const adminLogin = async (
     // Update last login
     await admin.update({ lastLogin: new Date() });
 
-    // Log successful login
-    await auditService.createAdminAuditLog(
+    // Log successful login using admin logs
+    await createAdminLog(
+      { ...req, user: { id: admin.id } } as any,
+      AdminAction.ADMIN_USER_LOGIN,
+      ResourceType.ADMIN_USER,
       admin.id,
-      AuditActionType.ADMIN_LOGIN,
-      req.ip || '',
-      req.headers['user-agent'] || '',
       {
         success: true,
         login_method: 'password',
