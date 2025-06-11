@@ -32,7 +32,7 @@
     "db:seed:large": "SEED_BATCH_SIZE=10000 SEED_MAX_VOTERS_PER_STATE=50000 DISABLE_CONSTRAINTS=true DISABLE_INDEXES=true node --max-old-space-size=8192 --expose-gc src/db/seeders/run-optimized-seeder.js",
     "db:seed:debug": "DEBUG=true node src/db/seeders/run-optimized-seeder.js",
     "swagger-autogen": "ts-node src/scripts/swagger-autogen.ts",
-    "admin:create": "node src/db/scripts/createAdmin.js",
+    "admin:create": "ts-node src/db/scripts/createAdmin.ts",
     "voter:register": "ts-node src/db/scripts/register-voter.ts",
     "prepare": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || npx husky install || true",
     "e2e": "docker compose -f docker-compose.test.yml up -d && node tests/e2e/index.js && docker compose -f docker-compose.test.yml down",
