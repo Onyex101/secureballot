@@ -1,13 +1,9 @@
 import AuditLog from '../db/models/AuditLog';
 /**
  * Create an audit log entry
- * Includes fallback handling for foreign key constraint violations
+ * Used for voter actions and general system auditing
  */
 export declare const createAuditLog: (userId: string | null, actionType: string, ipAddress: string, userAgent: string, actionDetails?: any) => Promise<AuditLog>;
-/**
- * Create an audit log entry for admin actions
- */
-export declare const createAdminAuditLog: (adminId: string | null, actionType: string, ipAddress: string, userAgent: string, actionDetails?: any) => Promise<AuditLog>;
 /**
  * Get audit logs with filtering and pagination
  */

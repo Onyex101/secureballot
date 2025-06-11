@@ -26,7 +26,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logout = exports.refreshToken = exports.adminLogin = exports.verifyMfa = exports.login = exports.register = void 0;
+exports.adminLogout = exports.logout = exports.refreshToken = exports.adminLogin = exports.verifyMfa = exports.login = exports.register = void 0;
 const services_1 = require("../../services");
 const verificationService = __importStar(require("../../services/verificationService"));
 const errorHandler_1 = require("../../middleware/errorHandler");
@@ -35,6 +35,8 @@ const logger_1 = require("../../config/logger");
 const logger_2 = require("../../utils/logger");
 const AdminUser_1 = __importDefault(require("../../db/models/AdminUser"));
 const Voter_1 = __importDefault(require("../../db/models/Voter"));
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Register a new voter
  * @route POST /api/v1/admin/register-voter (Admin access)
@@ -65,8 +67,12 @@ const register = async (req, res, next) => {
             lga,
             ward,
         });
-        // Log the registration
-        await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.REGISTRATION, req.ip || '', req.headers['user-agent'] || '', { nin, phoneNumber, registeredByAdmin: true });
+        // Log the registration (admin-only route - use admin logs)
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_CREATE, adminLogService_1.ResourceType.VOTER, voter.id, {
+            nin,
+            phoneNumber,
+            registeredByAdmin: true,
+        });
         let verificationStatus = null;
         // Handle auto-verification if requested (admin privilege)
         if (autoVerify && req.user) {
@@ -77,8 +83,8 @@ const register = async (req, res, next) => {
                 const verificationRecord = await verificationService.getVerificationStatus(voter.id);
                 // Auto-approve the verification
                 verificationStatus = await verificationService.approveVerification(verificationRecord.id, req.user.id, 'Auto-verified during admin registration');
-                // Log the auto-verification
-                await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.VERIFICATION, req.ip || '', req.headers['user-agent'] || '', {
+                // Log the auto-verification (admin action - use admin logs)
+                await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, adminLogService_1.ResourceType.VERIFICATION_REQUEST, verificationRecord.id, {
                     autoVerified: true,
                     approvedBy: req.user.id,
                     method: 'admin_auto_verification',
@@ -149,8 +155,8 @@ const login = async (req, res, next) => {
             // Find voter by NIN and VIN using new encrypted system
             const voter = await services_1.authService.findVoterByIdentity(nin, vin);
             if (!voter) {
-                // Log failed login attempt
-                await services_1.auditService.createAuditLog(null, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+                // Log failed login attempt using contextual logging
+                await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, null, {
                     nin: nin.substring(0, 3) + '*'.repeat(8),
                     success: false,
                     reason: 'invalid_credentials',
@@ -165,8 +171,8 @@ const login = async (req, res, next) => {
             const token = services_1.authService.generateVoterToken(voter);
             // Update last login
             await voter.update({ lastLogin: new Date() });
-            // Log successful login
-            await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', { nin: nin.substring(0, 3) + '*'.repeat(8), success: true, method: 'legacy_route_poc' });
+            // Log successful login using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, voter.id, { nin: nin.substring(0, 3) + '*'.repeat(8), success: true, method: 'legacy_route_poc' });
             res.status(200).json({
                 success: true,
                 message: 'Login successful',
@@ -195,8 +201,8 @@ const login = async (req, res, next) => {
             });
         }
         catch (error) {
-            // Log failed login attempt
-            await services_1.auditService.createAuditLog(null, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failed login attempt using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, null, {
                 nin: nin.substring(0, 3) + '*'.repeat(8),
                 success: false,
                 error: error.message,
@@ -280,8 +286,12 @@ const adminLogin = async (req, res, next) => {
             const authenticatedAdmin = await services_1.authService.authenticateAdminByNin(nin, password);
             // Generate token with admin role
             const token = services_1.authService.generateToken(authenticatedAdmin.id, 'admin');
-            // Log the login
-            await services_1.auditService.createAdminAuditLog(authenticatedAdmin.id, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', { nin: nin.substring(0, 3) + '*'.repeat(8), success: true });
+            // Log admin login using admin logs
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.ADMIN_USER, authenticatedAdmin.id, {
+                success: true,
+                loginMethod: 'email_password',
+                sessionId: token.slice(-8), // Last 8 chars for identification
+            });
             res.status(200).json({
                 success: true,
                 message: 'Admin login successful',
@@ -301,11 +311,12 @@ const adminLogin = async (req, res, next) => {
         catch (error) {
             logger_1.logger.info('Error:', { error });
             // Log failed login attempt
-            await services_1.auditService.createAdminAuditLog(null, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', {
-                nin: nin.substring(0, 3) + '*'.repeat(8),
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.ADMIN_USER, null, {
                 success: false,
+                loginMethod: 'email_password',
+                email: nin,
                 error: error.message,
-            });
+            }).catch((logErr) => logger_1.logger.error('Failed to log admin login error', logErr));
             const apiError = new errorHandler_1.ApiError(401, 'Invalid admin credentials', 'INVALID_ADMIN_CREDENTIALS', undefined, true);
             throw apiError;
         }
@@ -384,4 +395,45 @@ const logout = async (req, res, next) => {
     }
 };
 exports.logout = logout;
+/**
+ * Logout an admin user
+ * @route POST /api/v1/admin/logout
+ * @access Private (Admin)
+ */
+const adminLogout = async (req, res, next) => {
+    try {
+        // The user ID should be available from the authentication middleware
+        const userId = req.user?.id;
+        const userType = req.user?.adminType || 'admin';
+        if (!userId) {
+            throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+        }
+        // Logout the admin user
+        await services_1.authService.logoutUser(userId);
+        // Log the admin logout using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, // Use LOGIN action as it covers login/logout events
+        adminLogService_1.ResourceType.ADMIN_USER, userId, {
+            success: true,
+            action: 'logout',
+            adminType: userType,
+        });
+        res.status(200).json({
+            success: true,
+            message: 'Admin logout successful',
+        });
+    }
+    catch (error) {
+        // Log failure if userId is available
+        const userId = req.user?.id;
+        if (userId) {
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.ADMIN_USER, userId, {
+                success: false,
+                action: 'logout',
+                error: error.message,
+            }).catch(logErr => logger_1.logger.error('Failed to log admin logout error', logErr));
+        }
+        next(error);
+    }
+};
+exports.adminLogout = adminLogout;
 //# sourceMappingURL=authController.js.map

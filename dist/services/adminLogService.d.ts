@@ -27,6 +27,7 @@ export declare const AdminAction: {
     readonly ADMIN_USER_DELETE: "admin_user_delete";
     readonly ADMIN_USER_LIST_VIEW: "admin_user_list_view";
     readonly ADMIN_USER_DETAIL_VIEW: "admin_user_detail_view";
+    readonly ADMIN_USER_LOGIN: "admin_user_login";
     readonly ELECTION_CREATE: "election_create";
     readonly ELECTION_UPDATE: "election_update";
     readonly ELECTION_DELETE: "election_delete";
@@ -34,6 +35,7 @@ export declare const AdminAction: {
     readonly ELECTION_DEACTIVATE: "election_deactivate";
     readonly ELECTION_LIST_VIEW: "election_list_view";
     readonly ELECTION_DETAIL_VIEW: "election_detail_view";
+    readonly ELECTION_KEY_GENERATE: "election_key_generate";
     readonly CANDIDATE_CREATE: "candidate_create";
     readonly CANDIDATE_UPDATE: "candidate_update";
     readonly CANDIDATE_DELETE: "candidate_delete";
@@ -48,12 +50,14 @@ export declare const AdminAction: {
     readonly POLLING_UNIT_LIST_VIEW: "polling_unit_list_view";
     readonly RESULTS_VIEW: "results_view";
     readonly RESULTS_PUBLISH: "results_publish";
+    readonly RESULT_PUBLISH: "result_publish";
     readonly RESULTS_VERIFY: "results_verify";
     readonly AUDIT_LOG_VIEW: "audit_log_view";
     readonly VOTER_VERIFICATION_APPROVE: "voter_verification_approve";
     readonly VOTER_VERIFICATION_REJECT: "voter_verification_reject";
     readonly SUSPICIOUS_ACTIVITY_INVESTIGATE: "suspicious_activity_investigate";
     readonly SUSPICIOUS_ACTIVITY_MARK_FALSE_POSITIVE: "suspicious_activity_mark_false_positive";
+    readonly SECURITY_LOG_VIEW: "security_log_view";
     readonly SYSTEM_CONFIG_UPDATE: "system_config_update";
     readonly BACKUP_CREATE: "backup_create";
     readonly BACKUP_RESTORE: "backup_restore";
@@ -72,4 +76,6 @@ export declare const ResourceType: {
     readonly AUDIT_LOG: "audit_log";
     readonly SYSTEM: "system";
     readonly DASHBOARD: "dashboard";
+    readonly SECURITY_DASHBOARD: "security_dashboard";
+    readonly SECURITY_LOG: "security_log";
 };

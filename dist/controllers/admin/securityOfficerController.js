@@ -26,9 +26,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getSuspiciousActivities = exports.getSecurityLogs = void 0;
 const auditService = __importStar(require("../../services/auditService"));
 const suspiciousActivityService = __importStar(require("../../services/suspiciousActivityService"));
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
-const AuditLog_1 = require("../../db/models/AuditLog");
 /**
  * Get security logs with filtering and pagination
  */
@@ -41,18 +42,23 @@ const getSecurityLogs = async (req, res, next) => {
         const { severity, startDate, endDate, page = 1, limit = 50 } = req.query;
         // Get security logs from service
         const result = await auditService.getSecurityLogs(severity, startDate, endDate, Number(page), Number(limit));
-        // Log this security log view
-        await auditService.createAuditLog(userId, AuditLog_1.AuditActionType.SECURITY_LOG_VIEW, req.ip || '', req.headers['user-agent'] || '', { query: req.query, success: true });
+        // Log this security log view using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.SECURITY_LOG_VIEW, adminLogService_1.ResourceType.SECURITY_LOG, null, {
+            query: req.query,
+            success: true,
+        });
         res.status(200).json({
             success: true,
             data: result,
         });
     }
     catch (error) {
-        // Log failure
-        await auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.SECURITY_LOG_VIEW, req.ip || '', req.headers['user-agent'] || '', { query: req.query, success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log security log view error', logErr));
+        // Log failure using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.SECURITY_LOG_VIEW, adminLogService_1.ResourceType.SECURITY_LOG, null, {
+            query: req.query,
+            success: false,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log security log view error', logErr));
         next(error);
     }
 };
@@ -76,8 +82,8 @@ const getSuspiciousActivities = async (req, res, next) => {
             endDate: endDate,
             sourceIp: sourceIp,
         }, Number(page), Number(limit));
-        // Log this suspicious activity view
-        await auditService.createAdminAuditLog(userId, AuditLog_1.AuditActionType.SUSPICIOUS_ACTIVITY_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+        // Log this suspicious activity view using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.SUSPICIOUS_ACTIVITY_INVESTIGATE, adminLogService_1.ResourceType.AUDIT_LOG, null, {
             query: req.query,
             success: true,
             activitiesCount: result.activities.length,
@@ -89,14 +95,12 @@ const getSuspiciousActivities = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await auditService
-            .createAdminAuditLog(userId || null, AuditLog_1.AuditActionType.SUSPICIOUS_ACTIVITY_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failure using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.SUSPICIOUS_ACTIVITY_INVESTIGATE, adminLogService_1.ResourceType.AUDIT_LOG, null, {
             query: req.query,
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log suspicious activity view error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log suspicious activity view error', logErr));
         next(error);
     }
 };

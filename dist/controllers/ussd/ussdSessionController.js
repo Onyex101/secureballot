@@ -31,6 +31,8 @@ const electionService = __importStar(require("../../services/electionService"));
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 // USSD Menu definitions
 const USSD_MENUS = {
     MAIN: {
@@ -84,8 +86,8 @@ const getSessionStatus = async (req, res, next) => {
         }
         // Get session status
         result = await ussdService.getSessionStatus(sessionCode);
-        // Log the action
-        await auditService.createAuditLog(result.userId || 'unknown', AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.AUDIT_LOG_VIEW, adminLogService_1.ResourceType.VOTER, sessionCode, {
             success: true,
             context: 'status_check',
             sessionCode,
@@ -101,10 +103,8 @@ const getSessionStatus = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await auditService
-            .createAuditLog(result?.userId || 'unknown', AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', { success: false, context: 'status_check', sessionCode, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log USSD session status check error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.SYSTEM_CONFIG_UPDATE, adminLogService_1.ResourceType.VOTER, sessionCode, { success: false, context: 'status_check', sessionCode, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log USSD session status check error', logErr));
         // Pass error to global handler
         next(error);
     }
@@ -131,8 +131,8 @@ const startSession = async (req, res, next) => {
         const session = { sessionCode, expiresAt: new Date(Date.now() + 30 * 60 * 1000) }; // 30 min expiry
         // Set initial menu state (placeholder - implement when updateSessionState is available)
         // await ussdService.updateSessionState(sessionId, { currentMenu: 'MAIN', menuHistory: [], userInput: {} });
-        // Log the action
-        await auditService.createAuditLog('system', AuditLog_1.AuditActionType.USSD_SESSION_START, req.ip || '', req.headers['user-agent'] || '', { phoneNumber, sessionId, success: true });
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION_START, adminLogService_1.AdminAction.ADMIN_USER_CREATE, adminLogService_1.ResourceType.VOTER, sessionCode, { phoneNumber, sessionId, success: true });
         res.status(200).json({
             success: true,
             message: 'USSD session started successfully',
@@ -145,14 +145,13 @@ const startSession = async (req, res, next) => {
         });
     }
     catch (error) {
-        await auditService
-            .createAuditLog('system', AuditLog_1.AuditActionType.USSD_SESSION_START, req.ip || '', req.headers['user-agent'] || '', {
+        // Log error using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION_START, adminLogService_1.AdminAction.ADMIN_USER_CREATE, adminLogService_1.ResourceType.VOTER, null, {
             phoneNumber: req.body.phoneNumber,
             sessionId: req.body.sessionId,
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log USSD session start error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log USSD session start error', logErr));
         next(error);
     }
 };

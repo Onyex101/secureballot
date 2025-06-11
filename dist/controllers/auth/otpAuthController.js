@@ -29,11 +29,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminLogin = exports.resendOtp = exports.verifyOtpAndLogin = exports.requestVoterLogin = void 0;
 const authService = __importStar(require("../../services/authService"));
 const otpService = __importStar(require("../../services/otpService"));
-const auditService = __importStar(require("../../services/auditService"));
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const Voter_1 = __importDefault(require("../../db/models/Voter"));
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
+const auditHelpers_2 = require("../../utils/auditHelpers");
 // Constant OTP for proof of concept
 const CONSTANT_OTP = '723111';
 // Skip OTP in development mode or for POC
@@ -59,9 +61,8 @@ const requestVoterLogin = async (req, res, next) => {
         // Check if voter exists first
         const voter = await authService.findVoterByIdentity(nin, vin);
         if (!voter) {
-            // Log failed authentication attempt for audit
-            await auditService.createAuditLog('unknown', // No voter ID available
-            AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failed authentication attempt using contextual logging
+            await (0, auditHelpers_2.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, null, {
                 success: false,
                 reason: 'invalid_credentials',
                 nin_attempted: nin.substring(0, 3) + '*'.repeat(8), // Partial NIN for logging
@@ -74,7 +75,8 @@ const requestVoterLogin = async (req, res, next) => {
         }
         // POC Mode: Always return constant OTP information
         logger_1.logger.info('POC: OTP request processed', { voterId: voter.get('id') });
-        await auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+        // Log OTP request using contextual logging
+        await (0, auditHelpers_2.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, voter.id, {
             step: 'otp_requested_poc',
             success: true,
             mode: 'poc',
@@ -159,8 +161,8 @@ const verifyOtpAndLogin = async (req, res, next) => {
         const token = await authService.generateVoterToken(voter);
         // Update last login
         await voter.update({ lastLogin: new Date() });
-        // Log successful login
-        await auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+        // Log successful login using contextual logging
+        await (0, auditHelpers_2.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, voter.id, {
             success: true,
             login_method: loginMethod,
             mode: 'poc',
@@ -215,8 +217,8 @@ const resendOtp = async (req, res, next) => {
         }
         // Resend OTP
         const otpResult = await otpService.resendOtp(voter.id, voter.email, req.ip, req.headers['user-agent']);
-        // Log OTP resend
-        await auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+        // Log OTP resend using contextual logging
+        await (0, auditHelpers_2.createContextualLog)(req, AuditLog_1.AuditActionType.LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, voter.id, {
             action: 'otp_resend',
             success: true,
             email: voter.email,
@@ -256,8 +258,8 @@ const adminLogin = async (req, res, next) => {
         // Find admin by NIN hash
         const admin = await authService.findAdminByNin(nin);
         if (!admin) {
-            // Log failed attempt
-            await auditService.createAdminAuditLog(null, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failed attempt using admin logs
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.ADMIN_USER, null, {
                 success: false,
                 reason: 'invalid_credentials',
                 nin_attempted: nin.substring(0, 3) + '*'.repeat(8),
@@ -267,8 +269,8 @@ const adminLogin = async (req, res, next) => {
         // Verify password
         const isValidPassword = await admin.validatePassword(password);
         if (!isValidPassword) {
-            // Log failed password attempt
-            await auditService.createAdminAuditLog(admin.id, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failed password attempt using admin logs
+            await (0, auditHelpers_1.createAdminLog)({ ...req, user: { id: admin.id } }, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.ADMIN_USER, admin.id, {
                 success: false,
                 reason: 'invalid_password',
             });
@@ -282,8 +284,8 @@ const adminLogin = async (req, res, next) => {
         const token = await authService.generateAdminToken(admin);
         // Update last login
         await admin.update({ lastLogin: new Date() });
-        // Log successful login
-        await auditService.createAdminAuditLog(admin.id, AuditLog_1.AuditActionType.ADMIN_LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+        // Log successful login using admin logs
+        await (0, auditHelpers_1.createAdminLog)({ ...req, user: { id: admin.id } }, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.ADMIN_USER, admin.id, {
             success: true,
             login_method: 'password',
         });

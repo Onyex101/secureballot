@@ -25,10 +25,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyVote = exports.castVote = void 0;
 const ussdService = __importStar(require("../../services/ussdService"));
-const auditService = __importStar(require("../../services/auditService"));
+const AuditLog_1 = require("../../db/models/AuditLog");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
-const AuditLog_1 = require("../../db/models/AuditLog");
 /**
  * Cast a vote via USSD
  * @route POST /api/v1/ussd/vote (Example route)
@@ -43,8 +44,9 @@ const castVote = async (req, res, next) => {
         }
         // Cast the vote
         const result = await ussdService.castVote(sessionCode, electionId, candidateId);
-        // Log the action
-        await auditService.createAuditLog('unknown', AuditLog_1.AuditActionType.VOTE_CAST, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTE_CAST, adminLogService_1.AdminAction.RESULTS_VIEW, // Closest available for vote-related admin action
+        adminLogService_1.ResourceType.VOTE, result.confirmationCode, {
             success: true,
             channel: 'ussd',
             sessionCode,
@@ -60,15 +62,14 @@ const castVote = async (req, res, next) => {
         });
     }
     catch (error) {
-        await auditService
-            .createAuditLog('unknown', AuditLog_1.AuditActionType.VOTE_CAST, req.ip || '', req.headers['user-agent'] || '', {
+        // Log error using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTE_CAST, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, null, {
             success: false,
             channel: 'ussd',
             ...context,
             candidateId,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log USSD vote cast error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log USSD vote cast error', logErr));
         next(error);
     }
 };
@@ -87,8 +88,8 @@ const verifyVote = async (req, res, next) => {
         }
         // Verify the vote using the specific USSD service verification
         const result = await ussdService.verifyVote(receiptCode, phoneNumber);
-        // Log the action
-        await auditService.createAuditLog('unknown', AuditLog_1.AuditActionType.VOTE_VERIFY, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTE_VERIFY, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, receiptCode, {
             success: result.isProcessed,
             channel: 'ussd',
             ...context,
@@ -115,14 +116,13 @@ const verifyVote = async (req, res, next) => {
         });
     }
     catch (error) {
-        await auditService
-            .createAuditLog('unknown', AuditLog_1.AuditActionType.VOTE_VERIFY, req.ip || '', req.headers['user-agent'] || '', {
+        // Log error using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTE_VERIFY, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, receiptCode, {
             success: false,
             channel: 'ussd',
             ...context,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log USSD vote verification error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log USSD vote verification error', logErr));
         next(error);
     }
 };

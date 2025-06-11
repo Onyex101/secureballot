@@ -28,3 +28,23 @@ export declare const createAdminUser: (email: string, fullName: string, phoneNum
     isActive: boolean;
     createdAt: Date;
 }>;
+/**
+ * Get admin user profile by ID
+ */
+export declare const getAdminProfile: (userId: string) => Promise<{
+    id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    adminType: UserRole;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    lastLogin: Date | null;
+    mfaEnabled: boolean;
+    creator: {
+        id: string;
+        fullName: string;
+        email: string;
+    } | null;
+}>;

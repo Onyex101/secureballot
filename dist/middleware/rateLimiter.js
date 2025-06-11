@@ -9,7 +9,7 @@ const logger_1 = require("../config/logger");
 // Default rate limiter for general API endpoints
 exports.defaultLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 300,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -31,7 +31,7 @@ exports.defaultLimiter = (0, express_rate_limit_1.default)({
 // More strict rate limiter for authentication endpoints
 exports.authLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 60 * 1000,
-    max: 10,
+    max: 25,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -53,7 +53,7 @@ exports.authLimiter = (0, express_rate_limit_1.default)({
 // Rate limiter for sensitive operations
 exports.sensitiveOpLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 60 * 1000,
-    max: 5,
+    max: 15,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -75,7 +75,7 @@ exports.sensitiveOpLimiter = (0, express_rate_limit_1.default)({
 // Rate limiter for USSD endpoints
 exports.ussdLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 60 * 1000,
-    max: 20,
+    max: 50,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -97,7 +97,7 @@ exports.ussdLimiter = (0, express_rate_limit_1.default)({
 // Rate limiter for admin endpoints
 exports.adminLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
-    max: 50,
+    max: 150,
     standardHeaders: true,
     legacyHeaders: false,
     message: {

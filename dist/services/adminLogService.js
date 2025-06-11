@@ -100,6 +100,7 @@ exports.AdminAction = {
     ADMIN_USER_DELETE: 'admin_user_delete',
     ADMIN_USER_LIST_VIEW: 'admin_user_list_view',
     ADMIN_USER_DETAIL_VIEW: 'admin_user_detail_view',
+    ADMIN_USER_LOGIN: 'admin_user_login',
     // Election management
     ELECTION_CREATE: 'election_create',
     ELECTION_UPDATE: 'election_update',
@@ -108,6 +109,7 @@ exports.AdminAction = {
     ELECTION_DEACTIVATE: 'election_deactivate',
     ELECTION_LIST_VIEW: 'election_list_view',
     ELECTION_DETAIL_VIEW: 'election_detail_view',
+    ELECTION_KEY_GENERATE: 'election_key_generate',
     // Candidate management
     CANDIDATE_CREATE: 'candidate_create',
     CANDIDATE_UPDATE: 'candidate_update',
@@ -125,6 +127,7 @@ exports.AdminAction = {
     // Results and verification
     RESULTS_VIEW: 'results_view',
     RESULTS_PUBLISH: 'results_publish',
+    RESULT_PUBLISH: 'result_publish',
     RESULTS_VERIFY: 'results_verify',
     AUDIT_LOG_VIEW: 'audit_log_view',
     // Security and verification
@@ -132,6 +135,7 @@ exports.AdminAction = {
     VOTER_VERIFICATION_REJECT: 'voter_verification_reject',
     SUSPICIOUS_ACTIVITY_INVESTIGATE: 'suspicious_activity_investigate',
     SUSPICIOUS_ACTIVITY_MARK_FALSE_POSITIVE: 'suspicious_activity_mark_false_positive',
+    SECURITY_LOG_VIEW: 'security_log_view',
     // System administration
     SYSTEM_CONFIG_UPDATE: 'system_config_update',
     BACKUP_CREATE: 'backup_create',
@@ -151,5 +155,7 @@ exports.ResourceType = {
     AUDIT_LOG: 'audit_log',
     SYSTEM: 'system',
     DASHBOARD: 'dashboard',
+    SECURITY_DASHBOARD: 'security_dashboard',
+    SECURITY_LOG: 'security_log',
 };
 //# sourceMappingURL=adminLogService.js.map

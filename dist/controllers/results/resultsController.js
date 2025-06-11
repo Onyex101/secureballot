@@ -8,6 +8,8 @@ const services_1 = require("../../services"); // Add services
 const AuditLog_1 = require("../../db/models/AuditLog"); // Add AuditActionType
 const logger_1 = require("../../config/logger"); // Add logger
 const auditHelpers_1 = require("../../utils/auditHelpers");
+const auditHelpers_2 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Get live election results
  * @route GET /api/v1/results/live/:electionId
@@ -15,12 +17,10 @@ const auditHelpers_1 = require("../../utils/auditHelpers");
  */
 const getLiveResults = async (req, res, next) => {
     const { electionId } = req.params;
-    const viewerId = (0, auditHelpers_1.getUserIdFromRequest)(req); // Safely get user ID for audit logging
     try {
         // Get election using service
         const election = await services_1.electionService.getElectionById(electionId);
         if (!election) {
-            // Use ApiError constructor
             throw new errorHandler_1.ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
         }
         // Check if election is active or completed
@@ -29,8 +29,8 @@ const getLiveResults = async (req, res, next) => {
         }
         // Get live results using the result service
         const results = await services_1.resultService.getLiveResults(electionId);
-        // Log success
-        await services_1.auditService.createAuditLog(viewerId, AuditLog_1.AuditActionType.RESULTS_VIEW_LIVE, req.ip || '', req.headers['user-agent'] || '', { success: true, electionId });
+        // Log success using contextual logging
+        await (0, auditHelpers_2.createContextualLog)(req, AuditLog_1.AuditActionType.RESULTS_VIEW_LIVE, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.ELECTION, electionId, { success: true });
         res.status(200).json({
             success: true,
             data: {
@@ -45,10 +45,8 @@ const getLiveResults = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(viewerId, AuditLog_1.AuditActionType.RESULTS_VIEW_LIVE, req.ip || '', req.headers['user-agent'] || '', { success: false, electionId, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log live results view error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_2.createContextualLog)(req, AuditLog_1.AuditActionType.RESULTS_VIEW_LIVE, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.ELECTION, electionId, { success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log live results view error', logErr));
         next(error);
     }
 };

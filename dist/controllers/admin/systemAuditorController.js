@@ -25,9 +25,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAuditLogs = void 0;
 const auditService = __importStar(require("../../services/auditService"));
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
-const AuditLog_1 = require("../../db/models/AuditLog");
 /**
  * Get audit logs with filtering and pagination
  */
@@ -40,18 +41,23 @@ const getAuditLogs = async (req, res, next) => {
         const { actionType, startDate, endDate, userId, page = 1, limit = 50 } = req.query;
         // Get audit logs from service
         const result = await auditService.getAuditLogs(actionType, startDate, endDate, userId, Number(page), Number(limit));
-        // Log this audit log view
-        await auditService.createAdminAuditLog(requesterUserId, AuditLog_1.AuditActionType.AUDIT_LOG_VIEW, req.ip || '', req.headers['user-agent'] || '', { query: req.query, success: true });
+        // Log this audit log view using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.AUDIT_LOG_VIEW, adminLogService_1.ResourceType.AUDIT_LOG, null, {
+            query: req.query,
+            success: true,
+        });
         res.status(200).json({
             success: true,
             data: result,
         });
     }
     catch (error) {
-        // Log failure
-        await auditService
-            .createAdminAuditLog(requesterUserId || null, AuditLog_1.AuditActionType.AUDIT_LOG_VIEW, req.ip || '', req.headers['user-agent'] || '', { query: req.query, success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log audit log view error', logErr));
+        // Log failure using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.AUDIT_LOG_VIEW, adminLogService_1.ResourceType.AUDIT_LOG, null, {
+            query: req.query,
+            success: false,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log audit log view error', logErr));
         next(error);
     }
 };

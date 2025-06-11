@@ -2,8 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getNearbyPollingUnits = void 0;
 const services_1 = require("../../services");
-const errorHandler_1 = require("../../middleware/errorHandler");
+const auditHelpers_1 = require("../../utils/auditHelpers");
 const AuditLog_1 = require("../../db/models/AuditLog");
+const adminLogService_1 = require("../../services/adminLogService");
+const errorHandler_1 = require("../../middleware/errorHandler");
 const logger_1 = require("../../config/logger");
 /**
  * Find nearby polling units
@@ -22,8 +24,8 @@ const getNearbyPollingUnits = async (req, res, next) => {
         // Get nearby polling units
         // Assuming service returns PollingUnit[] potentially augmented with distance
         const pollingUnits = await services_1.pollingUnitService.getNearbyPollingUnits(Number(latitude), Number(longitude), Number(radius), Number(limit));
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MOBILE_NEARBY_PU_SEARCH, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_NEARBY_PU_SEARCH, adminLogService_1.AdminAction.POLLING_UNIT_LIST_VIEW, adminLogService_1.ResourceType.POLLING_UNIT, userId, {
             success: true,
             latitude: Number(latitude),
             longitude: Number(longitude),
@@ -53,17 +55,15 @@ const getNearbyPollingUnits = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.MOBILE_NEARBY_PU_SEARCH, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_NEARBY_PU_SEARCH, adminLogService_1.AdminAction.POLLING_UNIT_LIST_VIEW, adminLogService_1.ResourceType.POLLING_UNIT, userId, {
             success: false,
             latitude: latitude ? Number(latitude) : undefined,
             longitude: longitude ? Number(longitude) : undefined,
             radius: radius ? Number(radius) : undefined,
             limit: limit ? Number(limit) : undefined,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log nearby PU search error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log nearby PU search error', logErr));
         next(error);
     }
 };

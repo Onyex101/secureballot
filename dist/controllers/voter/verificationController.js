@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rejectVerification = exports.approveVerification = exports.getPendingVerifications = exports.submitVerification = exports.getVerificationStatus = void 0;
 const services_1 = require("../../services");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 /**
@@ -18,8 +20,10 @@ const getVerificationStatus = async (req, res, next) => {
         try {
             // Get verification status
             const verificationStatus = await services_1.verificationService.getVerificationStatus(userId);
-            // Log the action
-            await services_1.auditService.createAuditLog(userId, 'verification_status_check', req.ip || '', req.headers['user-agent'] || '', {});
+            // Log the action using contextual logging (checks user type)
+            await (0, auditHelpers_1.createContextualLog)(req, 'verification_status_check', // For voters
+            adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, // For admins (closest available action)
+            adminLogService_1.ResourceType.VERIFICATION_REQUEST, null, { action: 'status_check', success: true });
             res.status(200).json({
                 success: true,
                 data: verificationStatus,
@@ -52,10 +56,14 @@ const submitVerification = async (req, res, next) => {
         try {
             // Submit verification request
             const result = await services_1.verificationService.submitVerificationRequest(userId, documentType, documentNumber, documentImageUrl);
-            // Log the action
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.VERIFICATION, req.ip || '', req.headers['user-agent'] || '', {
+            // Log the action using contextual logging (checks user type)
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VERIFICATION, // For voters
+            adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, // For admins (closest available action)
+            adminLogService_1.ResourceType.VERIFICATION_REQUEST, result.id, {
                 documentType,
                 verificationId: result.id,
+                action: 'submit',
+                success: true,
             });
             res.status(200).json({
                 success: true,
@@ -82,8 +90,9 @@ const getPendingVerifications = async (req, res, next) => {
         const { page = 1, limit = 50 } = req.query;
         // Get pending verifications
         const result = await services_1.verificationService.getPendingVerifications(Number(page), Number(limit));
-        // Log the action
-        await services_1.auditService.createAuditLog(req.user?.id, 'pending_verifications_view', req.ip || '', req.headers['user-agent'] || '', { query: req.query });
+        // Log the action (admin route - use admin logs)
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, // Using closest available action
+        adminLogService_1.ResourceType.VERIFICATION_REQUEST, null, { query: req.query, action: 'pending_verifications_view' });
         res.status(200).json({
             success: true,
             data: result,
@@ -110,10 +119,11 @@ const approveVerification = async (req, res, next) => {
         try {
             // Approve verification
             const result = await services_1.verificationService.approveVerification(id, adminId, notes);
-            // Log the action
-            await services_1.auditService.createAuditLog(adminId, 'verification_approval', req.ip || '', req.headers['user-agent'] || '', {
+            // Log the action (admin route - use admin logs)
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, adminLogService_1.ResourceType.VERIFICATION_REQUEST, id, {
                 verificationId: id,
                 notes,
+                success: true,
             });
             res.status(200).json({
                 success: true,
@@ -149,10 +159,11 @@ const rejectVerification = async (req, res, next) => {
         try {
             // Reject verification
             const result = await services_1.verificationService.rejectVerification(id, adminId, reason);
-            // Log the action
-            await services_1.auditService.createAuditLog(adminId, 'verification_rejection', req.ip || '', req.headers['user-agent'] || '', {
+            // Log the action (admin route - use admin logs)
+            await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.VOTER_VERIFICATION_REJECT, adminLogService_1.ResourceType.VERIFICATION_REQUEST, id, {
                 verificationId: id,
                 reason,
+                success: true,
             });
             res.status(200).json({
                 success: true,

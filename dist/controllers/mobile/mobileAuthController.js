@@ -9,7 +9,9 @@ const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const logger_1 = require("../../config/logger");
 const crypto_1 = __importDefault(require("crypto"));
-// In-memory store for device verification codes (in production, use Redis or database)
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
+// In-memory storage for device verification codes (use Redis in production)
 const deviceVerificationCodes = new Map();
 /**
  * Login via mobile app
@@ -23,9 +25,8 @@ const mobileLogin = async (req, res, next) => {
         voterId = voter.id; // Capture voterId for potential failure log
         // Verify that NIN and VIN match the authenticated voter
         if (voter.nin !== nin || voter.vin !== vin) {
-            // Log detailed failure before throwing generic error
-            await services_1.auditService
-                .createAuditLog('unknown', AuditLog_1.AuditActionType.MOBILE_LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+            // Log detailed failure before throwing generic error using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, null, {
                 success: false,
                 nin,
                 vin,
@@ -33,15 +34,13 @@ const mobileLogin = async (req, res, next) => {
                 authenticatedVin: voter.vin,
                 error: 'NIN/VIN mismatch after authentication',
                 deviceInfo: deviceInfo || 'Not provided',
-            })
-                .catch(logErr => logger_1.logger.error('Failed to log mobile login failure (NIN/VIN mismatch)', logErr));
+            }).catch(logErr => logger_1.logger.error('Failed to log mobile login failure (NIN/VIN mismatch)', logErr));
             throw new errorHandler_1.ApiError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
         }
         // Generate token
         const token = services_1.authService.generateToken(voter.id, 'voter', '30d'); // Longer expiry for mobile
-        // Log the successful login with device info
-        await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.MOBILE_LOGIN, // Use enum
-        req.ip || '', req.headers['user-agent'] || '', {
+        // Log the successful login with device info using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, voter.id, {
             success: true,
             deviceInfo: deviceInfo || 'Not provided',
         });
@@ -62,17 +61,13 @@ const mobileLogin = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failed login attempt
-        await services_1.auditService
-            .createAuditLog(voterId || 'unknown', // Use captured voterId if available
-        AuditLog_1.AuditActionType.MOBILE_LOGIN, // Use enum for failure too
-        req.ip || '', req.headers['user-agent'] || '', {
+        // Log failed login attempt using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_LOGIN, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, voterId, {
             success: false,
             nin,
             error: error.message,
             deviceInfo: deviceInfo || 'Not provided',
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log mobile login failure', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log mobile login failure', logErr));
         // Ensure we pass an ApiError to the handler
         if (error instanceof errorHandler_1.ApiError) {
             next(error);
@@ -122,8 +117,9 @@ const requestDeviceVerification = async (req, res, next) => {
             logger_1.logger.error('Failed to send device verification SMS', { userId, deviceId, error: smsError });
             // Continue without failing - code is still valid for manual entry
         }
-        // Log the request
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.DEVICE_VERIFY, req.ip || '', req.headers['user-agent'] || '', { deviceId, success: true, action: 'request' });
+        // Log the request using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.DEVICE_VERIFY, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, // Closest available action for device verification
+        adminLogService_1.ResourceType.VOTER, userId, { deviceId, success: true, action: 'request' });
         res.status(200).json({
             success: true,
             message: 'Verification code sent to your registered phone number',
@@ -134,9 +130,8 @@ const requestDeviceVerification = async (req, res, next) => {
         });
     }
     catch (error) {
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.DEVICE_VERIFY, req.ip || '', req.headers['user-agent'] || '', { deviceId, success: false, error: error.message, action: 'request' })
-            .catch(logErr => logger_1.logger.error('Failed to log device verification request error', logErr));
+        // Log error using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.DEVICE_VERIFY, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, adminLogService_1.ResourceType.VOTER, userId, { deviceId, success: false, error: error.message, action: 'request' }).catch(logErr => logger_1.logger.error('Failed to log device verification request error', logErr));
         next(error);
     }
 };
@@ -176,8 +171,8 @@ const verifyDevice = async (req, res, next) => {
             // Increment attempts
             storedData.attempts += 1;
             deviceVerificationCodes.set(codeKey, storedData);
-            // Log failed verification attempt
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.DEVICE_VERIFY, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failed verification attempt using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.DEVICE_VERIFY, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, adminLogService_1.ResourceType.VOTER, userId, {
                 success: false,
                 deviceId,
                 attempts: storedData.attempts,
@@ -189,8 +184,8 @@ const verifyDevice = async (req, res, next) => {
         deviceVerificationCodes.delete(codeKey);
         // TODO: In production, store device verification in database
         // await DeviceVerification.create({ userId, deviceId, verifiedAt: new Date() });
-        // Log successful verification
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.DEVICE_VERIFY, req.ip || '', req.headers['user-agent'] || '', { success: true, deviceId });
+        // Log successful verification using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.DEVICE_VERIFY, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, adminLogService_1.ResourceType.VOTER, userId, { success: true, deviceId });
         // Generate a new token with extended permissions/expiry
         const token = services_1.authService.generateToken(userId, 'voter', '90d'); // Longer expiry for verified devices
         res.status(200).json({
@@ -213,9 +208,8 @@ const verifyDevice = async (req, res, next) => {
                 'VERIFICATION_CODE_EXPIRED',
                 'TOO_MANY_ATTEMPTS',
             ].includes(error.code))) {
-            await services_1.auditService
-                .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.DEVICE_VERIFY, req.ip || '', req.headers['user-agent'] || '', { success: false, deviceId, error: error.message })
-                .catch(logErr => logger_1.logger.error('Failed to log device verification error', logErr));
+            // Log error using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.DEVICE_VERIFY, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, adminLogService_1.ResourceType.VOTER, userId, { success: false, deviceId, error: error.message }).catch((logErr) => logger_1.logger.error('Failed to log device verification error', logErr));
         }
         next(error);
     }

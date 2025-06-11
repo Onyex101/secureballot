@@ -34,6 +34,8 @@ const logger_1 = require("../../config/logger");
 const Election_1 = require("../../db/models/Election");
 const Vote_1 = __importStar(require("../../db/models/Vote"));
 const crypto_1 = __importDefault(require("crypto"));
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Synchronize data between mobile app and server
  */
@@ -125,8 +127,8 @@ const syncData = async (req, res, next) => {
             default:
                 throw new errorHandler_1.ApiError(400, `Unsupported sync type: ${type}`, 'UNSUPPORTED_SYNC_TYPE');
         }
-        // Log the sync action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MOBILE_DATA_SYNC, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the sync action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_DATA_SYNC, adminLogService_1.AdminAction.SYSTEM_STATS_VIEW, adminLogService_1.ResourceType.SYSTEM, userId, {
             success: true,
             syncType: type,
             context: data,
@@ -138,15 +140,13 @@ const syncData = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.MOBILE_DATA_SYNC, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_DATA_SYNC, adminLogService_1.AdminAction.SYSTEM_STATS_VIEW, adminLogService_1.ResourceType.SYSTEM, userId, {
             success: false,
             syncType: type,
             context: data,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log mobile data sync error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log mobile data sync error', logErr));
         next(error);
     }
 };

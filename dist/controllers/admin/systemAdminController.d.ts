@@ -1,6 +1,10 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 /**
+ * Get admin user profile
+ */
+export declare const getProfile: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+/**
  * List all system users with pagination and filtering
  */
 export declare const listUsers: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;

@@ -132,6 +132,13 @@ const router = (0, express_1.Router)();
  *                     voterStatus:
  *                       type: object
  *                       nullable: true
+ *                     availableElectionTypes:
+ *                       type: array
+ *                       description: All possible election types that can be created
+ *                       items:
+ *                         type: string
+ *                         enum: [Presidential, Gubernatorial, Senatorial, HouseOfReps, StateAssembly, LocalGovernment]
+ *                       example: ["Presidential", "Gubernatorial", "Senatorial", "HouseOfReps", "StateAssembly", "LocalGovernment"]
  */
 router.get('/elections', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
     (0, express_validator_1.query)('status')

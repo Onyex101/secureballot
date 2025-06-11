@@ -5,6 +5,7 @@ const services_1 = require("../../services");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const logger_1 = require("../../config/logger");
 /**
  * Get voter profile
@@ -19,18 +20,20 @@ const getProfile = async (req, res, next) => {
         }
         // Get voter profile
         const voter = await services_1.voterService.getVoterProfile(userId);
-        // Log the profile view
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.PROFILE_UPDATE, req.ip || '', req.headers['user-agent'] || '', { success: true, action: 'view_profile' });
+        // Log the profile view using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.PROFILE_UPDATE, // For voters
+        adminLogService_1.AdminAction.ADMIN_USER_DETAIL_VIEW, // For admins (closest available)
+        adminLogService_1.ResourceType.VOTER, userId, { success: true, action: 'view_profile' });
         res.status(200).json({
             success: true,
             data: voter,
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.PROFILE_UPDATE, req.ip || '', req.headers['user-agent'] || '', { success: false, action: 'view_profile', error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log profile view error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.PROFILE_UPDATE, // For voters
+        adminLogService_1.AdminAction.ADMIN_USER_DETAIL_VIEW, // For admins
+        adminLogService_1.ResourceType.VOTER, userId, { success: false, action: 'view_profile', error: error.message }).catch(logErr => logger_1.logger.error('Failed to log profile view error', logErr));
         next(error);
     }
 };
@@ -59,8 +62,10 @@ const updateProfile = async (req, res, next) => {
         }
         // Update voter profile
         const updatedVoter = await services_1.voterService.updateVoterProfile(userId, updates);
-        // Log the profile update
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.PROFILE_UPDATE, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the profile update using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.PROFILE_UPDATE, // For voters
+        adminLogService_1.AdminAction.ADMIN_USER_UPDATE, // For admins
+        adminLogService_1.ResourceType.VOTER, userId, {
             success: true,
             updatedFields: Object.keys(updates),
         });
@@ -77,14 +82,14 @@ const updateProfile = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.PROFILE_UPDATE, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.PROFILE_UPDATE, // For voters
+        adminLogService_1.AdminAction.ADMIN_USER_UPDATE, // For admins
+        adminLogService_1.ResourceType.VOTER, userId, {
             success: false,
             updatedFields: Object.keys(updatedFields),
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log profile update error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log profile update error', logErr));
         next(error);
     }
 };
@@ -102,18 +107,20 @@ const getPollingUnit = async (req, res, next) => {
         }
         // Get voter's polling unit
         const pollingUnit = await services_1.voterService.getVoterPollingUnit(userId);
-        // Log the polling unit view
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.USER_ASSIGNED_PU_VIEW, req.ip || '', req.headers['user-agent'] || '', { success: true, pollingUnitId: pollingUnit.id });
+        // Log the polling unit view using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USER_ASSIGNED_PU_VIEW, // For voters
+        adminLogService_1.AdminAction.POLLING_UNIT_LIST_VIEW, // For admins
+        adminLogService_1.ResourceType.POLLING_UNIT, pollingUnit.id, { success: true });
         res.status(200).json({
             success: true,
             data: pollingUnit,
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.USER_ASSIGNED_PU_VIEW, req.ip || '', req.headers['user-agent'] || '', { success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log assigned PU view error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USER_ASSIGNED_PU_VIEW, // For voters
+        adminLogService_1.AdminAction.POLLING_UNIT_LIST_VIEW, // For admins
+        adminLogService_1.ResourceType.POLLING_UNIT, null, { success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log assigned PU view error', logErr));
         next(error);
     }
 };
@@ -135,10 +142,11 @@ const checkEligibility = async (req, res, next) => {
         }
         // Check voter eligibility
         const eligibility = await services_1.voterService.checkVoterEligibility(userId, electionId);
-        // Log the eligibility check
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.VOTER_ELIGIBILITY_CHECK, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the eligibility check using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTER_ELIGIBILITY_CHECK, // For voters
+        adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, // For admins (viewing election details)
+        adminLogService_1.ResourceType.ELECTION, electionId, {
             success: true,
-            electionId,
             isEligible: eligibility.isEligible,
             reason: eligibility.reason,
         });
@@ -148,10 +156,10 @@ const checkEligibility = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.VOTER_ELIGIBILITY_CHECK, req.ip || '', req.headers['user-agent'] || '', { success: false, electionId, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log eligibility check error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTER_ELIGIBILITY_CHECK, // For voters
+        adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, // For admins
+        adminLogService_1.ResourceType.ELECTION, electionId, { success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log eligibility check error', logErr));
         next(error);
     }
 };
@@ -174,19 +182,19 @@ const requestVerification = async (req, res, next) => {
         }
         // Request verification - NOTE: Service might throw 'Not Implemented'
         const verificationStatus = await services_1.voterService.requestVerification(userId);
-        // Log the verification request
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.VOTER_VERIFICATION_REQUEST, req.ip || '', req.headers['user-agent'] || '', { success: true, ...context, status: verificationStatus?.verificationLevel || 'submitted' });
+        // Log the verification request using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTER_VERIFICATION_REQUEST, adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, // For admins (closest available)
+        adminLogService_1.ResourceType.VOTER, userId, { success: true, ...context, status: verificationStatus?.verificationLevel || 'submitted' });
         res.status(200).json({
             success: true,
-            message: 'Verification request submitted successfully.',
-            data: { status: verificationStatus?.verificationLevel || 'submitted' }, // Return current status
+            message: 'Verification status retrieved successfully',
+            data: verificationStatus,
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.VOTER_VERIFICATION_REQUEST, req.ip || '', req.headers['user-agent'] || '', { success: false, ...context, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log verification request error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTER_VERIFICATION_REQUEST, adminLogService_1.AdminAction.VOTER_VERIFICATION_APPROVE, // For admins (closest available)
+        adminLogService_1.ResourceType.VOTER, userId, { success: false, ...context, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log verification request error', logErr));
         next(error);
     }
 };
@@ -204,26 +212,22 @@ const changePassword = async (req, res, next) => {
             throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
         }
         if (!currentPassword || !newPassword) {
-            throw new errorHandler_1.ApiError(400, 'currentPassword and newPassword are required', 'MISSING_PASSWORD_FIELDS');
+            throw new errorHandler_1.ApiError(400, 'Current password and new password are required', 'MISSING_FIELDS');
         }
-        // Add password complexity validation if needed here or in service
-        // Change password using service
+        // Change password
         await services_1.voterService.changePassword(userId, currentPassword, newPassword);
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.PASSWORD_CHANGE, req.ip || '', req.headers['user-agent'] || '', { success: true });
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.PASSWORD_CHANGE, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, // For admins (closest available action)
+        adminLogService_1.ResourceType.VOTER, userId, { success: true });
         res.status(200).json({
             success: true,
             message: 'Password changed successfully',
         });
     }
     catch (error) {
-        // Log failure
-        try {
-            await services_1.auditService.createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.PASSWORD_CHANGE, req.ip || '', req.headers['user-agent'] || '', { success: false, error: error.message });
-        }
-        catch (logErr) {
-            logger_1.logger.error(`Failed to log password change error: ${logErr instanceof Error ? logErr.message : String(logErr)}`);
-        }
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.PASSWORD_CHANGE, adminLogService_1.AdminAction.ADMIN_USER_UPDATE, // For admins (closest available action)
+        adminLogService_1.ResourceType.VOTER, userId, { success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log password change error', logErr));
         next(error);
     }
 };

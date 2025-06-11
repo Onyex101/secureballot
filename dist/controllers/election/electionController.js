@@ -10,6 +10,7 @@ const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const Election_1 = require("../../db/models/Election");
 const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 const logger_1 = require("../../config/logger");
 /**
  * Get all active elections
@@ -60,9 +61,11 @@ const getElections = async (req, res, next) => {
                 logger_1.logger.warn(`Failed to get profile for user ${userId}:`, voterError);
             }
         }
-        // Log election view using auditService
+        // Log election view using contextual logging
         if (userId) {
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', { filter: queryParams, resultsCount: result.pagination.total, success: true });
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+            adminLogService_1.AdminAction.ELECTION_LIST_VIEW, // For admins
+            adminLogService_1.ResourceType.ELECTION, null, { filter: queryParams, resultsCount: result.pagination.total, success: true });
         }
         // Return paginated results
         res.status(200).json({
@@ -76,14 +79,16 @@ const getElections = async (req, res, next) => {
                 voterStatus: voterProfile?.verification
                     ? { isVerified: voterProfile.verification.identityVerified }
                     : null,
+                // Include available election types
+                availableElectionTypes: Object.values(Election_1.ElectionType),
             },
         });
     }
     catch (error) {
-        // Log failure using auditService
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', { filter: queryParams, success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log election list view error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+        adminLogService_1.AdminAction.ELECTION_LIST_VIEW, // For admins
+        adminLogService_1.ResourceType.ELECTION, null, { filter: queryParams, success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log election list view error', logErr));
         next(error);
     }
 };
@@ -141,10 +146,11 @@ const getElectionById = async (req, res, next) => {
         else if (election.status === Election_1.ElectionStatus.SCHEDULED && now < election.startDate) {
             displayStatus = 'upcoming';
         }
-        // Log election view using auditService
+        // Log election view using contextual logging
         if (userId) {
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-                electionId,
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+            adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, // For admins
+            adminLogService_1.ResourceType.ELECTION, electionId, {
                 electionName: election.electionName,
                 success: true,
             });
@@ -167,10 +173,10 @@ const getElectionById = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure using auditService
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', { electionId, success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log election detail view error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+        adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, // For admins
+        adminLogService_1.ResourceType.ELECTION, electionId, { success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log election detail view error', logErr));
         next(error);
     }
 };
@@ -188,10 +194,11 @@ const getElectionCandidates = async (req, res, next) => {
     try {
         // Use electionService to get candidates - This service method exists
         const result = await services_1.electionService.getElectionCandidates(electionId, Number(page), Number(limit), search);
-        // Log action using auditService
+        // Log action using contextual logging
         if (userId) {
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, // Still counts as viewing election-related data
-            req.ip || '', req.headers['user-agent'] || '', { electionId, view: 'candidates', query: queryParams, success: true });
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters - still counts as viewing election-related data
+            adminLogService_1.AdminAction.CANDIDATE_LIST_VIEW, // For admins - more specific action
+            adminLogService_1.ResourceType.CANDIDATE, electionId, { view: 'candidates', query: queryParams, success: true });
         }
         res.status(200).json({
             code: 'CANDIDATES_RETRIEVED',
@@ -200,16 +207,15 @@ const getElectionCandidates = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure using auditService
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-            electionId,
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+        adminLogService_1.AdminAction.CANDIDATE_LIST_VIEW, // For admins
+        adminLogService_1.ResourceType.CANDIDATE, electionId, {
             view: 'candidates',
             query: queryParams,
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log candidate list view error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log candidate list view error', logErr));
         next(error);
     }
 };
@@ -235,10 +241,11 @@ const getCandidateById = async (req, res, next) => {
         if (!candidate) {
             throw new errorHandler_1.ApiError(404, 'Candidate not found for this election', 'CANDIDATE_NOT_FOUND');
         }
-        // Log action using auditService
+        // Log action using contextual logging
         if (userId) {
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, // Still election-related
-            req.ip || '', req.headers['user-agent'] || '', { electionId, candidateId, view: 'candidate_details', success: true });
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters - still election-related
+            adminLogService_1.AdminAction.CANDIDATE_DETAIL_VIEW, // For admins - more specific action
+            adminLogService_1.ResourceType.CANDIDATE, candidateId, { electionId, view: 'candidate_details', success: true });
         }
         res.status(200).json({
             code: 'CANDIDATE_RETRIEVED',
@@ -247,16 +254,15 @@ const getCandidateById = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure using auditService
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+        adminLogService_1.AdminAction.CANDIDATE_DETAIL_VIEW, // For admins
+        adminLogService_1.ResourceType.CANDIDATE, candidateId, {
             electionId,
-            candidateId,
             view: 'candidate_details',
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log candidate detail view error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log candidate detail view error', logErr));
         next(error);
     }
 };
@@ -279,10 +285,10 @@ const getVotingStatus = async (req, res, next) => {
         // TODO: Add voteService.checkIfVoted
         const existingVote = await models_1.default.Vote.findOne({ where: { userId, electionId } });
         const hasVoted = !!existingVote;
-        // Log action using auditService
-        await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // Viewing election-specific status
-        {
-            electionId,
+        // Log action based on user type
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters - viewing election-specific status
+        adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, // For admins - viewing voter status for election
+        adminLogService_1.ResourceType.ELECTION, electionId, {
             view: 'voter_status',
             eligibility: eligibility.isEligible,
             hasVoted,
@@ -302,9 +308,10 @@ const getVotingStatus = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure using auditService
-        await (0, auditHelpers_1.createContextualAuditLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, {
-            electionId,
+        // Log failure based on user type
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+        adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, // For admins
+        adminLogService_1.ResourceType.ELECTION, electionId, {
             view: 'voter_status',
             success: false,
             error: error.message,
@@ -324,10 +331,11 @@ const getElectionDashboard = async (req, res, next) => {
     try {
         // Get comprehensive dashboard data using electionService
         const dashboardData = await services_1.electionService.getElectionDashboard(electionId);
-        // Log action using auditService
+        // Log action using contextual logging
         if (userId) {
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-                electionId,
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+            adminLogService_1.AdminAction.DASHBOARD_VIEW, // For admins - this is a dashboard view
+            adminLogService_1.ResourceType.ELECTION, electionId, {
                 view: 'dashboard',
                 success: true,
             });
@@ -340,10 +348,10 @@ const getElectionDashboard = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure using auditService
-        await services_1.auditService
-            .createAuditLog((0, auditHelpers_1.getSafeUserIdForAudit)(userId), AuditLog_1.AuditActionType.ELECTION_VIEW, req.ip || '', req.headers['user-agent'] || '', { electionId, view: 'dashboard', success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log dashboard view error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.ELECTION_VIEW, // For voters
+        adminLogService_1.AdminAction.DASHBOARD_VIEW, // For admins
+        adminLogService_1.ResourceType.ELECTION, electionId, { view: 'dashboard', success: false, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log dashboard view error', logErr));
         next(error);
     }
 };

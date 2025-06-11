@@ -5,6 +5,8 @@ const services_1 = require("../../services");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const types_1 = require("../../types");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Set up MFA for a user
  * @route POST /api/v1/auth/setup-mfa
@@ -21,8 +23,8 @@ const setupMfa = async (req, res, next) => {
         try {
             // Generate MFA secret
             const result = await services_1.mfaService.generateMfaSecret(userId, isAdmin);
-            // Log the action using enum
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MFA_SETUP, req.ip || '', req.headers['user-agent'] || '', { success: true });
+            // Log the action using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MFA_SETUP, adminLogService_1.AdminAction.SYSTEM_CONFIG_UPDATE, isAdmin ? adminLogService_1.ResourceType.ADMIN_USER : adminLogService_1.ResourceType.VOTER, userId, { success: true });
             res.status(200).json({
                 success: true,
                 message: 'MFA setup information generated',
@@ -61,11 +63,13 @@ const enableMfa = async (req, res, next) => {
             // Verify and enable MFA
             const verified = await services_1.mfaService.verifyMfaToken(userId, token, isAdmin);
             if (!verified) {
-                await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MFA_VERIFY, req.ip || '', req.headers['user-agent'] || '', { success: false, error: 'Invalid MFA token during enable' });
+                // Log failed MFA verification using contextual logging
+                await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MFA_VERIFY, adminLogService_1.AdminAction.SYSTEM_CONFIG_UPDATE, isAdmin ? adminLogService_1.ResourceType.ADMIN_USER : adminLogService_1.ResourceType.VOTER, userId, { success: false, error: 'Invalid MFA token during enable' });
                 const error = new errorHandler_1.ApiError(401, 'Invalid MFA token', 'INVALID_MFA_TOKEN', undefined, true);
                 throw error;
             }
-            await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MFA_ENABLED, req.ip || '', req.headers['user-agent'] || '', { success: true });
+            // Log successful MFA enable using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MFA_ENABLED, adminLogService_1.AdminAction.SYSTEM_CONFIG_UPDATE, isAdmin ? adminLogService_1.ResourceType.ADMIN_USER : adminLogService_1.ResourceType.VOTER, userId, { success: true });
             res.status(200).json({
                 success: true,
                 message: 'MFA enabled successfully',
@@ -73,7 +77,8 @@ const enableMfa = async (req, res, next) => {
         }
         catch (error) {
             if (!(error instanceof errorHandler_1.ApiError && error.code === 'INVALID_MFA_TOKEN')) {
-                await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MFA_ENABLED, req.ip || '', req.headers['user-agent'] || '', { success: false, error: error.message });
+                // Log MFA enable error using contextual logging
+                await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MFA_ENABLED, adminLogService_1.AdminAction.SYSTEM_CONFIG_UPDATE, isAdmin ? adminLogService_1.ResourceType.ADMIN_USER : adminLogService_1.ResourceType.VOTER, userId, { success: false, error: error.message });
             }
             if (error instanceof errorHandler_1.ApiError) {
                 throw error;

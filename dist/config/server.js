@@ -12,7 +12,7 @@ const serverConfig = {
     apiPrefix: process.env.API_PREFIX || '/api',
     corsOrigin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
     rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-    rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+    rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '500', 10),
     secureCookie: process.env.SECURE_COOKIE === 'true',
     httpsEnabled: process.env.HTTPS_ENABLED === 'true',
     sslKeyPath: process.env.SSL_KEY_PATH,

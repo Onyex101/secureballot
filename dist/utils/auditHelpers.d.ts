@@ -17,15 +17,29 @@ export declare const getSafeUserIdForAudit: (userId: string | null | undefined) 
  */
 export declare const getUserIdFromRequest: (req: any) => string | null;
 /**
- * Create audit log entry that automatically detects admin vs voter user
- * Uses the appropriate audit service function based on user type
+ * Create audit log entry for voters only
+ * Admin routes should use createAdminLog instead
  * @param req - Express request object with authentication info
  * @param actionType - Type of action being logged
  * @param actionDetails - Additional details about the action
  * @param isSuspicious - Whether this action is suspicious (optional)
  * @returns Promise that resolves when audit log is created
  */
-export declare const createContextualAuditLog: (req: AuthRequest, actionType: string, actionDetails?: any, isSuspicious?: boolean) => Promise<any>;
+export declare const createVoterAuditLog: (req: AuthRequest, actionType: string, actionDetails?: any, isSuspicious?: boolean) => Promise<any>;
+/**
+ * Universal audit logging function that checks user type and routes appropriately
+ * - Admin users: Use admin logs with appropriate admin action
+ * - Voter users: Use audit logs with provided audit action type
+ * @param req - Express request object with authentication info
+ * @param auditActionType - Audit action type for voters
+ * @param adminAction - Admin action for admin users
+ * @param resourceType - Resource type for admin logs
+ * @param resourceId - Resource ID for admin logs (optional)
+ * @param actionDetails - Additional details about the action
+ * @param isSuspicious - Whether this action is suspicious (optional, audit logs only)
+ * @returns Promise that resolves when log is created
+ */
+export declare const createContextualLog: (req: AuthRequest, auditActionType: string, adminAction: string, resourceType: string, resourceId?: string | null, actionDetails?: any, isSuspicious?: boolean) => Promise<any>;
 /**
  * Create admin log entry for admin-specific actions
  * This should be used for all admin routes instead of audit logs

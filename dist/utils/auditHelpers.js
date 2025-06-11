@@ -26,7 +26,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createAdminLog = exports.createContextualAuditLog = exports.getUserIdFromRequest = exports.getSafeUserIdForAudit = void 0;
+exports.createAdminLog = exports.createContextualLog = exports.createVoterAuditLog = exports.getUserIdFromRequest = exports.getSafeUserIdForAudit = void 0;
 const services_1 = require("../services");
 const adminLogService = __importStar(require("../services/adminLogService"));
 /**
@@ -59,34 +59,49 @@ const getUserIdFromRequest = (req) => {
 };
 exports.getUserIdFromRequest = getUserIdFromRequest;
 /**
- * Create audit log entry that automatically detects admin vs voter user
- * Uses the appropriate audit service function based on user type
+ * Create audit log entry for voters only
+ * Admin routes should use createAdminLog instead
  * @param req - Express request object with authentication info
  * @param actionType - Type of action being logged
  * @param actionDetails - Additional details about the action
  * @param isSuspicious - Whether this action is suspicious (optional)
  * @returns Promise that resolves when audit log is created
  */
-const createContextualAuditLog = (req, actionType, actionDetails, isSuspicious) => {
+const createVoterAuditLog = (req, actionType, actionDetails, isSuspicious) => {
     const ipAddress = req.ip || '';
     const userAgent = req.headers['user-agent'] || '';
-    const userId = req.user?.id;
-    // If user type is admin, use admin audit logging
-    if (req.userType === 'admin') {
-        return services_1.auditService.createAdminAuditLog((0, exports.getSafeUserIdForAudit)(userId), actionType, ipAddress, userAgent, {
-            ...actionDetails,
-            userType: 'admin',
-            ...(isSuspicious !== undefined && { isSuspicious }),
-        });
-    }
-    // For voters or unknown user types, use regular audit logging
-    return services_1.auditService.createAuditLog((0, exports.getSafeUserIdForAudit)(userId), actionType, ipAddress, userAgent, {
+    const userId = (0, exports.getSafeUserIdForAudit)(req.user?.id);
+    return services_1.auditService.createAuditLog(userId, actionType, ipAddress, userAgent, {
         ...actionDetails,
-        userType: req.userType || 'unknown',
+        userType: req.userType || 'voter',
         ...(isSuspicious !== undefined && { isSuspicious }),
     });
 };
-exports.createContextualAuditLog = createContextualAuditLog;
+exports.createVoterAuditLog = createVoterAuditLog;
+/**
+ * Universal audit logging function that checks user type and routes appropriately
+ * - Admin users: Use admin logs with appropriate admin action
+ * - Voter users: Use audit logs with provided audit action type
+ * @param req - Express request object with authentication info
+ * @param auditActionType - Audit action type for voters
+ * @param adminAction - Admin action for admin users
+ * @param resourceType - Resource type for admin logs
+ * @param resourceId - Resource ID for admin logs (optional)
+ * @param actionDetails - Additional details about the action
+ * @param isSuspicious - Whether this action is suspicious (optional, audit logs only)
+ * @returns Promise that resolves when log is created
+ */
+const createContextualLog = (req, auditActionType, adminAction, resourceType, resourceId, actionDetails, isSuspicious) => {
+    if (req.userType === 'admin') {
+        // Admin users use admin logs
+        return (0, exports.createAdminLog)(req, adminAction, resourceType, resourceId, actionDetails);
+    }
+    else {
+        // Voters use audit logs
+        return (0, exports.createVoterAuditLog)(req, auditActionType, actionDetails, isSuspicious);
+    }
+};
+exports.createContextualLog = createContextualLog;
 /**
  * Create admin log entry for admin-specific actions
  * This should be used for all admin routes instead of audit logs

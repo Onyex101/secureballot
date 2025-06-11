@@ -37,3 +37,9 @@ export declare const refreshToken: (req: AuthRequest, res: Response, next: NextF
  * @access Private
  */
 export declare const logout: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+/**
+ * Logout an admin user
+ * @route POST /api/v1/admin/logout
+ * @access Private (Admin)
+ */
+export declare const adminLogout: (req: Request, res: Response, next: NextFunction) => Promise<void>;

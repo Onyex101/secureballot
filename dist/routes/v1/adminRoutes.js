@@ -45,6 +45,82 @@ const router = (0, express_1.Router)();
 router.use(auth_1.authenticate);
 /**
  * @swagger
+ * /api/v1/admin/profile:
+ *   get:
+ *     summary: Get current admin user profile
+ *     tags: [Admin Management]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Admin profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     fullName:
+ *                       type: string
+ *                       example: "John Admin"
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       example: "admin@example.com"
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+2348012345678"
+ *                     adminType:
+ *                       type: string
+ *                       example: "SystemAdministrator"
+ *                     isActive:
+ *                       type: boolean
+ *                       example: true
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-01T00:00:00Z"
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-01T00:00:00Z"
+ *                     lastLogin:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       example: "2024-12-19T10:30:00Z"
+ *                     mfaEnabled:
+ *                       type: boolean
+ *                       example: false
+ *                     creator:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         fullName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                           format: email
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Admin user not found
+ */
+router.get('/profile', rateLimiter_1.adminLimiter, systemAdminController.getProfile);
+/**
+ * @swagger
  * /api/v1/admin/users:
  *   get:
  *     summary: Get all admin users (System Admin only)
@@ -915,7 +991,7 @@ router.post('/login', async (req, res, next) => {
  */
 router.post('/logout', async (req, res, next) => {
     try {
-        await authController.logout(req, res, next);
+        await authController.adminLogout(req, res, next);
     }
     catch (error) {
         next(error);

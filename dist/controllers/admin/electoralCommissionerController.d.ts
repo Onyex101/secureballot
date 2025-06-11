@@ -12,3 +12,11 @@ export declare const generateElectionKeys: (req: AuthRequest, res: Response, nex
  * Publish election results
  */
 export declare const publishResults: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+/**
+ * Get security dashboard data
+ */
+export declare const getSecurityDashboard: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+/**
+ * Get security logs with filtering and pagination
+ */
+export declare const getSecurityLogs: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;

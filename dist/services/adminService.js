@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createAdminUser = exports.checkUserExists = exports.getUsers = void 0;
+exports.getAdminProfile = exports.createAdminUser = exports.checkUserExists = exports.getUsers = void 0;
 const AdminUser_1 = __importDefault(require("../db/models/AdminUser"));
 const uuid_1 = require("uuid");
 const bcrypt_1 = __importDefault(require("bcrypt"));
@@ -90,4 +90,54 @@ const createAdminUser = async (email, fullName, phoneNumber, password, role, cre
     };
 };
 exports.createAdminUser = createAdminUser;
+/**
+ * Get admin user profile by ID
+ */
+const getAdminProfile = async (userId) => {
+    const user = await AdminUser_1.default.findByPk(userId, {
+        attributes: [
+            'id',
+            'fullName',
+            'email',
+            'phoneNumber',
+            'adminType',
+            'isActive',
+            'createdAt',
+            'updatedAt',
+            'lastLogin',
+            'mfaEnabled',
+            'createdBy',
+        ],
+        include: [
+            {
+                model: AdminUser_1.default,
+                as: 'creator',
+                attributes: ['id', 'fullName', 'email'],
+            },
+        ],
+    });
+    if (!user) {
+        throw new Error('Admin user not found');
+    }
+    return {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        adminType: user.adminType,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        lastLogin: user.lastLogin,
+        mfaEnabled: user.mfaEnabled,
+        creator: user.creator
+            ? {
+                id: user.creator.id,
+                fullName: user.creator.fullName,
+                email: user.creator.email,
+            }
+            : null,
+    };
+};
+exports.getAdminProfile = getAdminProfile;
 //# sourceMappingURL=adminService.js.map

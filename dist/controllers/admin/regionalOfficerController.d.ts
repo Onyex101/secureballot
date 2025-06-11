@@ -19,7 +19,7 @@ export declare const createPollingUnit: (req: AuthRequest, res: Response, next: 
  */
 export declare const updatePollingUnit: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 /**
- * Get statistics for a region (state)
+ * Get regional statistics (state-based)
  * @route GET /api/v1/admin/regions/:state/statistics
  * @access Private (Regional Officer)
  */

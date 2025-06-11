@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDashboard = exports.createUser = exports.listUsers = void 0;
+exports.getDashboard = exports.createUser = exports.listUsers = exports.getProfile = void 0;
 const adminService = __importStar(require("../../services/adminService"));
 const auditService = __importStar(require("../../services/auditService"));
 const statisticsService = __importStar(require("../../services/statisticsService"));
@@ -34,7 +34,40 @@ const suspiciousActivityService = __importStar(require("../../services/suspiciou
 const cacheService_1 = require("../../services/cacheService");
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
-const AuditLog_1 = require("../../db/models/AuditLog");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
+/**
+ * Get admin user profile
+ */
+const getProfile = async (req, res, next) => {
+    const userId = req.user?.id;
+    try {
+        if (!userId) {
+            throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+        }
+        // Get admin profile
+        const adminProfile = await adminService.getAdminProfile(userId);
+        // Log the profile view using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_DETAIL_VIEW, adminLogService_1.ResourceType.ADMIN_USER, userId, {
+            success: true,
+            action: 'view_profile',
+        });
+        res.status(200).json({
+            success: true,
+            data: adminProfile,
+        });
+    }
+    catch (error) {
+        // Log failure
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_DETAIL_VIEW, adminLogService_1.ResourceType.ADMIN_USER, userId, {
+            success: false,
+            action: 'view_profile',
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log admin profile view error', logErr));
+        next(error);
+    }
+};
+exports.getProfile = getProfile;
 /**
  * List all system users with pagination and filtering
  */
@@ -43,8 +76,11 @@ const listUsers = async (req, res, next) => {
         const { role, status, page = 1, limit = 50 } = req.query;
         // Get users from service
         const result = await adminService.getUsers(role, status, Number(page), Number(limit));
-        // Log the action using enum
-        await auditService.createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.ADMIN_USER_LIST_VIEW, req.ip || '', req.headers['user-agent'] || '', { query: req.query, success: true });
+        // Log the action using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LIST_VIEW, adminLogService_1.ResourceType.ADMIN_USER, null, {
+            query: req.query,
+            success: true,
+        });
         res.status(200).json({
             success: true,
             data: result,
@@ -53,9 +89,11 @@ const listUsers = async (req, res, next) => {
     catch (error) {
         // Log failure (optional, as global handler will log too)
         // logger.error('Error fetching admin users:', error);
-        await auditService
-            .createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.ADMIN_USER_LIST_VIEW, req.ip || '', req.headers['user-agent'] || '', { query: req.query, success: false, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log user list view error', logErr));
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_LIST_VIEW, adminLogService_1.ResourceType.ADMIN_USER, null, {
+            query: req.query,
+            success: false,
+            error: error.message,
+        }).catch((logErr) => logger_1.logger.error('Failed to log user list view error', logErr));
         next(error);
     }
 };
@@ -78,8 +116,8 @@ const createUser = async (req, res, next) => {
         }
         // Create new admin user
         const newUser = await adminService.createAdminUser(email, fullName, phoneNumber, password, role, creatorUserId);
-        // Log the action using enum
-        await auditService.createAdminAuditLog(creatorUserId, AuditLog_1.AuditActionType.ADMIN_USER_CREATE, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_CREATE, adminLogService_1.ResourceType.ADMIN_USER, newUser.id, {
             success: true,
             createdUserId: newUser.id,
             role: newUser.role,
@@ -99,14 +137,12 @@ const createUser = async (req, res, next) => {
     catch (error) {
         // Log failure (optional, as global handler will log too)
         // logger.error('Error creating admin user:', error);
-        await auditService
-            .createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.ADMIN_USER_CREATE, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ADMIN_USER_CREATE, adminLogService_1.ResourceType.ADMIN_USER, null, {
             success: false,
             email: req.body.email,
             role: req.body.role,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log user creation error', logErr));
+        }).catch((logErr) => logger_1.logger.error('Failed to log user creation error', logErr));
         next(error);
     }
 };
@@ -225,11 +261,8 @@ const getDashboard = async (req, res, next) => {
             })),
         };
         // Log the dashboard access
-        await auditService.createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.DASHBOARD_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.DASHBOARD_VIEW, adminLogService_1.ResourceType.DASHBOARD, null, {
             success: true,
-            includeAuditLogs: shouldIncludeAuditLogs,
-            auditLogsLimit: auditLimit,
-            suspiciousActivitiesLimit: suspiciousLimit,
         });
         res.status(200).json({
             success: true,
@@ -239,12 +272,10 @@ const getDashboard = async (req, res, next) => {
     }
     catch (error) {
         // Log failure
-        await auditService
-            .createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.DASHBOARD_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.DASHBOARD_VIEW, adminLogService_1.ResourceType.DASHBOARD, null, {
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log dashboard view error', logErr));
+        }).catch((logErr) => logger_1.logger.error('Failed to log dashboard view error', logErr));
         next(error);
     }
 };

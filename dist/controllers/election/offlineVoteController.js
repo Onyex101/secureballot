@@ -8,6 +8,8 @@ const logger_1 = require("../../config/logger");
 const Vote_1 = require("../../db/models/Vote");
 const electionKeyService_1 = require("../../services/electionKeyService");
 const voteEncryptionService_1 = require("../../services/voteEncryptionService");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Generate offline voting package
  * @route GET /api/v1/elections/:electionId/offline-package
@@ -48,8 +50,8 @@ const generateOfflinePackage = async (req, res, next) => {
         // Create an expiry date (e.g., 24 hours from now)
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         const keyId = `offline-${userId}-${electionId}-${Date.now()}`;
-        // Log the offline package generation
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the offline package generation using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, adminLogService_1.ResourceType.ELECTION, keyId, {
             success: true,
             electionId,
             keyId,
@@ -88,10 +90,8 @@ const generateOfflinePackage = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, req.ip || '', req.headers['user-agent'] || '', { success: false, electionId, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log offline package generation error', logErr));
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, adminLogService_1.ResourceType.ELECTION, null, { success: false, electionId, error: error.message }).catch(logErr => logger_1.logger.error('Failed to log offline package generation error', logErr));
         next(error);
     }
 };

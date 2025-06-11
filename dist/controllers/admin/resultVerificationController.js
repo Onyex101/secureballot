@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rejectResults = exports.publishResults = exports.verifyAndPublishResults = exports.getVerificationHistory = exports.verifyElectionResults = void 0;
 const errorHandler_1 = require("../../middleware/errorHandler");
-const AuditLog_1 = require("../../db/models/AuditLog");
-const services_1 = require("../../services");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Verify election results
  * @route POST /api/v1/admin/elections/:electionId/verify-results
@@ -26,8 +26,11 @@ const verifyElectionResults = async (req, res, next) => {
         // 2. Verifying vote integrity
         // 3. Cross-referencing with physical records
         // 4. Updating election status
-        // Log the action
-        await services_1.auditService.createAuditLog(adminId, AuditLog_1.AuditActionType.RESULT_VERIFICATION, req.ip || '', req.headers['user-agent'] || '', { electionId, verificationNotes });
+        // Log the action using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULTS_VERIFY, adminLogService_1.ResourceType.ELECTION, electionId, {
+            verificationNotes,
+            success: true,
+        });
         res.status(200).json({
             success: true,
             message: 'Election results verified successfully',
@@ -58,8 +61,11 @@ const getVerificationHistory = async (req, res, next) => {
         // 1. Fetching all audit logs related to result verification
         // 2. Including admin details and timestamps
         // 3. Including verification notes and status
-        // Log the action
-        await services_1.auditService.createAuditLog(adminId, AuditLog_1.AuditActionType.VERIFICATION_HISTORY_VIEW, req.ip || '', req.headers['user-agent'] || '', { electionId });
+        // Log the action using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.ELECTION, electionId, {
+            action: 'verification_history_view',
+            success: true,
+        });
         res.status(200).json({
             success: true,
             data: [], // Replace with actual verification history
@@ -92,8 +98,11 @@ const verifyAndPublishResults = async (req, res, next) => {
         // 2. Checking vote integrity
         // 3. Publishing results at specified level
         // 4. Updating election status
-        // Log the action
-        await services_1.auditService.createAuditLog(adminId, AuditLog_1.AuditActionType.RESULT_PUBLISH, req.ip || '', req.headers['user-agent'] || '', { electionId, publishLevel });
+        // Log the action using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULTS_PUBLISH, adminLogService_1.ResourceType.ELECTION, electionId, {
+            publishLevel,
+            success: true,
+        });
         res.status(200).json({
             success: true,
             message: 'Election results verified and published successfully',
@@ -111,7 +120,9 @@ const publishResults = async (req, res, next) => {
             throw new errorHandler_1.ApiError(400, 'Election ID is required');
         }
         // TODO: Implement result publishing logic
-        await services_1.auditService.createAuditLog(req.user?.id || 'unknown', AuditLog_1.AuditActionType.RESULT_VERIFICATION, JSON.stringify({ electionId }), req.ip || 'unknown');
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULTS_PUBLISH, adminLogService_1.ResourceType.ELECTION, electionId, {
+            success: true,
+        });
         res.status(200).json({ success: true, message: 'Results published successfully' });
     }
     catch (error) {
@@ -126,7 +137,11 @@ const rejectResults = async (req, res, next) => {
             throw new errorHandler_1.ApiError(400, 'Election ID and reason are required');
         }
         // TODO: Implement result rejection logic
-        await services_1.auditService.createAuditLog(req.user?.id || 'unknown', AuditLog_1.AuditActionType.RESULT_VERIFICATION, JSON.stringify({ electionId, reason }), req.ip || 'unknown');
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULTS_VERIFY, adminLogService_1.ResourceType.ELECTION, electionId, {
+            reason,
+            action: 'reject',
+            success: true,
+        });
         res.status(200).json({ success: true, message: 'Results rejected successfully' });
     }
     catch (error) {

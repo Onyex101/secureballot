@@ -23,13 +23,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.publishResults = exports.generateElectionKeys = exports.createElection = void 0;
+exports.getSecurityLogs = exports.getSecurityDashboard = exports.publishResults = exports.generateElectionKeys = exports.createElection = void 0;
 const electionService = __importStar(require("../../services/electionService"));
 const auditService = __importStar(require("../../services/auditService"));
 const electionKeyService_1 = require("../../services/electionKeyService");
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
-const AuditLog_1 = require("../../db/models/AuditLog");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Create a new election
  */
@@ -71,7 +72,7 @@ const createElection = async (req, res, next) => {
             // Continue - election was created successfully, keys can be generated later
         }
         // Log the action
-        await auditService.createAdminAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_CREATE, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ELECTION_CREATE, adminLogService_1.ResourceType.ELECTION, newElection.id, {
             success: true,
             electionId: newElection.id,
             electionName: newElection.electionName,
@@ -91,9 +92,13 @@ const createElection = async (req, res, next) => {
     }
     catch (error) {
         // Log failure
-        await auditService
-            .createAdminAuditLog(userId || null, AuditLog_1.AuditActionType.ELECTION_CREATE, req.ip || '', req.headers['user-agent'] || '', { success: false, electionType, startDate, endDate, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log election creation error', logErr));
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ELECTION_CREATE, adminLogService_1.ResourceType.ELECTION, null, {
+            success: false,
+            electionType,
+            startDate,
+            endDate,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log election creation error', logErr));
         next(error);
     }
 };
@@ -116,7 +121,7 @@ const generateElectionKeys = async (req, res, next) => {
         // Generate encryption keys for the election
         const keyRecord = await (0, electionKeyService_1.generateElectionKeyPair)(electionId, userId);
         // Log the action
-        await auditService.createAdminAuditLog(userId, AuditLog_1.AuditActionType.ELECTION_KEY_GENERATE, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ELECTION_KEY_GENERATE, adminLogService_1.ResourceType.ELECTION, electionId, {
             success: true,
             electionId: election.id,
             electionName: election.electionName,
@@ -135,13 +140,11 @@ const generateElectionKeys = async (req, res, next) => {
     }
     catch (error) {
         // Log failure
-        await auditService
-            .createAdminAuditLog(userId || null, AuditLog_1.AuditActionType.ELECTION_KEY_GENERATE, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.ELECTION_KEY_GENERATE, adminLogService_1.ResourceType.ELECTION, null, {
             success: false,
             electionId,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log key generation error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log key generation error', logErr));
         next(error);
     }
 };
@@ -168,7 +171,7 @@ const publishResults = async (req, res, next) => {
         // Publish results
         const result = await electionService.publishElectionResults(electionId, publishLevel);
         // Log the action
-        await auditService.createAdminAuditLog(userId, AuditLog_1.AuditActionType.RESULT_PUBLISH, req.ip || '', req.headers['user-agent'] || '', {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULT_PUBLISH, adminLogService_1.ResourceType.ELECTION, electionId, {
             success: true,
             electionId: election.id,
             electionName: election.electionName,
@@ -182,11 +185,85 @@ const publishResults = async (req, res, next) => {
     }
     catch (error) {
         // Log failure
-        await auditService
-            .createAuditLog(userId || 'unknown', AuditLog_1.AuditActionType.RESULT_PUBLISH, req.ip || '', req.headers['user-agent'] || '', { success: false, electionId, publishLevel, error: error.message })
-            .catch(logErr => logger_1.logger.error('Failed to log result publication error', logErr));
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.RESULT_PUBLISH, adminLogService_1.ResourceType.ELECTION, null, {
+            success: false,
+            electionId,
+            publishLevel,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log result publication error', logErr));
         next(error);
     }
 };
 exports.publishResults = publishResults;
+/**
+ * Get security dashboard data
+ */
+const getSecurityDashboard = async (req, res, next) => {
+    const adminUserId = req.user?.id;
+    try {
+        if (!adminUserId) {
+            throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+        }
+        const dashboardData = {
+            activeSessions: 45,
+            suspiciousActivities: 3,
+            failedLoginAttempts: 12,
+            recentSecurityEvents: [
+                { id: 1, type: 'Suspicious Login', timestamp: new Date() },
+                { id: 2, type: 'Failed Password Reset', timestamp: new Date() },
+            ],
+        };
+        // Log dashboard access using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.DASHBOARD_VIEW, adminLogService_1.ResourceType.SECURITY_DASHBOARD, null, {
+            success: true,
+        });
+        res.status(200).json({
+            success: true,
+            data: dashboardData,
+        });
+    }
+    catch (error) {
+        // Log failure using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.DASHBOARD_VIEW, adminLogService_1.ResourceType.SECURITY_DASHBOARD, null, {
+            success: false,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log security dashboard view error', logErr));
+        next(error);
+    }
+};
+exports.getSecurityDashboard = getSecurityDashboard;
+/**
+ * Get security logs with filtering and pagination
+ */
+const getSecurityLogs = async (req, res, next) => {
+    const adminUserId = req.user?.id;
+    try {
+        if (!adminUserId) {
+            throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+        }
+        const { severity, startDate, endDate, page = 1, limit = 50 } = req.query;
+        // Get security logs from audit service
+        const result = await auditService.getSecurityLogs(severity, startDate, endDate, Number(page), Number(limit));
+        // Log security log access using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.SECURITY_LOG_VIEW, adminLogService_1.ResourceType.SECURITY_LOG, null, {
+            query: req.query,
+            success: true,
+            recordCount: result.securityLogs.length,
+        });
+        res.status(200).json({
+            success: true,
+            data: result,
+        });
+    }
+    catch (error) {
+        // Log failure using admin logs
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.SECURITY_LOG_VIEW, adminLogService_1.ResourceType.SECURITY_LOG, null, {
+            query: req.query,
+            success: false,
+            error: error.message,
+        }).catch(logErr => logger_1.logger.error('Failed to log security log view error', logErr));
+        next(error);
+    }
+};
+exports.getSecurityLogs = getSecurityLogs;
 //# sourceMappingURL=electoralCommissionerController.js.map

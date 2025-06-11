@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
+import { Request } from 'express';
 /**
  * Get election results (potentially with breakdown)
  * @route GET /api/v1/results/elections/:electionId
@@ -24,3 +25,9 @@ export declare const getElectionStatistics: (req: AuthRequest, res: Response, ne
  * @access Private
  */
 export declare const getRealTimeUpdates: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+/**
+ * Get general system statistics
+ * @route GET /api/v1/statistics/system
+ * @access Public/Private (depends on configuration)
+ */
+export declare const getSystemStatistics: (req: Request, res: Response, next: NextFunction) => Promise<void>;

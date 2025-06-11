@@ -30,6 +30,8 @@ const Vote_1 = require("../../db/models/Vote");
 const services_1 = require("../../services");
 const voteEncryptionService_1 = require("../../services/voteEncryptionService");
 const logger_1 = require("../../config/logger");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Cast a vote from mobile app
  * @route POST /api/v1/mobile/vote
@@ -52,11 +54,11 @@ const castVote = async (req, res, next) => {
         }
         // Cast the vote using the same service as web voting (with encryption)
         const result = await services_1.voteService.castVote(userId, electionId, candidateId, pollingUnit.id, Vote_1.VoteSource.MOBILE);
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.MOBILE_VOTE_CAST, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_VOTE_CAST, adminLogService_1.AdminAction.RESULTS_VIEW, // Closest available for vote-related admin action
+        adminLogService_1.ResourceType.VOTE, result.id, {
             electionId,
             candidateId,
-            voteId: result.id,
             receiptCode: result.receiptCode,
             success: true,
         });
@@ -72,15 +74,13 @@ const castVote = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failed attempt
-        await services_1.auditService
-            .createAuditLog(req.user?.id || 'unknown', AuditLog_1.AuditActionType.MOBILE_VOTE_CAST, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failed attempt using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.MOBILE_VOTE_CAST, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, null, {
             electionId: req.body.electionId,
             candidateId: req.body.candidateId,
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log mobile vote cast error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log mobile vote cast error', logErr));
         next(error);
     }
 };
@@ -105,8 +105,8 @@ const getVoteReceipt = async (req, res, next) => {
         if (!result.isValid) {
             throw new errorHandler_1.ApiError(404, 'Vote receipt not found or invalid', 'INVALID_RECEIPT');
         }
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.VOTE_RECEIPT_VIEW, req.ip || '', req.headers['user-agent'] || '', { receiptCode, success: true });
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTE_RECEIPT_VIEW, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, receiptCode, { success: true });
         res.status(200).json({
             success: true,
             message: 'Vote receipt retrieved successfully',
@@ -123,14 +123,11 @@ const getVoteReceipt = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failed attempt
-        await services_1.auditService
-            .createAuditLog(req.user?.id || 'unknown', AuditLog_1.AuditActionType.VOTE_RECEIPT_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-            receiptCode: req.params.receiptCode,
+        // Log failed attempt using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.VOTE_RECEIPT_VIEW, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, req.params.receiptCode, {
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log mobile receipt view error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log mobile receipt view error', logErr));
         next(error);
     }
 };
@@ -172,9 +169,8 @@ const getOfflinePackage = async (req, res, next) => {
         const keys = (0, voteEncryptionService_1.generateElectionKeys)();
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
         const keyId = `mobile-offline-${userId}-${electionId}-${Date.now()}`;
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, req.ip || '', req.headers['user-agent'] || '', {
-            electionId,
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, adminLogService_1.AdminAction.ELECTION_KEY_GENERATE, adminLogService_1.ResourceType.ELECTION, electionId, {
             keyId,
             expiresAt,
             success: true,
@@ -211,14 +207,12 @@ const getOfflinePackage = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failed attempt
-        await services_1.auditService
-            .createAuditLog(req.user?.id || 'unknown', AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failed attempt using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.OFFLINE_PACKAGE_GENERATE, adminLogService_1.AdminAction.ELECTION_DETAIL_VIEW, adminLogService_1.ResourceType.ELECTION, req.query.electionId, {
             electionId: req.query.electionId,
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log mobile offline package error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log mobile offline package error', logErr));
         next(error);
     }
 };
@@ -285,8 +279,8 @@ const submitOfflineVotes = async (req, res, next) => {
         }
         const successfulVotes = processedVotes.filter(v => v.status === 'processed');
         const failedVotes = processedVotes.filter(v => v.status === 'failed');
-        // Log the action
-        await services_1.auditService.createAuditLog(userId, AuditLog_1.AuditActionType.OFFLINE_VOTE_SUBMIT, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the action using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.OFFLINE_VOTE_SUBMIT, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, electionId, {
             electionId,
             totalVotes: encryptedVotes.length,
             successfulVotes: successfulVotes.length,
@@ -312,15 +306,13 @@ const submitOfflineVotes = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failed attempt
-        await services_1.auditService
-            .createAuditLog(req.user?.id || 'unknown', AuditLog_1.AuditActionType.OFFLINE_VOTE_SUBMIT, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failed attempt using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.OFFLINE_VOTE_SUBMIT, adminLogService_1.AdminAction.RESULTS_VIEW, adminLogService_1.ResourceType.VOTE, req.body.electionId, {
             electionId: req.body.electionId,
             voteCount: Array.isArray(req.body.encryptedVotes) ? req.body.encryptedVotes.length : 0,
             success: false,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log mobile offline vote submission error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log mobile offline vote submission error', logErr));
         next(error);
     }
 };

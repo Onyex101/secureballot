@@ -5,6 +5,8 @@ const services_1 = require("../../services");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const logger_1 = require("../../config/logger");
 const AuditLog_1 = require("../../db/models/AuditLog");
+const auditHelpers_1 = require("../../utils/auditHelpers");
+const adminLogService_1 = require("../../services/adminLogService");
 /**
  * Authenticate a voter via USSD
  * @route POST /api/v1/ussd/auth
@@ -12,16 +14,16 @@ const AuditLog_1 = require("../../db/models/AuditLog");
  */
 const authenticateViaUssd = async (req, res, next) => {
     const { nin, vin, phoneNumber } = req.body;
-    let voterId;
+    let _voterId;
     let sessionCode;
     try {
         // Authenticate voter
         const voter = await services_1.authService.authenticateVoterForUssd(nin, vin, phoneNumber);
-        voterId = voter.id;
+        _voterId = voter.id;
         // Generate a session code
         sessionCode = await services_1.ussdService.createUssdSession(voter.id, phoneNumber);
-        // Log the authentication success
-        await services_1.auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the authentication success using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, sessionCode, {
             success: true,
             context: 'authentication',
             phoneNumber,
@@ -39,17 +41,15 @@ const authenticateViaUssd = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure
-        await services_1.auditService
-            .createAuditLog(voterId || 'unknown', AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', {
+        // Log failure using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.ADMIN_USER_LOGIN, adminLogService_1.ResourceType.VOTER, null, {
             success: false,
             context: 'authentication',
             phoneNumber,
             nin,
             vin,
             error: error.message,
-        })
-            .catch(logErr => logger_1.logger.error('Failed to log USSD auth error', logErr));
+        }).catch(logErr => logger_1.logger.error('Failed to log USSD auth error', logErr));
         // Pass error to global handler
         next(error instanceof errorHandler_1.ApiError
             ? error
@@ -64,29 +64,27 @@ exports.authenticateViaUssd = authenticateViaUssd;
  */
 const verifyUssdSession = async (req, res, next) => {
     const { sessionCode, phoneNumber } = req.body;
-    let userIdFromSession;
+    let _userIdFromSession;
     try {
         if (!sessionCode || !phoneNumber) {
             throw new errorHandler_1.ApiError(400, 'sessionCode and phoneNumber are required', 'MISSING_SESSION_INFO');
         }
         // Verify the session
         const session = await services_1.ussdService.verifyUssdSession(sessionCode, phoneNumber);
-        userIdFromSession = session?.userId; // Capture for potential failure log
+        _userIdFromSession = session?.userId; // Capture for potential failure log
         if (!session) {
-            // Log failure before throwing
-            await services_1.auditService
-                .createAuditLog(userIdFromSession || 'unknown', AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failure before throwing using contextual logging
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.AUDIT_LOG_VIEW, adminLogService_1.ResourceType.VOTER, sessionCode, {
                 success: false,
                 context: 'verification',
                 phoneNumber,
                 sessionCode,
                 error: 'Invalid or expired session',
-            })
-                .catch(logErr => logger_1.logger.error('Failed to log USSD session verification error', logErr));
+            }).catch(logErr => logger_1.logger.error('Failed to log USSD session verification error', logErr));
             throw new errorHandler_1.ApiError(401, 'Invalid or expired session', 'INVALID_SESSION');
         }
-        // Log the verification success
-        await services_1.auditService.createAuditLog(session.userId, AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', {
+        // Log the verification success using contextual logging
+        await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.AUDIT_LOG_VIEW, adminLogService_1.ResourceType.VOTER, sessionCode, {
             success: true,
             context: 'verification',
             phoneNumber,
@@ -102,17 +100,15 @@ const verifyUssdSession = async (req, res, next) => {
         });
     }
     catch (error) {
-        // Log failure if not already logged
+        // Log failure if not already logged using contextual logging
         if (!(error instanceof errorHandler_1.ApiError && error.code === 'INVALID_SESSION')) {
-            await services_1.auditService
-                .createAuditLog(userIdFromSession || 'unknown', AuditLog_1.AuditActionType.USSD_SESSION, req.ip || '', req.headers['user-agent'] || '', {
+            await (0, auditHelpers_1.createContextualLog)(req, AuditLog_1.AuditActionType.USSD_SESSION, adminLogService_1.AdminAction.AUDIT_LOG_VIEW, adminLogService_1.ResourceType.VOTER, sessionCode, {
                 success: false,
                 context: 'verification',
                 phoneNumber,
                 sessionCode,
                 error: error.message,
-            })
-                .catch(logErr => logger_1.logger.error('Failed to log USSD session verification error', logErr));
+            }).catch(logErr => logger_1.logger.error('Failed to log USSD session verification error', logErr));
         }
         // Pass error to global handler
         next(error instanceof errorHandler_1.ApiError
