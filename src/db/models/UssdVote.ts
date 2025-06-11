@@ -24,17 +24,17 @@ class UssdVote
   extends Model<UssdVoteAttributes, UssdVoteCreationAttributes>
   implements UssdVoteAttributes
 {
-  public id!: string;
-  public sessionCode!: string;
-  public userId!: string;
-  public electionId!: string;
-  public candidateId!: string;
-  public voteTimestamp!: Date;
-  public confirmationCode!: string;
-  public isProcessed!: boolean;
-  public processedAt!: Date | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare sessionCode: string;
+  declare userId: string;
+  declare electionId: string;
+  declare candidateId: string;
+  declare voteTimestamp: Date;
+  declare confirmationCode: string;
+  declare isProcessed: boolean;
+  declare processedAt: Date | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

@@ -38,13 +38,13 @@ export const requestVoterLogin = async (
       throw new ApiError(400, 'Invalid VIN format', 'INVALID_VIN');
     }
 
-    // Find voter by NIN and VIN hashes
+    // Check if voter exists first
     const voter = await authService.findVoterByIdentity(nin, vin);
 
     if (!voter) {
-      // Log failed attempt for security monitoring
+      // Log failed authentication attempt for audit
       await auditService.createAuditLog(
-        null,
+        'unknown', // No voter ID available
         AuditActionType.LOGIN,
         req.ip || '',
         req.headers['user-agent'] || '',
@@ -58,13 +58,13 @@ export const requestVoterLogin = async (
       throw new ApiError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
     }
 
-    // Check if voter is active
+    // Check if voter is active (now that property shadowing is fixed)
     if (!voter.isActive) {
       throw new ApiError(403, 'Account is not active', 'ACCOUNT_INACTIVE');
     }
 
     // POC Mode: Always return constant OTP information
-    logger.info('POC: OTP request processed', { voterId: voter.id });
+    logger.info('POC: OTP request processed', { voterId: voter.get('id') });
 
     await auditService.createAuditLog(
       voter.id,

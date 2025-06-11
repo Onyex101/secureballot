@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class ElectionStats extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         ElectionStats.belongsTo(models.Election, {
@@ -76,8 +79,5 @@ class ElectionStats extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-ElectionStats.createdAt = 'createdAt';
-ElectionStats.updatedAt = 'updatedAt';
 exports.default = ElectionStats;
 //# sourceMappingURL=ElectionStats.js.map

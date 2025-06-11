@@ -29,7 +29,12 @@ const registerVoter = async (data) => {
     if (existingVoter) {
         throw new Error('Voter already exists');
     }
+    // Encrypt the identity fields before creating the voter
+    const ninEncrypted = (0, encryptionService_1.encryptIdentity)(data.nin);
+    const vinEncrypted = (0, encryptionService_1.encryptIdentity)(data.vin);
     const voter = await Voter_1.default.create({
+        ninEncrypted,
+        vinEncrypted,
         nin: data.nin,
         vin: data.vin,
         phoneNumber: data.phoneNumber,
@@ -229,10 +234,10 @@ exports.logoutUser = logoutUser;
  */
 const findVoterByIdentity = async (nin, vin) => {
     try {
-        // Encrypt the input values to match against stored encrypted values
+        // Now that we use constant IV, encrypting the same values produces the same result
+        // This allows us to search directly using encrypted values
         const ninEncrypted = (0, encryptionService_1.encryptIdentity)(nin);
         const vinEncrypted = (0, encryptionService_1.encryptIdentity)(vin);
-        // Query directly using encrypted values
         const voter = await Voter_1.default.findOne({
             where: {
                 ninEncrypted,
@@ -252,14 +257,19 @@ exports.findVoterByIdentity = findVoterByIdentity;
  */
 const findAdminByNin = async (nin) => {
     try {
-        // Encrypt the input value to match against stored encrypted value
+        // Now that we use constant IV, encrypting the same values produces the same result
         const ninEncrypted = (0, encryptionService_1.encryptIdentity)(nin);
-        // Query directly using encrypted value
         const admin = await AdminUser_1.default.findOne({
             where: {
                 ninEncrypted,
             },
         });
+        if (admin) {
+            logger_1.logger.info('Admin found by encrypted identity match');
+        }
+        else {
+            logger_1.logger.info('No admin found with matching NIN');
+        }
         return admin;
     }
     catch (error) {
@@ -274,7 +284,7 @@ exports.findAdminByNin = findAdminByNin;
 const generateVoterToken = (voter) => {
     const payload = {
         id: voter.id,
-        type: 'voter',
+        role: 'voter',
         fullName: voter.fullName,
         pollingUnitCode: voter.pollingUnitCode,
         state: voter.state,

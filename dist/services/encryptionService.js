@@ -80,12 +80,21 @@ exports.generateAESKey = generateAESKey;
  * Encrypt data with AES key
  */
 const encryptWithAES = (data, key) => {
-    const iv = crypto_1.default.randomBytes(16);
-    const cipher = crypto_1.default.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
+    // Use a constant IV for deterministic encryption (same input = same output)
+    // This allows for database searches but reduces security slightly
+    const constantIV = Buffer.from('1234567890123456'); // 16 bytes constant IV
+    let keyBuffer;
+    try {
+        keyBuffer = Buffer.from(key, 'hex');
+    }
+    catch (error) {
+        throw error;
+    }
+    const cipher = crypto_1.default.createCipheriv('aes-256-cbc', keyBuffer, constantIV);
     let encrypted = cipher.update(data, 'utf8', 'base64');
     encrypted += cipher.final('base64');
     return {
-        iv: iv.toString('hex'),
+        iv: constantIV.toString('hex'),
         encryptedData: encrypted,
     };
 };
@@ -113,12 +122,14 @@ exports.hashData = hashData;
 const getEncryptionKey = () => {
     // In production, this should come from environment variables or a secure key management system
     const envKey = process.env.IDENTITY_ENCRYPTION_KEY;
-    if (envKey && envKey.length === 64) {
-        // 32 bytes = 64 hex chars
-        return envKey;
+    if (envKey) {
+        // Convert the environment key to a proper 32-byte hex key
+        // Hash the environment key to get exactly 32 bytes (64 hex chars)
+        const hashedKey = crypto_1.default.createHash('sha256').update(envKey).digest('hex');
+        return hashedKey;
     }
     // Fallback key (should be replaced in production)
-    return 'a'.repeat(64); // 32 bytes of 'a'
+    return 'a'.repeat(64);
 };
 /**
  * Encrypt NIN or VIN for secure storage

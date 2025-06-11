@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class PollingUnit extends sequelize_1.Model {
+    officer;
+    voters;
+    votes;
     static associate(models) {
         PollingUnit.hasMany(models.Voter, {
             sourceKey: 'pollingUnitCode',

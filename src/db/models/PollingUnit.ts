@@ -39,21 +39,21 @@ class PollingUnit
   extends Model<PollingUnitAttributes, PollingUnitCreationAttributes>
   implements PollingUnitAttributes
 {
-  public id!: string;
-  public pollingUnitCode!: string;
-  public pollingUnitName!: string;
-  public state!: string;
-  public lga!: string;
-  public ward!: string;
-  public geolocation!: any | null;
-  public address!: string | null;
-  public latitude?: number | null;
-  public longitude?: number | null;
-  public registeredVoters!: number;
-  public assignedOfficer!: string | null;
-  public isActive!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare pollingUnitCode: string;
+  declare pollingUnitName: string;
+  declare state: string;
+  declare lga: string;
+  declare ward: string;
+  declare geolocation: any | null;
+  declare address: string | null;
+  declare latitude?: number | null;
+  declare longitude?: number | null;
+  declare registeredVoters: number;
+  declare assignedOfficer: string | null;
+  declare isActive: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   public officer?: AdminUser;
   public voters?: any[];

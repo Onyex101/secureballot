@@ -5,6 +5,10 @@ const sequelize_1 = require("sequelize");
 const logger_1 = require("../config/logger");
 // Define ApiError as a class extending Error
 class ApiError extends Error {
+    statusCode;
+    code;
+    details;
+    isOperational;
     constructor(statusCode, message, code, details, isOperational = true) {
         super(message);
         this.statusCode = statusCode;

@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class VerificationStatus extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         VerificationStatus.belongsTo(models.Voter, {
@@ -117,8 +120,5 @@ class VerificationStatus extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-VerificationStatus.createdAt = 'createdAt';
-VerificationStatus.updatedAt = 'updatedAt';
 exports.default = VerificationStatus;
 //# sourceMappingURL=VerificationStatus.js.map

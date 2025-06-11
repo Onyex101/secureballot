@@ -41,17 +41,17 @@ class AdminPermission
   extends Model<AdminPermissionAttributes, AdminPermissionCreationAttributes>
   implements AdminPermissionAttributes
 {
-  public id!: string;
-  public adminId!: string;
-  public permissionName!: string;
-  public resourceType!: string | null;
-  public resourceId!: string | null;
-  public accessLevel!: AccessLevel;
-  public grantedAt!: Date;
-  public grantedBy!: string | null;
-  public expiresAt!: Date | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare adminId: string;
+  declare permissionName: string;
+  declare resourceType: string | null;
+  declare resourceId: string | null;
+  declare accessLevel: AccessLevel;
+  declare grantedAt: Date;
+  declare grantedBy: string | null;
+  declare expiresAt: Date | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

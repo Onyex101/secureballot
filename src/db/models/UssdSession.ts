@@ -36,17 +36,17 @@ class UssdSession
   extends Model<UssdSessionAttributes, UssdSessionCreationAttributes>
   implements UssdSessionAttributes
 {
-  public id!: string;
-  public userId!: string | null;
-  public sessionCode!: string;
-  public phoneNumber!: string;
-  public sessionData!: any | null;
-  public createdAt!: Date;
-  public expiresAt!: Date;
-  public isActive!: boolean;
-  public sessionStatus!: UssdSessionStatus;
-  public lastActivity!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare userId: string | null;
+  declare sessionCode: string;
+  declare phoneNumber: string;
+  declare sessionData: any | null;
+  declare createdAt: Date;
+  declare expiresAt: Date;
+  declare isActive: boolean;
+  declare sessionStatus: UssdSessionStatus;
+  declare lastActivity: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

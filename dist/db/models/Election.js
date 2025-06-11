@@ -23,6 +23,15 @@ var ElectionType;
     ElectionType["LOCAL_GOVERNMENT"] = "LocalGovernment";
 })(ElectionType = exports.ElectionType || (exports.ElectionType = {}));
 class Election extends sequelize_1.Model {
+    resultsPublished;
+    resultsPublishedAt;
+    preliminaryResultsPublished;
+    preliminaryResultsPublishedAt;
+    publicKeyFingerprint;
+    candidates;
+    votes;
+    stats;
+    creator;
     static associate(models) {
         Election.hasMany(models.Candidate, {
             foreignKey: 'electionId',

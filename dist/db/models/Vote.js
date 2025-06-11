@@ -11,6 +11,10 @@ var VoteSource;
     VoteSource["OFFLINE"] = "offline";
 })(VoteSource = exports.VoteSource || (exports.VoteSource = {}));
 class Vote extends sequelize_1.Model {
+    voter;
+    election;
+    candidate;
+    pollingUnit;
     static associate(models) {
         Vote.belongsTo(models.Voter, {
             foreignKey: 'user_id',

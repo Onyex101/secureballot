@@ -10,6 +10,19 @@ const auth_1 = require("../../types/auth");
 const encryptionService_1 = require("../../services/encryptionService");
 // Remove @Table decorator
 class AdminUser extends sequelize_1.Model {
+    // Associations (defined in associate method)
+    roles;
+    permissions;
+    auditLogs; // Correct property name
+    assignedPollingUnits;
+    // public observerReports?: ObserverReport[];
+    // public reviewedReports?: ObserverReport[];
+    createdElections;
+    creator;
+    createdUsers;
+    // Virtual fields
+    password;
+    nin;
     // Getter method to decrypt NIN when accessed
     get decryptedNin() {
         if (!this.ninEncrypted)

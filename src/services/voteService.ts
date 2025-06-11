@@ -136,7 +136,7 @@ export const verifyVote = async (receiptCode: string) => {
       },
       {
         model: PollingUnit,
-        as: 'polling_unit',
+        as: 'pollingUnit',
         attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
       },
     ],
@@ -145,7 +145,7 @@ export const verifyVote = async (receiptCode: string) => {
   const voteWithAssoc = vote as Vote & {
     election?: Election;
     candidate?: Candidate;
-    polling_unit?: PollingUnit;
+    pollingUnit?: PollingUnit;
   };
 
   if (!voteWithAssoc) {
@@ -161,7 +161,7 @@ export const verifyVote = async (receiptCode: string) => {
     electionName: voteWithAssoc.election?.electionName,
     candidateName: voteWithAssoc.candidate?.fullName,
     candidateParty: voteWithAssoc.candidate?.partyName,
-    pollingUnit: voteWithAssoc.polling_unit?.pollingUnitName,
+    pollingUnit: voteWithAssoc.pollingUnit?.pollingUnitName,
     voteSource: voteWithAssoc.voteSource,
   };
 };
@@ -187,7 +187,7 @@ export const getVoteHistory = async (voterId: string) => {
       },
       {
         model: PollingUnit,
-        as: 'polling_unit',
+        as: 'pollingUnit',
         attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
       },
     ],
@@ -198,7 +198,7 @@ export const getVoteHistory = async (voterId: string) => {
     const voteWithAssoc = vote as Vote & {
       election?: Election;
       candidate?: Candidate;
-      polling_unit?: PollingUnit;
+      pollingUnit?: PollingUnit;
     };
     return {
       id: voteWithAssoc.id,
@@ -207,7 +207,7 @@ export const getVoteHistory = async (voterId: string) => {
       electionType: voteWithAssoc.election?.electionType,
       candidateName: voteWithAssoc.candidate?.fullName,
       candidateParty: voteWithAssoc.candidate?.partyName,
-      pollingUnit: voteWithAssoc.polling_unit?.pollingUnitName,
+      pollingUnit: voteWithAssoc.pollingUnit?.pollingUnitName,
       timestamp: voteWithAssoc.voteTimestamp,
       receiptCode: voteWithAssoc.receiptCode,
       voteSource: voteWithAssoc.voteSource,

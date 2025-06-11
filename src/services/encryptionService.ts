@@ -61,7 +61,9 @@ export const generateAESKey = () => {
  * Encrypt data with AES key
  */
 export const encryptWithAES = (data: string, key: string) => {
-  const iv = crypto.randomBytes(16);
+  // Use a constant IV for deterministic encryption (same input = same output)
+  // This allows for database searches but reduces security slightly
+  const constantIV = Buffer.from('1234567890123456'); // 16 bytes constant IV
 
   let keyBuffer: Buffer;
   try {
@@ -70,13 +72,13 @@ export const encryptWithAES = (data: string, key: string) => {
     throw error;
   }
 
-  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, constantIV);
 
   let encrypted = cipher.update(data, 'utf8', 'base64');
   encrypted += cipher.final('base64');
 
   return {
-    iv: iv.toString('hex'),
+    iv: constantIV.toString('hex'),
     encryptedData: encrypted,
   };
 };

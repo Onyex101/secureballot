@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class ElectionKey extends sequelize_1.Model {
+    // Associations
+    election;
+    generatedByAdmin;
     static associate(models) {
         ElectionKey.belongsTo(models.Election, {
             foreignKey: 'electionId',

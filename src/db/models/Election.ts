@@ -64,18 +64,18 @@ class Election
   extends Model<ElectionAttributes, ElectionCreationAttributes>
   implements ElectionAttributes
 {
-  public id!: string;
-  public electionName!: string;
-  public electionType!: string;
-  public startDate!: Date;
-  public endDate!: Date;
-  public description!: string | null;
-  public isActive!: boolean;
-  public status!: ElectionStatus;
-  public eligibilityRules!: any | null;
-  public createdBy!: string;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare electionName: string;
+  declare electionType: string;
+  declare startDate: Date;
+  declare endDate: Date;
+  declare description: string | null;
+  declare isActive: boolean;
+  declare status: ElectionStatus;
+  declare eligibilityRules: any | null;
+  declare createdBy: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
   public resultsPublished?: boolean;
   public resultsPublishedAt?: Date;
   public preliminaryResultsPublished?: boolean;

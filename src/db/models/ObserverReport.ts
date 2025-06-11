@@ -61,21 +61,21 @@ class ObserverReport
   extends Model<ObserverReportAttributes, ObserverReportCreationAttributes>
   implements ObserverReportAttributes
 {
-  public id!: string;
-  public observerId!: string;
-  public electionId!: string;
-  public pollingUnitId!: string;
-  public reportType!: ReportType;
-  public reportDetails!: string;
-  public severity!: ReportSeverity;
-  public mediaUrls!: any | null;
-  public reportedAt!: Date;
-  public status!: ReportStatus;
-  public officialResponse!: string | null;
-  public reviewedBy!: string | null;
-  public reviewedAt!: Date | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare observerId: string;
+  declare electionId: string;
+  declare pollingUnitId: string;
+  declare reportType: ReportType;
+  declare reportDetails: string;
+  declare severity: ReportSeverity;
+  declare mediaUrls: any | null;
+  declare reportedAt: Date;
+  declare status: ReportStatus;
+  declare officialResponse: string | null;
+  declare reviewedBy: string | null;
+  declare reviewedAt: Date | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';
@@ -95,7 +95,7 @@ class ObserverReport
 
     ObserverReport.belongsTo(models.PollingUnit, {
       foreignKey: 'polling_unit_id',
-      as: 'polling_unit',
+      as: 'pollingUnit',
     });
 
     ObserverReport.belongsTo(models.AdminUser, {

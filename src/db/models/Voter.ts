@@ -58,36 +58,37 @@ interface VoterCreationAttributes
 }
 
 class Voter extends Model<VoterAttributes, VoterCreationAttributes> implements VoterAttributes {
-  public id!: string;
-  public phoneNumber!: string;
-  public dateOfBirth!: Date;
-  public fullName!: string;
-  public pollingUnitCode!: string;
-  public state!: string;
-  public gender!: string;
-  public lga!: string;
-  public ward!: string;
-  public recoveryToken!: string | null;
-  public recoveryTokenExpiry!: Date | null;
-  public isActive!: boolean;
-  public lastLogin!: Date | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
-  public mfaSecret!: string | null;
-  public mfaEnabled!: boolean;
-  public mfaBackupCodes!: string[] | null;
-  public publicKey?: string;
-  public ninEncrypted!: string | null;
-  public vinEncrypted!: string | null;
-  public email!: string | null;
-  public otpCode!: string | null;
-  public otpExpiresAt!: Date | null;
-  public otpVerified!: boolean;
+  // Use declare to inform TypeScript without creating fields that shadow Sequelize getters
+  declare id: string;
+  declare phoneNumber: string;
+  declare dateOfBirth: Date;
+  declare fullName: string;
+  declare pollingUnitCode: string;
+  declare state: string;
+  declare gender: string;
+  declare lga: string;
+  declare ward: string;
+  declare recoveryToken: string | null;
+  declare recoveryTokenExpiry: Date | null;
+  declare isActive: boolean;
+  declare lastLogin: Date | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
+  declare mfaSecret: string | null;
+  declare mfaEnabled: boolean;
+  declare mfaBackupCodes: string[] | null;
+  declare publicKey?: string;
+  declare ninEncrypted: string | null;
+  declare vinEncrypted: string | null;
+  declare email: string | null;
+  declare otpCode: string | null;
+  declare otpExpiresAt: Date | null;
+  declare otpVerified: boolean;
 
   public static readonly createdAt = 'createdAt';
   public static readonly updatedAt = 'updatedAt';
 
-  // Virtual properties for input
+  // Virtual properties for input (these don't shadow database fields)
   public nin?: string;
   public vin?: string;
 

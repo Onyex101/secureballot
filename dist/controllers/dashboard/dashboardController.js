@@ -8,6 +8,8 @@ const express_validator_1 = require("express-validator");
 const dashboardService_1 = require("../../services/dashboardService");
 const logger_1 = __importDefault(require("../../utils/logger"));
 class AppError extends Error {
+    statusCode;
+    details;
     constructor(message, statusCode, details) {
         super(message);
         this.statusCode = statusCode;

@@ -38,22 +38,22 @@ interface VoteCreationAttributes
   > {}
 
 class Vote extends Model<VoteAttributes, VoteCreationAttributes> implements VoteAttributes {
-  public id!: string;
-  public userId!: string;
-  public electionId!: string;
-  public candidateId!: string;
-  public pollingUnitId!: string;
-  public encryptedVoteData!: Buffer;
-  public encryptedAesKey!: string;
-  public iv!: string;
-  public voteHash!: string;
-  public publicKeyFingerprint!: string;
-  public voteTimestamp!: Date;
-  public voteSource!: VoteSource;
-  public isCounted!: boolean;
-  public receiptCode!: string;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare userId: string;
+  declare electionId: string;
+  declare candidateId: string;
+  declare pollingUnitId: string;
+  declare encryptedVoteData: Buffer;
+  declare encryptedAesKey: string;
+  declare iv: string;
+  declare voteHash: string;
+  declare publicKeyFingerprint: string;
+  declare voteTimestamp: Date;
+  declare voteSource: VoteSource;
+  declare isCounted: boolean;
+  declare receiptCode: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   public voter?: Voter;
   public election?: Election;

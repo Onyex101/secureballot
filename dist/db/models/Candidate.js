@@ -12,6 +12,9 @@ var CandidateStatus;
 })(CandidateStatus = exports.CandidateStatus || (exports.CandidateStatus = {}));
 // Remove @Table decorator
 class Candidate extends sequelize_1.Model {
+    // Associations (defined in associate method)
+    election;
+    votes;
     // Re-add static associate method
     static associate(models) {
         Candidate.belongsTo(models.Election, {

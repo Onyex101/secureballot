@@ -25,6 +25,8 @@ interface VoterAttributes {
     otpCode: string | null;
     otpExpiresAt: Date | null;
     otpVerified: boolean;
+    nin?: string;
+    vin?: string;
 }
 interface VoterCreationAttributes extends Optional<VoterAttributes, 'id' | 'recoveryToken' | 'recoveryTokenExpiry' | 'isActive' | 'lastLogin' | 'createdAt' | 'updatedAt' | 'mfaSecret' | 'mfaEnabled' | 'mfaBackupCodes' | 'publicKey' | 'ninEncrypted' | 'vinEncrypted' | 'email' | 'otpCode' | 'otpExpiresAt' | 'otpVerified'> {
     nin: string;

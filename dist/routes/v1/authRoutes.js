@@ -375,7 +375,7 @@ router.post('/verify-backup-code', rateLimiter_1.authLimiter, (0, validator_1.va
  *       429:
  *         description: Too many requests
  */
-router.post('/refresh-token', rateLimiter_1.authLimiter, auth_1.authenticate, authController.refreshToken);
+router.post('/refresh-token', rateLimiter_1.authLimiter, authController.refreshToken);
 /**
  * @swagger
  * /api/v1/auth/logout:

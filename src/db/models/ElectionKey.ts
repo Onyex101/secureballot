@@ -25,16 +25,16 @@ class ElectionKey
   extends Model<ElectionKeyAttributes, ElectionKeyCreationAttributes>
   implements ElectionKeyAttributes
 {
-  public id!: string;
-  public electionId!: string;
-  public publicKey!: string;
-  public publicKeyFingerprint!: string;
-  public privateKeyShares!: string[];
-  public keyGeneratedAt!: Date;
-  public keyGeneratedBy!: string;
-  public isActive!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare electionId: string;
+  declare publicKey: string;
+  declare publicKeyFingerprint: string;
+  declare privateKeyShares: string[];
+  declare keyGeneratedAt: Date;
+  declare keyGeneratedBy: string;
+  declare isActive: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Associations
   public election?: Election;

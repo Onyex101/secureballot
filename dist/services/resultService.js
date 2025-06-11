@@ -132,13 +132,13 @@ const getResultsByRegion = async (electionId, regionType, regionCode) => {
             include: [
                 {
                     model: PollingUnit_1.default,
-                    as: 'polling_unit',
+                    as: 'pollingUnit',
                     where: { [regionField]: identifier },
                     attributes: [],
                     required: true,
                 },
             ],
-            attributes: ['candidateId', [(0, sequelize_1.fn)('COUNT', (0, sequelize_1.col)('vote.id')), 'voteCount']],
+            attributes: ['candidateId', [(0, sequelize_1.fn)('COUNT', (0, sequelize_1.col)('id')), 'voteCount']],
             group: ['candidateId'],
             raw: true,
         }));

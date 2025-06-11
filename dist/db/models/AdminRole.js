@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class AdminRole extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         AdminRole.belongsTo(models.AdminUser, {
@@ -68,8 +71,5 @@ class AdminRole extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-AdminRole.createdAt = 'createdAt';
-AdminRole.updatedAt = 'updatedAt';
 exports.default = AdminRole;
 //# sourceMappingURL=AdminRole.js.map

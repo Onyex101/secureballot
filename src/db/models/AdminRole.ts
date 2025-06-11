@@ -20,13 +20,13 @@ class AdminRole
   extends Model<AdminRoleAttributes, AdminRoleCreationAttributes>
   implements AdminRoleAttributes
 {
-  public id!: string;
-  public adminId!: string;
-  public roleName!: string;
-  public description!: string | null;
-  public isActive!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare adminId: string;
+  declare roleName: string;
+  declare description: string | null;
+  declare isActive: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

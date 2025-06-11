@@ -144,7 +144,7 @@ const verifyVote = async (receiptCode) => {
             },
             {
                 model: PollingUnit_1.default,
-                as: 'polling_unit',
+                as: 'pollingUnit',
                 attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
             },
         ],
@@ -162,7 +162,7 @@ const verifyVote = async (receiptCode) => {
         electionName: voteWithAssoc.election?.electionName,
         candidateName: voteWithAssoc.candidate?.fullName,
         candidateParty: voteWithAssoc.candidate?.partyName,
-        pollingUnit: voteWithAssoc.polling_unit?.pollingUnitName,
+        pollingUnit: voteWithAssoc.pollingUnit?.pollingUnitName,
         voteSource: voteWithAssoc.voteSource,
     };
 };
@@ -188,7 +188,7 @@ const getVoteHistory = async (voterId) => {
             },
             {
                 model: PollingUnit_1.default,
-                as: 'polling_unit',
+                as: 'pollingUnit',
                 attributes: ['id', 'pollingUnitName', 'pollingUnitCode'],
             },
         ],
@@ -203,7 +203,7 @@ const getVoteHistory = async (voterId) => {
             electionType: voteWithAssoc.election?.electionType,
             candidateName: voteWithAssoc.candidate?.fullName,
             candidateParty: voteWithAssoc.candidate?.partyName,
-            pollingUnit: voteWithAssoc.polling_unit?.pollingUnitName,
+            pollingUnit: voteWithAssoc.pollingUnit?.pollingUnitName,
             timestamp: voteWithAssoc.voteTimestamp,
             receiptCode: voteWithAssoc.receiptCode,
             voteSource: voteWithAssoc.voteSource,

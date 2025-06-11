@@ -15,6 +15,9 @@ var UssdSessionStatus;
     UssdSessionStatus["CANCELLED"] = "cancelled";
 })(UssdSessionStatus = exports.UssdSessionStatus || (exports.UssdSessionStatus = {}));
 class UssdSession extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         UssdSession.belongsTo(models.Voter, {
@@ -140,8 +143,5 @@ class UssdSession extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-UssdSession.createdAt = 'createdAt';
-UssdSession.updatedAt = 'updatedAt';
 exports.default = UssdSession;
 //# sourceMappingURL=UssdSession.js.map

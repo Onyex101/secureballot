@@ -92,17 +92,17 @@ class AuditLog
   extends Model<AuditLogAttributes, AuditLogCreationAttributes>
   implements AuditLogAttributes
 {
-  public id!: string;
-  public userId!: string | null;
-  public adminId!: string | null;
-  public actionType!: string;
-  public actionTimestamp!: Date;
-  public ipAddress!: string;
-  public userAgent!: string;
-  public actionDetails!: any | null;
-  public isSuspicious!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare userId: string | null;
+  declare adminId: string | null;
+  declare actionType: string;
+  declare actionTimestamp: Date;
+  declare ipAddress: string;
+  declare userAgent: string;
+  declare actionDetails: any | null;
+  declare isSuspicious: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

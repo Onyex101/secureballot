@@ -28,6 +28,9 @@ var ReportStatus;
     ReportStatus["DISMISSED"] = "dismissed";
 })(ReportStatus = exports.ReportStatus || (exports.ReportStatus = {}));
 class ObserverReport extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         ObserverReport.belongsTo(models.AdminUser, {
@@ -40,7 +43,7 @@ class ObserverReport extends sequelize_1.Model {
         });
         ObserverReport.belongsTo(models.PollingUnit, {
             foreignKey: 'polling_unit_id',
-            as: 'polling_unit',
+            as: 'pollingUnit',
         });
         ObserverReport.belongsTo(models.AdminUser, {
             foreignKey: 'reviewed_by',
@@ -192,8 +195,5 @@ class ObserverReport extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-ObserverReport.createdAt = 'createdAt';
-ObserverReport.updatedAt = 'updatedAt';
 exports.default = ObserverReport;
 //# sourceMappingURL=ObserverReport.js.map

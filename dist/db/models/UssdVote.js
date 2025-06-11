@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class UssdVote extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         UssdVote.belongsTo(models.UssdSession, {
@@ -123,8 +126,5 @@ class UssdVote extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-UssdVote.createdAt = 'createdAt';
-UssdVote.updatedAt = 'updatedAt';
 exports.default = UssdVote;
 //# sourceMappingURL=UssdVote.js.map

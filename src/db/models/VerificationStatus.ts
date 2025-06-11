@@ -43,22 +43,22 @@ class VerificationStatus
   extends Model<VerificationStatusAttributes, VerificationStatusCreationAttributes>
   implements VerificationStatusAttributes
 {
-  public id!: string;
-  public userId!: string;
-  public isPhoneVerified!: boolean;
-  public isEmailVerified!: boolean;
-  public isIdentityVerified!: boolean;
-  public isAddressVerified!: boolean;
-  public isBiometricVerified!: boolean;
-  public verificationLevel!: number;
-  public lastVerifiedAt!: Date | null;
-  public isVerified!: boolean;
-  public state!: string;
-  public verifiedAt!: Date | null;
-  public verificationMethod!: string;
-  public verificationData!: any;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare userId: string;
+  declare isPhoneVerified: boolean;
+  declare isEmailVerified: boolean;
+  declare isIdentityVerified: boolean;
+  declare isAddressVerified: boolean;
+  declare isBiometricVerified: boolean;
+  declare verificationLevel: number;
+  declare lastVerifiedAt: Date | null;
+  declare isVerified: boolean;
+  declare state: string;
+  declare verifiedAt: Date | null;
+  declare verificationMethod: string;
+  declare verificationData: any;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

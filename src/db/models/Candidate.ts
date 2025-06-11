@@ -48,19 +48,19 @@ class Candidate
   implements CandidateAttributes
 {
   // Remove decorators
-  public id!: string;
-  public electionId!: string;
-  public fullName!: string;
-  public partyCode!: string;
-  public partyName!: string;
-  public bio!: string | null;
-  public photoUrl!: string | null;
-  public position!: string | null;
-  public manifesto!: string | null;
-  public status!: CandidateStatus;
-  public isActive!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare electionId: string;
+  declare fullName: string;
+  declare partyCode: string;
+  declare partyName: string;
+  declare bio: string | null;
+  declare photoUrl: string | null;
+  declare position: string | null;
+  declare manifesto: string | null;
+  declare status: CandidateStatus;
+  declare isActive: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Associations (defined in associate method)
   public election?: Election;

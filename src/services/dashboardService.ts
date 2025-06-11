@@ -473,17 +473,17 @@ class DashboardService {
       const recentResults = (await db.sequelize.query(
         `
         SELECT 
-          CONCAT('result-', ROW_NUMBER() OVER (ORDER BY created_at DESC)) as id,
+          CONCAT('result-', ROW_NUMBER() OVER (ORDER BY MAX(v.created_at) DESC)) as id,
           'results' as type,
           CONCAT('New results from ', pu.polling_unit_name) as title,
           CONCAT('Latest vote counts updated for ', pu.state, ' - ', pu.lga) as message,
-          created_at as timestamp,
+          MAX(v.created_at) as timestamp,
           'medium' as priority,
           'polling_unit' as source
         FROM votes v
         JOIN polling_units pu ON v.polling_unit_id = pu.id
         WHERE v.election_id = :electionId
-        GROUP BY pu.id, pu.polling_unit_name, pu.state, pu.lga, DATE_TRUNC('hour', v.created_at)
+        GROUP BY pu.id, pu.polling_unit_name, pu.state, pu.lga
         ORDER BY MAX(v.created_at) DESC
         LIMIT 5
       `,
@@ -540,7 +540,7 @@ class DashboardService {
         include: [
           {
             model: PollingUnit,
-            as: 'polling_unit',
+            as: 'pollingUnit',
             attributes: ['pollingUnitName', 'state', 'lga'],
           },
           {
@@ -557,9 +557,9 @@ class DashboardService {
         id: vote.id,
         timestamp: vote.voteTimestamp.toISOString(),
         source: vote.voteSource || 'web',
-        pollingUnit: vote.polling_unit?.pollingUnitName || 'Unknown',
-        state: vote.polling_unit?.state || 'Unknown',
-        lga: vote.polling_unit?.lga || 'Unknown',
+        pollingUnit: vote.pollingUnit?.pollingUnitName || 'Unknown',
+        state: vote.pollingUnit?.state || 'Unknown',
+        lga: vote.pollingUnit?.lga || 'Unknown',
         candidate: vote.candidate?.fullName,
         party: vote.candidate?.partyName,
         activityType: 'vote_cast' as const,

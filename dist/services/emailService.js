@@ -7,8 +7,9 @@ exports.emailService = void 0;
 const nodemailer_1 = __importDefault(require("nodemailer"));
 const logger_1 = require("../config/logger");
 class EmailService {
+    transporter = null;
+    fromEmail;
     constructor() {
-        this.transporter = null;
         this.fromEmail = process.env.EMAIL_FROM || 'noreply@secureballot.ng';
         this.initializeTransporter();
     }

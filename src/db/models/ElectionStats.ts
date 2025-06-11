@@ -29,15 +29,15 @@ class ElectionStats
   extends Model<ElectionStatsAttributes, ElectionStatsCreationAttributes>
   implements ElectionStatsAttributes
 {
-  public id!: string;
-  public electionId!: string;
-  public totalVotes!: number;
-  public validVotes!: number;
-  public invalidVotes!: number;
-  public turnoutPercentage!: number;
-  public lastUpdated!: Date;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare electionId: string;
+  declare totalVotes: number;
+  declare validVotes: number;
+  declare invalidVotes: number;
+  declare turnoutPercentage: number;
+  declare lastUpdated: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   // Timestamps
   public static readonly createdAt = 'createdAt';

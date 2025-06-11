@@ -29,18 +29,18 @@ interface OtpLogCreationAttributes
   > {}
 
 class OtpLog extends Model<OtpLogAttributes, OtpLogCreationAttributes> implements OtpLogAttributes {
-  public id!: string;
-  public userId!: string;
-  public otpCode!: string;
-  public email!: string;
-  public ipAddress!: string | null;
-  public userAgent!: string | null;
-  public status!: OtpStatus;
-  public attempts!: number;
-  public expiresAt!: Date;
-  public verifiedAt!: Date | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare userId: string;
+  declare otpCode: string;
+  declare email: string;
+  declare ipAddress: string | null;
+  declare userAgent: string | null;
+  declare status: OtpStatus;
+  declare attempts: number;
+  declare expiresAt: Date;
+  declare verifiedAt: Date | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   public static readonly createdAt = 'createdAt';
   public static readonly updatedAt = 'updatedAt';

@@ -3,6 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 const encryptionService_1 = require("../../services/encryptionService");
 class Voter extends sequelize_1.Model {
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
+    // Virtual properties for input (these don't shadow database fields)
+    nin;
+    vin;
     // Getter methods to decrypt values when accessed
     get decryptedNin() {
         if (!this.ninEncrypted)
@@ -208,6 +213,15 @@ class Voter extends sequelize_1.Model {
                 allowNull: false,
                 defaultValue: false,
             },
+            // Virtual fields for temporary nin and vin values
+            nin: {
+                type: sequelize_1.DataTypes.VIRTUAL,
+                allowNull: true,
+            },
+            vin: {
+                type: sequelize_1.DataTypes.VIRTUAL,
+                allowNull: true,
+            },
         }, {
             sequelize,
             modelName: 'Voter',
@@ -244,11 +258,33 @@ class Voter extends sequelize_1.Model {
                         delete voter.vin; // Remove virtual field after encryption
                     }
                 },
+                afterFind: (result) => {
+                    // Decrypt nin and vin after finding voter(s)
+                    if (!result)
+                        return;
+                    const voters = Array.isArray(result) ? result : [result];
+                    voters.forEach((voter) => {
+                        if (voter.ninEncrypted) {
+                            try {
+                                voter.nin = (0, encryptionService_1.decryptIdentity)(voter.ninEncrypted);
+                            }
+                            catch (error) {
+                                voter.nin = undefined;
+                            }
+                        }
+                        if (voter.vinEncrypted) {
+                            try {
+                                voter.vin = (0, encryptionService_1.decryptIdentity)(voter.vinEncrypted);
+                            }
+                            catch (error) {
+                                voter.vin = undefined;
+                            }
+                        }
+                    });
+                },
             },
         });
     }
 }
-Voter.createdAt = 'createdAt';
-Voter.updatedAt = 'updatedAt';
 exports.default = Voter;
 //# sourceMappingURL=Voter.js.map

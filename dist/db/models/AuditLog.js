@@ -71,6 +71,9 @@ var AuditActionType;
     AuditActionType["VOTER_VERIFICATION_REQUEST"] = "voter_verification_request";
 })(AuditActionType = exports.AuditActionType || (exports.AuditActionType = {}));
 class AuditLog extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         AuditLog.belongsTo(models.Voter, {
@@ -182,8 +185,5 @@ class AuditLog extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-AuditLog.createdAt = 'createdAt';
-AuditLog.updatedAt = 'updatedAt';
 exports.default = AuditLog;
 //# sourceMappingURL=AuditLog.js.map

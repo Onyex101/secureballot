@@ -56,23 +56,24 @@ const requestVoterLogin = async (req, res, next) => {
         if (!/^[A-Z0-9]{19}$/.test(vin)) {
             throw new errorHandler_1.ApiError(400, 'Invalid VIN format', 'INVALID_VIN');
         }
-        // Find voter by NIN and VIN hashes
+        // Check if voter exists first
         const voter = await authService.findVoterByIdentity(nin, vin);
         if (!voter) {
-            // Log failed attempt for security monitoring
-            await auditService.createAuditLog(null, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
+            // Log failed authentication attempt for audit
+            await auditService.createAuditLog('unknown', // No voter ID available
+            AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
                 success: false,
                 reason: 'invalid_credentials',
                 nin_attempted: nin.substring(0, 3) + '*'.repeat(8), // Partial NIN for logging
             });
             throw new errorHandler_1.ApiError(401, 'Invalid credentials', 'INVALID_CREDENTIALS');
         }
-        // Check if voter is active
+        // Check if voter is active (now that property shadowing is fixed)
         if (!voter.isActive) {
             throw new errorHandler_1.ApiError(403, 'Account is not active', 'ACCOUNT_INACTIVE');
         }
         // POC Mode: Always return constant OTP information
-        logger_1.logger.info('POC: OTP request processed', { voterId: voter.id });
+        logger_1.logger.info('POC: OTP request processed', { voterId: voter.get('id') });
         await auditService.createAuditLog(voter.id, AuditLog_1.AuditActionType.LOGIN, req.ip || '', req.headers['user-agent'] || '', {
             step: 'otp_requested_poc',
             success: true,

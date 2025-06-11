@@ -25,12 +25,12 @@ class FailedAttempt
   extends Model<FailedAttemptAttributes, FailedAttemptCreationAttributes>
   implements FailedAttemptAttributes
 {
-  public id!: string;
-  public userId!: string;
-  public attemptType!: string;
-  public ipAddress!: string | null;
-  public userAgent!: string | null;
-  public attemptTime!: Date;
+  declare id: string;
+  declare userId: string;
+  declare attemptType: string;
+  declare ipAddress: string | null;
+  declare userAgent: string | null;
+  declare attemptTime: Date;
 
   // Model associations
   public static associate(models: any): void {

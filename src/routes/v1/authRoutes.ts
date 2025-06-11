@@ -404,7 +404,7 @@ router.post(
  *       429:
  *         description: Too many requests
  */
-router.post('/refresh-token', authLimiter, authenticate, authController.refreshToken);
+router.post('/refresh-token', authLimiter, authController.refreshToken);
 
 /**
  * @swagger

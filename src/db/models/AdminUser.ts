@@ -56,23 +56,23 @@ class AdminUser
   implements AdminUserAttributes
 {
   // Remove decorators
-  public id!: string;
-  public fullName!: string;
-  public email!: string;
-  public phoneNumber!: string;
-  public passwordHash!: string;
-  public adminType!: UserRole;
-  public isActive!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
-  public lastLogin!: Date | null;
-  public createdBy!: string | null;
-  public recoveryToken!: string | null;
-  public recoveryTokenExpiry!: Date | null;
-  public mfaSecret!: string | null;
-  public mfaEnabled!: boolean;
-  public mfaBackupCodes!: string[] | null;
-  public ninEncrypted!: string | null;
+  declare id: string;
+  declare fullName: string;
+  declare email: string;
+  declare phoneNumber: string;
+  declare passwordHash: string;
+  declare adminType: UserRole;
+  declare isActive: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
+  declare lastLogin: Date | null;
+  declare createdBy: string | null;
+  declare recoveryToken: string | null;
+  declare recoveryTokenExpiry: Date | null;
+  declare mfaSecret: string | null;
+  declare mfaEnabled: boolean;
+  declare mfaBackupCodes: string[] | null;
+  declare ninEncrypted: string | null;
 
   // Associations (defined in associate method)
   public roles?: AdminRole[];

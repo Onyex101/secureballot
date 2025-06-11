@@ -29,7 +29,6 @@ export const getCandidates = async (
       Number(page),
       Number(limit),
     );
-
     // Log the action
     await auditService.createAuditLog(
       userId,

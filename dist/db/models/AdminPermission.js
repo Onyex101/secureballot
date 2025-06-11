@@ -12,6 +12,9 @@ var AccessLevel;
     AccessLevel["FULL"] = "full";
 })(AccessLevel = exports.AccessLevel || (exports.AccessLevel = {}));
 class AdminPermission extends sequelize_1.Model {
+    // Timestamps
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     // Model associations
     static associate(models) {
         AdminPermission.belongsTo(models.AdminUser, {
@@ -118,8 +121,5 @@ class AdminPermission extends sequelize_1.Model {
         });
     }
 }
-// Timestamps
-AdminPermission.createdAt = 'createdAt';
-AdminPermission.updatedAt = 'updatedAt';
 exports.default = AdminPermission;
 //# sourceMappingURL=AdminPermission.js.map

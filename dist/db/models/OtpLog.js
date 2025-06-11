@@ -10,6 +10,8 @@ var OtpStatus;
     OtpStatus["FAILED"] = "failed";
 })(OtpStatus = exports.OtpStatus || (exports.OtpStatus = {}));
 class OtpLog extends sequelize_1.Model {
+    static createdAt = 'createdAt';
+    static updatedAt = 'updatedAt';
     static associate(models) {
         OtpLog.belongsTo(models.Voter, {
             foreignKey: 'user_id',
@@ -108,7 +110,5 @@ class OtpLog extends sequelize_1.Model {
         });
     }
 }
-OtpLog.createdAt = 'createdAt';
-OtpLog.updatedAt = 'updatedAt';
 exports.default = OtpLog;
 //# sourceMappingURL=OtpLog.js.map

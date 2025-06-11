@@ -166,13 +166,13 @@ export const getResultsByRegion = async (
         include: [
           {
             model: PollingUnit,
-            as: 'polling_unit',
+            as: 'pollingUnit',
             where: { [regionField]: identifier },
             attributes: [],
             required: true,
           },
         ],
-        attributes: ['candidateId', [fn('COUNT', col('vote.id')), 'voteCount']],
+        attributes: ['candidateId', [fn('COUNT', col('id')), 'voteCount']],
         group: ['candidateId'],
         raw: true,
       })) as unknown as VoteCountResult[];
