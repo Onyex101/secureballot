@@ -5,7 +5,7 @@ import { logger } from '../config/logger';
 // Default rate limiter for general API endpoints
 export const defaultLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 300, // Limit each IP to 300 requests per windowMs (increased from 100)
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   message: {
@@ -29,7 +29,7 @@ export const defaultLimiter: RateLimitRequestHandler = rateLimit({
 // More strict rate limiter for authentication endpoints
 export const authLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // Limit each IP to 10 login attempts per hour
+  max: 25, // Limit each IP to 25 login attempts per hour (increased from 10)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -53,7 +53,7 @@ export const authLimiter: RateLimitRequestHandler = rateLimit({
 // Rate limiter for sensitive operations
 export const sensitiveOpLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // Limit each IP to 5 sensitive operations per hour
+  max: 15, // Limit each IP to 15 sensitive operations per hour (increased from 5)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -77,7 +77,7 @@ export const sensitiveOpLimiter: RateLimitRequestHandler = rateLimit({
 // Rate limiter for USSD endpoints
 export const ussdLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // Limit each IP to 20 USSD requests per hour
+  max: 50, // Limit each IP to 50 USSD requests per hour (increased from 20)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -101,7 +101,7 @@ export const ussdLimiter: RateLimitRequestHandler = rateLimit({
 // Rate limiter for admin endpoints
 export const adminLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Limit each IP to 50 admin requests per 15 minutes
+  max: 150, // Limit each IP to 150 admin requests per 15 minutes (increased from 50)
   standardHeaders: true,
   legacyHeaders: false,
   message: {

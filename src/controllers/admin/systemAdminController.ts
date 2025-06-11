@@ -15,6 +15,45 @@ import { createAdminLog } from '../../utils/auditHelpers';
 import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
+ * Get admin user profile
+ */
+export const getProfile = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const userId = req.user?.id;
+
+  try {
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+
+    // Get admin profile
+    const adminProfile = await adminService.getAdminProfile(userId);
+
+    // Log the profile view using admin logs
+    await createAdminLog(req, AdminAction.ADMIN_USER_DETAIL_VIEW, ResourceType.ADMIN_USER, userId, {
+      success: true,
+      action: 'view_profile',
+    });
+
+    res.status(200).json({
+      success: true,
+      data: adminProfile,
+    });
+  } catch (error) {
+    // Log failure
+    await createAdminLog(req, AdminAction.ADMIN_USER_DETAIL_VIEW, ResourceType.ADMIN_USER, userId, {
+      success: false,
+      action: 'view_profile',
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log admin profile view error', logErr));
+    next(error);
+  }
+};
+
+/**
  * List all system users with pagination and filtering
  */
 export const listUsers = async (

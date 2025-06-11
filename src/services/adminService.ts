@@ -105,3 +105,55 @@ export const createAdminUser = async (
     createdAt: newUser.createdAt,
   };
 };
+
+/**
+ * Get admin user profile by ID
+ */
+export const getAdminProfile = async (userId: string) => {
+  const user = await AdminUser.findByPk(userId, {
+    attributes: [
+      'id',
+      'fullName',
+      'email',
+      'phoneNumber',
+      'adminType',
+      'isActive',
+      'createdAt',
+      'updatedAt',
+      'lastLogin',
+      'mfaEnabled',
+      'createdBy',
+    ],
+    include: [
+      {
+        model: AdminUser,
+        as: 'creator',
+        attributes: ['id', 'fullName', 'email'],
+      },
+    ],
+  });
+
+  if (!user) {
+    throw new Error('Admin user not found');
+  }
+
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    phoneNumber: user.phoneNumber,
+    adminType: user.adminType,
+    isActive: user.isActive,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastLogin: user.lastLogin,
+    mfaEnabled: user.mfaEnabled,
+    creator: user.creator
+      ? {
+          id: user.creator.id,
+          fullName: user.creator.fullName,
+          email: user.creator.email,
+        }
+      : null,
+  };
+};
