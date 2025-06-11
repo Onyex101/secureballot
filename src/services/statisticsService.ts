@@ -17,6 +17,7 @@ interface CandidateStatistic {
   name: string;
   party: string;
   partyCode: string;
+  manifesto: string;
   votes: number;
   percentage: number;
   rank: number;
@@ -91,7 +92,7 @@ export class StatisticsService {
       const query = `
         SELECT election_name as name, election_type as type, status
         FROM elections 
-        WHERE id = :electionId
+        WHERE id = :electionId;
       `;
 
       const result = (await db.sequelize.query(query, {
@@ -119,7 +120,7 @@ export class StatisticsService {
       const voteCountQuery = `
         SELECT COUNT(*) as total_votes_cast
         FROM votes 
-        WHERE election_id = :electionId
+        WHERE election_id = :electionId;
       `;
 
       const voteCountResult = (await db.sequelize.query(voteCountQuery, {
@@ -133,7 +134,7 @@ export class StatisticsService {
       const votersQuery = `
         SELECT COUNT(*) as registered_voters
         FROM voters 
-        WHERE is_active = true
+        WHERE is_active = true;
       `;
 
       const votersResult = (await db.sequelize.query(votersQuery, {
@@ -183,12 +184,13 @@ export class StatisticsService {
           c.full_name as name,
           c.party_name as party,
           c.party_code as party_code,
+          c.manifesto as manifesto,
           COUNT(v.id) as votes
         FROM candidates c
         LEFT JOIN votes v ON c.id = v.candidate_id AND v.election_id = :electionId
         WHERE c.election_id = :electionId
-        GROUP BY c.id, c.full_name, c.party_name, c.party_code
-        ORDER BY COUNT(v.id) DESC
+        GROUP BY c.id, c.full_name, c.party_name, c.party_code, c.manifesto
+        ORDER BY COUNT(v.id) DESC;
       `;
 
       const results = (await db.sequelize.query(query, {
@@ -199,6 +201,7 @@ export class StatisticsService {
         name: string;
         party: string;
         party_code: string;
+        manifesto: string;
         votes: number;
       }>;
 
@@ -218,6 +221,7 @@ export class StatisticsService {
           name: candidate.name || 'Unknown Candidate',
           party: candidate.party || 'Independent',
           partyCode: candidate.party_code || 'IND',
+          manifesto: candidate.manifesto || '',
           votes,
           percentage,
           rank: index + 1,
@@ -238,7 +242,7 @@ export class StatisticsService {
       const totalPollingUnitsQuery = `
         SELECT COUNT(*) as total_polling_units
         FROM polling_units 
-        WHERE is_active = true
+        WHERE is_active = true;
       `;
 
       const totalResult = (await db.sequelize.query(totalPollingUnitsQuery, {
@@ -252,7 +256,7 @@ export class StatisticsService {
         SELECT COUNT(DISTINCT v.polling_unit_id) as reported_polling_units,
                COUNT(v.id) as total_votes
         FROM votes v
-        WHERE v.election_id = :electionId AND v.polling_unit_id IS NOT NULL
+        WHERE v.election_id = :electionId AND v.polling_unit_id IS NOT NULL;
       `;
 
       const reportedResult = (await db.sequelize.query(reportedPollingUnitsQuery, {
@@ -308,7 +312,7 @@ export class StatisticsService {
           MAX(v.vote_timestamp) as last_vote_timestamp,
           COUNT(DISTINCT v.polling_unit_id) as active_polling_units
         FROM votes v
-        WHERE v.election_id = :electionId
+        WHERE v.election_id = :electionId;
       `;
 
       const result = (await db.sequelize.query(query, {

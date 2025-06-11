@@ -148,6 +148,24 @@ export const rejectVerification = async (
 };
 
 /**
+ * Get pending verification requests with pagination (alias for consistency)
+ */
+export const getPendingVerificationRequests = (
+  page: number = 1,
+  limit: number = 50,
+): Promise<{
+  verifications: any[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}> => {
+  return getPendingVerifications(page, limit);
+};
+
+/**
  * Get pending verification requests with pagination
  */
 export const getPendingVerifications = async (

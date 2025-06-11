@@ -28,6 +28,10 @@ const adminService = __importStar(require("../../services/adminService"));
 const auditService = __importStar(require("../../services/auditService"));
 const statisticsService = __importStar(require("../../services/statisticsService"));
 const pollingUnitService = __importStar(require("../../services/pollingUnitService"));
+const voterService = __importStar(require("../../services/voterService"));
+const verificationService = __importStar(require("../../services/verificationService"));
+const suspiciousActivityService = __importStar(require("../../services/suspiciousActivityService"));
+const cacheService_1 = require("../../services/cacheService");
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
@@ -116,37 +120,40 @@ const getDashboard = async (req, res, next) => {
         const shouldIncludeAuditLogs = includeAuditLogs === 'true';
         const auditLimit = Math.min(Math.max(parseInt(auditLogsLimit) || 50, 1), 100);
         const suspiciousLimit = Math.min(Math.max(parseInt(suspiciousActivitiesLimit) || 50, 1), 100);
-        // Gather data from multiple services in parallel
-        const [realTimeStats, adminUsers, pollingUnits, auditLogs, suspiciousActivities] = await Promise.all([
-            // System statistics - using real-time stats as a substitute
-            statisticsService.getRealTimeVotingStats(),
-            // Admin users (limited to most recent 20)
-            adminService.getUsers(undefined, 'active', 1, 20),
-            // Polling units (sample of recent ones)
-            pollingUnitService.getPollingUnits({}, undefined, 1, 20),
-            // Audit logs (if requested)
+        // Gather data from multiple services in parallel with caching
+        const [realTimeStats, adminUsers, pollingUnits, auditLogs, suspiciousActivitiesResult, totalVotersCount, verificationRequestsResult,] = await Promise.all([
+            // System statistics - cached for 2 minutes
+            (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.REAL_TIME_VOTING_STATS, () => Promise.resolve(statisticsService.getRealTimeVotingStats()), 2),
+            // Admin users - cached for 5 minutes
+            (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.ADMIN_USERS(1, 20), () => adminService.getUsers(undefined, 'active', 1, 20), 5),
+            // Polling units - cached for 10 minutes
+            (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.POLLING_UNITS(1, 20), () => pollingUnitService.getPollingUnits({}, undefined, 1, 20), 10),
+            // Audit logs (if requested) - cached for 1 minute
             shouldIncludeAuditLogs
-                ? auditService.getAuditLogs(undefined, undefined, undefined, undefined, 1, auditLimit)
+                ? (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.AUDIT_LOGS(1, auditLimit), () => auditService.getAuditLogs(undefined, undefined, undefined, undefined, 1, auditLimit), 1)
                 : Promise.resolve({
                     auditLogs: [],
                     pagination: { total: 0, page: 1, limit: auditLimit, totalPages: 0 },
                 }),
-            // Suspicious activities (mock data for now - would need to implement suspicious activity service)
-            Promise.resolve([]),
+            // Suspicious activities - cached for 3 minutes
+            (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.SUSPICIOUS_ACTIVITIES(1, suspiciousLimit), () => suspiciousActivityService.getSuspiciousActivities({}, 1, suspiciousLimit), 3),
+            // Voter count - cached for 15 minutes
+            (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.VOTER_COUNT, () => voterService.getVoterCount(), 15),
+            // Pending verification requests - cached for 5 minutes
+            (0, cacheService_1.getOrSetCached)(cacheService_1.CACHE_KEYS.PENDING_VERIFICATIONS(1, 20), () => verificationService.getPendingVerificationRequests(1, 20), 5),
         ]);
         // Calculate system statistics from available data
-        const totalVoters = await adminService
-            .getUsers(undefined, undefined, 1, 1)
-            .then(result => result.pagination.total || 0);
         const totalPollingUnits = pollingUnits.pagination.total || 0;
+        const suspiciousActivities = suspiciousActivitiesResult.activities || [];
+        const verificationRequests = verificationRequestsResult.verifications || [];
         // Transform and structure the response data
         const dashboardData = {
             systemStatistics: {
-                totalVoters,
+                totalVoters: totalVotersCount,
                 activeElections: realTimeStats?.activeElections?.length || 0,
                 totalVotes: realTimeStats?.totalVotesToday || 0,
                 completedElections: 0,
-                pendingVerifications: 0,
+                pendingVerifications: verificationRequestsResult.pagination.total || 0,
                 totalPollingUnits,
                 systemUptime: 99.9,
                 averageTurnout: 0,
@@ -175,7 +182,20 @@ const getDashboard = async (req, res, next) => {
                     longitude: unit.longitude,
                 },
             })),
-            verificationRequests: [],
+            verificationRequests: verificationRequests.map((request) => ({
+                id: request.id,
+                voterId: request.userId,
+                state: request.state,
+                isVerified: request.isVerified,
+                submissionDate: request.createdAt,
+                verificationData: request.verificationData,
+                voter: request.voter
+                    ? {
+                        id: request.voter.id,
+                        phoneNumber: request.voter.phoneNumber,
+                    }
+                    : null,
+            })),
             auditLogs: shouldIncludeAuditLogs
                 ? (auditLogs.auditLogs || []).map((log) => ({
                     id: log.id,
@@ -205,9 +225,7 @@ const getDashboard = async (req, res, next) => {
             })),
         };
         // Log the dashboard access
-        await auditService.createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.ADMIN_USER_LIST_VIEW, // Using existing action type as substitute
-        req.ip || '', req.headers['user-agent'] || '', {
-            action: 'dashboard_view',
+        await auditService.createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.DASHBOARD_VIEW, req.ip || '', req.headers['user-agent'] || '', {
             success: true,
             includeAuditLogs: shouldIncludeAuditLogs,
             auditLogsLimit: auditLimit,
@@ -222,8 +240,7 @@ const getDashboard = async (req, res, next) => {
     catch (error) {
         // Log failure
         await auditService
-            .createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.ADMIN_USER_LIST_VIEW, req.ip || '', req.headers['user-agent'] || '', {
-            action: 'dashboard_view',
+            .createAdminAuditLog(req.user?.id || null, AuditLog_1.AuditActionType.DASHBOARD_VIEW, req.ip || '', req.headers['user-agent'] || '', {
             success: false,
             error: error.message,
         })

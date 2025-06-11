@@ -16,3 +16,5 @@ export * as notificationService from './notificationService';
 export * as encryptionService from './encryptionService';
 export * as voteEncryptionService from './voteEncryptionService';
 export * as electionKeyService from './electionKeyService';
+export * as suspiciousActivityService from './suspiciousActivityService';
+export * as cacheService from './cacheService';

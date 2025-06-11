@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.electionKeyService = exports.voteEncryptionService = exports.encryptionService = exports.notificationService = exports.resultService = exports.voteService = exports.mfaService = exports.candidateService = exports.statisticsService = exports.verificationService = exports.pollingUnitService = exports.voterService = exports.authService = exports.ussdService = exports.electionService = exports.auditService = exports.adminService = void 0;
+exports.cacheService = exports.suspiciousActivityService = exports.electionKeyService = exports.voteEncryptionService = exports.encryptionService = exports.notificationService = exports.resultService = exports.voteService = exports.mfaService = exports.candidateService = exports.statisticsService = exports.verificationService = exports.pollingUnitService = exports.voterService = exports.authService = exports.ussdService = exports.electionService = exports.auditService = exports.adminService = void 0;
 // Export all implemented services from this folder
 exports.adminService = __importStar(require("./adminService"));
 exports.auditService = __importStar(require("./auditService"));
@@ -42,4 +42,6 @@ exports.notificationService = __importStar(require("./notificationService"));
 exports.encryptionService = __importStar(require("./encryptionService"));
 exports.voteEncryptionService = __importStar(require("./voteEncryptionService"));
 exports.electionKeyService = __importStar(require("./electionKeyService"));
+exports.suspiciousActivityService = __importStar(require("./suspiciousActivityService"));
+exports.cacheService = __importStar(require("./cacheService"));
 //# sourceMappingURL=index.js.map

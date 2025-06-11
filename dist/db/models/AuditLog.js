@@ -69,6 +69,17 @@ var AuditActionType;
     AuditActionType["REAL_TIME_UPDATES_VIEW"] = "real_time_updates_view";
     AuditActionType["VOTER_ELIGIBILITY_CHECK"] = "voter_eligibility_check";
     AuditActionType["VOTER_VERIFICATION_REQUEST"] = "voter_verification_request";
+    // New dashboard and admin actions
+    AuditActionType["DASHBOARD_VIEW"] = "dashboard_view";
+    AuditActionType["SUSPICIOUS_ACTIVITY_VIEW"] = "suspicious_activity_view";
+    AuditActionType["SUSPICIOUS_ACTIVITY_INVESTIGATE"] = "suspicious_activity_investigate";
+    AuditActionType["SUSPICIOUS_ACTIVITY_MARK_FALSE_POSITIVE"] = "suspicious_activity_mark_false_positive";
+    AuditActionType["SYSTEM_STATISTICS_VIEW"] = "system_statistics_view";
+    AuditActionType["ADMIN_USERS_OVERVIEW"] = "admin_users_overview";
+    AuditActionType["POLLING_UNITS_OVERVIEW"] = "polling_units_overview";
+    AuditActionType["VERIFICATION_REQUESTS_VIEW"] = "verification_requests_view";
+    AuditActionType["VERIFICATION_REQUEST_APPROVE"] = "verification_request_approve";
+    AuditActionType["VERIFICATION_REQUEST_REJECT"] = "verification_request_reject";
 })(AuditActionType = exports.AuditActionType || (exports.AuditActionType = {}));
 class AuditLog extends sequelize_1.Model {
     // Timestamps

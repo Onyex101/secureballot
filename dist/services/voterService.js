@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVoterByNin = exports.getVoterPublicKey = exports.changePassword = exports.requestVerification = exports.checkVoterEligibility = exports.getVoterPollingUnit = exports.updateVoterProfile = exports.getVoterProfile = void 0;
+exports.getVoterByNin = exports.getVoterCount = exports.getVoterPublicKey = exports.changePassword = exports.requestVerification = exports.checkVoterEligibility = exports.getVoterPollingUnit = exports.updateVoterProfile = exports.getVoterProfile = void 0;
 const Voter_1 = __importDefault(require("../db/models/Voter"));
 const VerificationStatus_1 = __importDefault(require("../db/models/VerificationStatus"));
 const PollingUnit_1 = __importDefault(require("../db/models/PollingUnit"));
@@ -231,6 +231,24 @@ const getVoterPublicKey = async (voterId) => {
     return voter.publicKey || null;
 };
 exports.getVoterPublicKey = getVoterPublicKey;
+/**
+ * Get total voter count
+ */
+const getVoterCount = async () => {
+    try {
+        const count = await Voter_1.default.count({
+            where: {
+                isActive: true,
+            },
+        });
+        return count;
+    }
+    catch (error) {
+        logger_1.logger.error('Error getting voter count:', error);
+        return 0;
+    }
+};
+exports.getVoterCount = getVoterCount;
 /**
  * Get voter by NIN (National Identification Number)
  */

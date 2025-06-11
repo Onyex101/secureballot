@@ -36,6 +36,10 @@ export declare const changePassword: (_voterId: string, _currentPassword: string
  */
 export declare const getVoterPublicKey: (voterId: string) => Promise<string | null>;
 /**
+ * Get total voter count
+ */
+export declare const getVoterCount: () => Promise<number>;
+/**
  * Get voter by NIN (National Identification Number)
  */
 export declare const getVoterByNin: (nin: string) => Promise<any>;

@@ -23,8 +23,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSecurityLogs = void 0;
+exports.getSuspiciousActivities = exports.getSecurityLogs = void 0;
 const auditService = __importStar(require("../../services/auditService"));
+const suspiciousActivityService = __importStar(require("../../services/suspiciousActivityService"));
 const logger_1 = require("../../config/logger");
 const errorHandler_1 = require("../../middleware/errorHandler");
 const AuditLog_1 = require("../../db/models/AuditLog");
@@ -56,4 +57,48 @@ const getSecurityLogs = async (req, res, next) => {
     }
 };
 exports.getSecurityLogs = getSecurityLogs;
+/**
+ * Get suspicious activities with filtering and pagination
+ */
+const getSuspiciousActivities = async (req, res, next) => {
+    const userId = req.user?.id;
+    try {
+        if (!userId) {
+            throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+        }
+        const { severity, status, type, startDate, endDate, sourceIp, page = 1, limit = 50, } = req.query;
+        // Get suspicious activities from service
+        const result = await suspiciousActivityService.getSuspiciousActivities({
+            severity: severity,
+            status: status,
+            type: type,
+            startDate: startDate,
+            endDate: endDate,
+            sourceIp: sourceIp,
+        }, Number(page), Number(limit));
+        // Log this suspicious activity view
+        await auditService.createAdminAuditLog(userId, AuditLog_1.AuditActionType.SUSPICIOUS_ACTIVITY_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+            query: req.query,
+            success: true,
+            activitiesCount: result.activities.length,
+        });
+        res.status(200).json({
+            success: true,
+            data: result,
+            message: 'Suspicious activities retrieved successfully',
+        });
+    }
+    catch (error) {
+        // Log failure
+        await auditService
+            .createAdminAuditLog(userId || null, AuditLog_1.AuditActionType.SUSPICIOUS_ACTIVITY_VIEW, req.ip || '', req.headers['user-agent'] || '', {
+            query: req.query,
+            success: false,
+            error: error.message,
+        })
+            .catch(logErr => logger_1.logger.error('Failed to log suspicious activity view error', logErr));
+        next(error);
+    }
+};
+exports.getSuspiciousActivities = getSuspiciousActivities;
 //# sourceMappingURL=securityOfficerController.js.map

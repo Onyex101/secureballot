@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPendingVerifications = exports.rejectVerification = exports.approveVerification = exports.submitVerificationRequest = exports.getVerificationStatus = void 0;
+exports.getPendingVerifications = exports.getPendingVerificationRequests = exports.rejectVerification = exports.approveVerification = exports.submitVerificationRequest = exports.getVerificationStatus = void 0;
 const uuid_1 = require("uuid");
 const VerificationStatus_1 = __importDefault(require("../db/models/VerificationStatus"));
 const Voter_1 = __importDefault(require("../db/models/Voter"));
@@ -128,6 +128,13 @@ const rejectVerification = async (verificationId, adminId, reason) => {
     };
 };
 exports.rejectVerification = rejectVerification;
+/**
+ * Get pending verification requests with pagination (alias for consistency)
+ */
+const getPendingVerificationRequests = (page = 1, limit = 50) => {
+    return (0, exports.getPendingVerifications)(page, limit);
+};
+exports.getPendingVerificationRequests = getPendingVerificationRequests;
 /**
  * Get pending verification requests with pagination
  */

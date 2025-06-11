@@ -12,6 +12,7 @@ interface CandidateStatistic {
     name: string;
     party: string;
     partyCode: string;
+    manifesto: string;
     votes: number;
     percentage: number;
     rank: number;

@@ -1475,6 +1475,69 @@ router.get(
   systemAdminController.getDashboard,
 );
 
+/**
+ * @swagger
+ * /api/v1/admin/suspicious-activities:
+ *   get:
+ *     summary: Get suspicious activities with filtering
+ *     description: Retrieve detected suspicious activities with filtering and pagination
+ *     tags:
+ *       - Security Officer
+ *       - System Admin
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: severity
+ *         in: query
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high, critical]
+ *       - name: status
+ *         in: query
+ *         schema:
+ *           type: string
+ *           enum: [active, investigated, resolved, false_positive]
+ *       - name: type
+ *         in: query
+ *         schema:
+ *           type: string
+ *       - name: page
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Suspicious activities retrieved successfully
+ */
+router.get(
+  '/suspicious-activities',
+  requireRole([UserRole.SYSTEM_ADMIN, UserRole.SECURITY_OFFICER]),
+  adminLimiter,
+  validate([
+    query('severity')
+      .optional()
+      .isIn(['low', 'medium', 'high', 'critical'])
+      .withMessage('Severity must be one of: low, medium, high, critical'),
+    query('status')
+      .optional()
+      .isIn(['active', 'investigated', 'resolved', 'false_positive'])
+      .withMessage('Status must be one of: active, investigated, resolved, false_positive'),
+    query('type').optional(),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit')
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage('Limit must be between 1 and 100'),
+  ]),
+  securityOfficerController.getSuspiciousActivities,
+);
+
 // Add more admin routes as needed...
 
 export default router;

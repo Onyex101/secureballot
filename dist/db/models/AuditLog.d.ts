@@ -63,7 +63,17 @@ export declare enum AuditActionType {
     ELECTION_STATISTICS_VIEW = "election_statistics_view",
     REAL_TIME_UPDATES_VIEW = "real_time_updates_view",
     VOTER_ELIGIBILITY_CHECK = "voter_eligibility_check",
-    VOTER_VERIFICATION_REQUEST = "voter_verification_request"
+    VOTER_VERIFICATION_REQUEST = "voter_verification_request",
+    DASHBOARD_VIEW = "dashboard_view",
+    SUSPICIOUS_ACTIVITY_VIEW = "suspicious_activity_view",
+    SUSPICIOUS_ACTIVITY_INVESTIGATE = "suspicious_activity_investigate",
+    SUSPICIOUS_ACTIVITY_MARK_FALSE_POSITIVE = "suspicious_activity_mark_false_positive",
+    SYSTEM_STATISTICS_VIEW = "system_statistics_view",
+    ADMIN_USERS_OVERVIEW = "admin_users_overview",
+    POLLING_UNITS_OVERVIEW = "polling_units_overview",
+    VERIFICATION_REQUESTS_VIEW = "verification_requests_view",
+    VERIFICATION_REQUEST_APPROVE = "verification_request_approve",
+    VERIFICATION_REQUEST_REJECT = "verification_request_reject"
 }
 interface AuditLogAttributes {
     id: string;

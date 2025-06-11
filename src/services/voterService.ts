@@ -266,6 +266,23 @@ export const getVoterPublicKey = async (voterId: string): Promise<string | null>
 };
 
 /**
+ * Get total voter count
+ */
+export const getVoterCount = async (): Promise<number> => {
+  try {
+    const count = await Voter.count({
+      where: {
+        isActive: true,
+      },
+    });
+    return count;
+  } catch (error) {
+    logger.error('Error getting voter count:', error);
+    return 0;
+  }
+};
+
+/**
  * Get voter by NIN (National Identification Number)
  */
 export const getVoterByNin = async (nin: string): Promise<any> => {
