@@ -32,6 +32,7 @@ const verificationController = __importStar(require("../../controllers/voter/ver
 const dashboardController = __importStar(require("../../controllers/dashboard/dashboardController"));
 const auth_1 = require("../../middleware/auth");
 const validator_1 = require("../../middleware/validator");
+const rateLimiter_1 = require("../../middleware/rateLimiter");
 const router = (0, express_1.Router)();
 // All voter routes require authentication
 router.use(auth_1.authenticate);
@@ -51,7 +52,7 @@ router.use(auth_1.authenticate);
  *       404:
  *         description: Voter not found
  */
-router.get('/profile', voterController.getProfile);
+router.get('/profile', rateLimiter_1.defaultLimiter, voterController.getProfile);
 /**
  * @swagger
  * /api/v1/voter/profile:
@@ -78,7 +79,7 @@ router.get('/profile', voterController.getProfile);
  *       401:
  *         description: Unauthorized
  */
-router.put('/profile', (0, validator_1.validate)([
+router.put('/profile', rateLimiter_1.authLimiter, (0, validator_1.validate)([
     (0, express_validator_1.body)('phoneNumber')
         .optional()
         .matches(/^\+?[0-9]{10,15}$/)
@@ -100,7 +101,7 @@ router.put('/profile', (0, validator_1.validate)([
  *       404:
  *         description: Polling unit not found
  */
-router.get('/polling-unit', voterController.getPollingUnit);
+router.get('/polling-unit', rateLimiter_1.defaultLimiter, voterController.getPollingUnit);
 /**
  * @swagger
  * /api/v1/voter/polling-units:
@@ -135,7 +136,7 @@ router.get('/polling-unit', voterController.getPollingUnit);
  *       401:
  *         description: Unauthorized
  */
-router.get('/polling-units', pollingUnitController.getPollingUnits);
+router.get('/polling-units', rateLimiter_1.defaultLimiter, pollingUnitController.getPollingUnits);
 /**
  * @swagger
  * /api/v1/voter/polling-units/{id}:
@@ -159,7 +160,7 @@ router.get('/polling-units', pollingUnitController.getPollingUnits);
  *       404:
  *         description: Polling unit not found
  */
-router.get('/polling-units/:id', (0, validator_1.validate)([
+router.get('/polling-units/:id', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
     (0, express_validator_1.param)('id')
         .notEmpty()
         .withMessage(validator_1.validationMessages.required('Polling Unit ID'))
@@ -205,7 +206,7 @@ router.get('/polling-units/:id', (0, validator_1.validate)([
  *       401:
  *         description: Unauthorized
  */
-router.get('/polling-units/nearby', pollingUnitController.getNearbyPollingUnits);
+router.get('/polling-units/nearby', rateLimiter_1.defaultLimiter, pollingUnitController.getNearbyPollingUnits);
 /**
  * @swagger
  * /api/v1/voter/verification-status:
@@ -222,7 +223,7 @@ router.get('/polling-units/nearby', pollingUnitController.getNearbyPollingUnits)
  *       404:
  *         description: Verification status not found
  */
-router.get('/verification-status', verificationController.getVerificationStatus);
+router.get('/verification-status', rateLimiter_1.defaultLimiter, verificationController.getVerificationStatus);
 /**
  * @swagger
  * /api/v1/voter/submit-verification:
@@ -259,7 +260,7 @@ router.get('/verification-status', verificationController.getVerificationStatus)
  *       401:
  *         description: Unauthorized
  */
-router.post('/submit-verification', (0, validator_1.validate)([
+router.post('/submit-verification', rateLimiter_1.sensitiveOpLimiter, (0, validator_1.validate)([
     (0, express_validator_1.body)('documentType').notEmpty().withMessage(validator_1.validationMessages.required('Document type')),
     (0, express_validator_1.body)('documentNumber').notEmpty().withMessage(validator_1.validationMessages.required('Document number')),
     (0, express_validator_1.body)('documentImageUrl')
@@ -289,7 +290,7 @@ router.post('/submit-verification', (0, validator_1.validate)([
  *       401:
  *         description: Unauthorized
  */
-router.get('/eligibility/:electionId', (0, validator_1.validate)([
+router.get('/eligibility/:electionId', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
     (0, express_validator_1.param)('electionId')
         .notEmpty()
         .withMessage(validator_1.validationMessages.required('Election ID'))
@@ -310,7 +311,7 @@ router.get('/eligibility/:electionId', (0, validator_1.validate)([
  *       401:
  *         description: Unauthorized
  */
-router.get('/vote-history', voteController.getVoteHistory);
+router.get('/vote-history', rateLimiter_1.defaultLimiter, voteController.getVoteHistory);
 /**
  * @swagger
  * /api/v1/voter/verify-vote/{receiptCode}:
@@ -333,7 +334,7 @@ router.get('/vote-history', voteController.getVoteHistory);
  *       404:
  *         description: Invalid receipt code
  */
-router.get('/verify-vote/:receiptCode', (0, validator_1.validate)([
+router.get('/verify-vote/:receiptCode', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
     (0, express_validator_1.param)('receiptCode')
         .notEmpty()
         .withMessage(validator_1.validationMessages.required('Receipt code'))
@@ -375,7 +376,7 @@ router.get('/verify-vote/:receiptCode', (0, validator_1.validate)([
  *       401:
  *         description: Unauthorized
  */
-router.post('/report-vote-issue', (0, validator_1.validate)([
+router.post('/report-vote-issue', rateLimiter_1.sensitiveOpLimiter, (0, validator_1.validate)([
     (0, express_validator_1.body)('voteId')
         .notEmpty()
         .withMessage(validator_1.validationMessages.required('Vote ID'))
@@ -462,7 +463,7 @@ router.post('/report-vote-issue', (0, validator_1.validate)([
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/dashboard/:electionId', (0, validator_1.validate)([
+router.get('/dashboard/:electionId', rateLimiter_1.defaultLimiter, (0, validator_1.validate)([
     (0, express_validator_1.param)('electionId')
         .notEmpty()
         .withMessage(validator_1.validationMessages.required('Election ID'))

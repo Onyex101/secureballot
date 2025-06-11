@@ -13,7 +13,7 @@ export declare const getElectionResults: (req: AuthRequest, res: Response, next:
  */
 export declare const getRealTimeVotingStats: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 /**
- * Get election statistics
+ * Get comprehensive election statistics
  * @route GET /api/v1/results/statistics/:electionId
  * @access Private
  */

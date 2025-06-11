@@ -593,7 +593,10 @@ const getElectionDashboard = async (electionId) => {
     // Get vote counts by candidate
     const candidateVoteCounts = (await Vote_1.default.findAll({
         where: { electionId },
-        attributes: ['candidateId', [models_1.default.sequelize.fn('COUNT', models_1.default.sequelize.col('id')), 'voteCount']],
+        attributes: [
+            'candidateId',
+            [models_1.default.sequelize.fn('COUNT', models_1.default.sequelize.col('Vote.id')), 'voteCount'],
+        ],
         group: ['candidateId'],
         raw: true,
     }));

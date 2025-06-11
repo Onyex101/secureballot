@@ -688,7 +688,10 @@ export const getElectionDashboard = async (electionId: string) => {
   // Get vote counts by candidate
   const candidateVoteCounts = (await Vote.findAll({
     where: { electionId },
-    attributes: ['candidateId', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'voteCount']],
+    attributes: [
+      'candidateId',
+      [db.sequelize.fn('COUNT', db.sequelize.col('Vote.id')), 'voteCount'],
+    ],
     group: ['candidateId'],
     raw: true,
   })) as any[];

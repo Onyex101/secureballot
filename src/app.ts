@@ -33,6 +33,15 @@ app.use(
   }),
 );
 
+// Health check endpoint (before rate limiting)
+app.get('/health', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'UP',
+    version: process.env.npm_package_version || '1.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Apply rate limiting
 const limiter = rateLimit({
   windowMs: serverConfig.rateLimitWindowMs,
@@ -73,15 +82,6 @@ app.get('/api-docs.json', (req: Request, res: Response) => {
 
 // Serve static files
 app.use('/static', express.static(path.join(__dirname, 'public')));
-
-// Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'UP',
-    version: process.env.npm_package_version || '1.0.0',
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // Error handling
 app.use(errorHandler);

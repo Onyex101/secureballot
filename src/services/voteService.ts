@@ -236,7 +236,7 @@ export const countVotes = async (electionId: string) => {
     attributes: [
       'candidateId',
       [
-        (Vote.sequelize as Sequelize).fn('COUNT', (Vote.sequelize as Sequelize).col('id')),
+        (Vote.sequelize as Sequelize).fn('COUNT', (Vote.sequelize as Sequelize).col('Vote.id')),
         'voteCount',
       ],
     ],

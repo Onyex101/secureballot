@@ -283,7 +283,10 @@ const getOtpStatistics = async (hours = 24) => {
     const since = new Date();
     since.setHours(since.getHours() - hours);
     const stats = await OtpLog_1.default.findAll({
-        attributes: ['status', [OtpLog_1.default.sequelize.fn('COUNT', OtpLog_1.default.sequelize.col('id')), 'count']],
+        attributes: [
+            'status',
+            [OtpLog_1.default.sequelize.fn('COUNT', OtpLog_1.default.sequelize.col('OtpLog.id')), 'count'],
+        ],
         where: {
             createdAt: {
                 [sequelize_1.Op.gte]: since,

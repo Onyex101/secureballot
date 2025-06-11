@@ -280,7 +280,7 @@ export const handleMenuNavigation = async (
             const voter = await voterService.getVoterByNin(selection);
             if (voter && voter.pollingUnit) {
               responseData = {
-                message: `Polling Unit Info:\nName: ${voter.pollingUnit.name}\nCode: ${voter.pollingUnit.code}\nAddress: ${voter.pollingUnit.address}\nWard: ${voter.pollingUnit.ward}\nLGA: ${voter.pollingUnit.lga}\n\n0. Back to Main Menu`,
+                message: `Polling Unit Info:\nName: ${voter.pollingUnit.pollingUnitName}\nCode: ${voter.pollingUnit.pollingUnitCode}\nAddress: ${voter.pollingUnit.address}\nWard: ${voter.pollingUnit.ward}\nLGA: ${voter.pollingUnit.lga}\n\n0. Back to Main Menu`,
                 options: ['0'],
               };
             } else {
