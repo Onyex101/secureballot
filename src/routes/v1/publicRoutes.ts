@@ -109,6 +109,13 @@ const router = Router();
  *                     voterStatus:
  *                       type: object
  *                       nullable: true
+ *                     availableElectionTypes:
+ *                       type: array
+ *                       description: All possible election types that can be created
+ *                       items:
+ *                         type: string
+ *                         enum: [Presidential, Gubernatorial, Senatorial, HouseOfReps, StateAssembly, LocalGovernment]
+ *                       example: ["Presidential", "Gubernatorial", "Senatorial", "HouseOfReps", "StateAssembly", "LocalGovernment"]
  */
 router.get(
   '/elections',

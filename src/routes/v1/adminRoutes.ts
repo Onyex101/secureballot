@@ -1072,7 +1072,7 @@ router.post('/login', async (req, res, next) => {
  */
 router.post('/logout', async (req, res, next) => {
   try {
-    await authController.logout(req, res, next);
+    await authController.adminLogout(req, res, next);
   } catch (error) {
     next(error);
   }

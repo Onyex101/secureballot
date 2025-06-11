@@ -512,3 +512,56 @@ export const logout = async (req: Request, res: Response, next: NextFunction): P
     next(error);
   }
 };
+
+/**
+ * Logout an admin user
+ * @route POST /api/v1/admin/logout
+ * @access Private (Admin)
+ */
+export const adminLogout = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // The user ID should be available from the authentication middleware
+    const userId = (req as any).user?.id;
+    const userType = (req as any).user?.adminType || 'admin';
+
+    if (!userId) {
+      throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    }
+
+    // Logout the admin user
+    await authService.logoutUser(userId);
+
+    // Log the admin logout using admin logs
+    await createAdminLog(
+      req,
+      AdminAction.ADMIN_USER_LOGIN, // Use LOGIN action as it covers login/logout events
+      ResourceType.ADMIN_USER,
+      userId,
+      {
+        success: true,
+        action: 'logout',
+        adminType: userType,
+      },
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Admin logout successful',
+    });
+  } catch (error) {
+    // Log failure if userId is available
+    const userId = (req as any).user?.id;
+    if (userId) {
+      await createAdminLog(req, AdminAction.ADMIN_USER_LOGIN, ResourceType.ADMIN_USER, userId, {
+        success: false,
+        action: 'logout',
+        error: (error as Error).message,
+      }).catch(logErr => logger.error('Failed to log admin logout error', logErr));
+    }
+    next(error);
+  }
+};

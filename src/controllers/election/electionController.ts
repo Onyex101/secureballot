@@ -4,7 +4,7 @@ import db from '../../db/models';
 import { electionService, voterService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
-import { ElectionStatus } from '../../db/models/Election';
+import { ElectionStatus, ElectionType } from '../../db/models/Election';
 import { createContextualLog } from '../../utils/auditHelpers';
 import { AdminAction, ResourceType } from '../../services/adminLogService';
 
@@ -93,6 +93,8 @@ export const getElections = async (
         voterStatus: voterProfile?.verification
           ? { isVerified: voterProfile.verification.identityVerified }
           : null,
+        // Include available election types
+        availableElectionTypes: Object.values(ElectionType),
       },
     });
   } catch (error) {
