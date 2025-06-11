@@ -31,6 +31,14 @@ app.use((0, cors_1.default)({
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
 }));
+// Health check endpoint (before rate limiting)
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'UP',
+        version: process.env.npm_package_version || '1.0.0',
+        timestamp: new Date().toISOString(),
+    });
+});
 // Apply rate limiting
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: server_1.default.rateLimitWindowMs,
@@ -63,14 +71,6 @@ app.get('/api-docs.json', (req, res) => {
 });
 // Serve static files
 app.use('/static', express_1.default.static(path_1.default.join(__dirname, 'public')));
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'UP',
-        version: process.env.npm_package_version || '1.0.0',
-        timestamp: new Date().toISOString(),
-    });
-});
 // Error handling
 app.use(errorHandler_1.errorHandler);
 // Handle 404 errors
