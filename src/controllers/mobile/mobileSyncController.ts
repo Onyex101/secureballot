@@ -15,6 +15,8 @@ import Candidate from '../../db/models/Candidate';
 import PollingUnit from '../../db/models/PollingUnit';
 import Vote, { VoteSource } from '../../db/models/Vote';
 import crypto from 'crypto';
+import { createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Synchronize data between mobile app and server
@@ -132,12 +134,13 @@ export const syncData = async (
         throw new ApiError(400, `Unsupported sync type: ${type}`, 'UNSUPPORTED_SYNC_TYPE');
     }
 
-    // Log the sync action
-    await auditService.createAuditLog(
-      userId,
+    // Log the sync action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.MOBILE_DATA_SYNC,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.SYSTEM_STATS_VIEW,
+      ResourceType.SYSTEM,
+      userId,
       {
         success: true,
         syncType: type,
@@ -151,21 +154,20 @@ export const syncData = async (
       data: responseData,
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        userId || 'unknown',
-        AuditActionType.MOBILE_DATA_SYNC,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          success: false,
-          syncType: type,
-          context: data,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log mobile data sync error', logErr));
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.MOBILE_DATA_SYNC,
+      AdminAction.SYSTEM_STATS_VIEW,
+      ResourceType.SYSTEM,
+      userId,
+      {
+        success: false,
+        syncType: type,
+        context: data,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log mobile data sync error', logErr));
     next(error);
   }
 };

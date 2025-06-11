@@ -8,7 +8,7 @@ import { logger } from '../../config/logger';
 import { logError } from '../../utils/logger';
 import AdminUser from '../../db/models/AdminUser';
 import Voter from '../../db/models/Voter';
-import { createAdminLog } from '../../utils/auditHelpers';
+import { createAdminLog, createContextualLog } from '../../utils/auditHelpers';
 import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
@@ -66,14 +66,12 @@ export const register = async (
       ward,
     });
 
-    // Log the registration
-    await auditService.createAuditLog(
-      voter.id,
-      AuditActionType.REGISTRATION,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { nin, phoneNumber, registeredByAdmin: true },
-    );
+    // Log the registration (admin-only route - use admin logs)
+    await createAdminLog(req, AdminAction.ADMIN_USER_CREATE, ResourceType.VOTER, voter.id, {
+      nin,
+      phoneNumber,
+      registeredByAdmin: true,
+    });
 
     let verificationStatus = null;
 
@@ -98,12 +96,12 @@ export const register = async (
           'Auto-verified during admin registration',
         );
 
-        // Log the auto-verification
-        await auditService.createAuditLog(
-          voter.id,
-          AuditActionType.VERIFICATION,
-          req.ip || '',
-          req.headers['user-agent'] || '',
+        // Log the auto-verification (admin action - use admin logs)
+        await createAdminLog(
+          req,
+          AdminAction.VOTER_VERIFICATION_APPROVE,
+          ResourceType.VERIFICATION_REQUEST,
+          verificationRecord.id,
           {
             autoVerified: true,
             approvedBy: req.user.id,
@@ -182,12 +180,13 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       const voter = await authService.findVoterByIdentity(nin, vin);
 
       if (!voter) {
-        // Log failed login attempt
-        await auditService.createAuditLog(
-          null,
+        // Log failed login attempt using contextual logging
+        await createContextualLog(
+          req,
           AuditActionType.LOGIN,
-          req.ip || '',
-          req.headers['user-agent'] || '',
+          AdminAction.ADMIN_USER_LOGIN,
+          ResourceType.VOTER,
+          null,
           {
             nin: nin.substring(0, 3) + '*'.repeat(8),
             success: false,
@@ -209,12 +208,13 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       // Update last login
       await voter.update({ lastLogin: new Date() });
 
-      // Log successful login
-      await auditService.createAuditLog(
-        voter.id,
+      // Log successful login using contextual logging
+      await createContextualLog(
+        req,
         AuditActionType.LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
+        AdminAction.ADMIN_USER_LOGIN,
+        ResourceType.VOTER,
+        voter.id,
         { nin: nin.substring(0, 3) + '*'.repeat(8), success: true, method: 'legacy_route_poc' },
       );
 
@@ -245,12 +245,13 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         },
       });
     } catch (error) {
-      // Log failed login attempt
-      await auditService.createAuditLog(
-        null,
+      // Log failed login attempt using contextual logging
+      await createContextualLog(
+        req,
         AuditActionType.LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
+        AdminAction.ADMIN_USER_LOGIN,
+        ResourceType.VOTER,
+        null,
         {
           nin: nin.substring(0, 3) + '*'.repeat(8),
           success: false,

@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { authService, auditService, ussdService } from '../../services';
+import { authService, ussdService } from '../../services';
 import { ApiError } from '../../middleware/errorHandler';
 import { logger } from '../../config/logger';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Authenticate a voter via USSD
@@ -15,23 +17,24 @@ export const authenticateViaUssd = async (
   next: NextFunction,
 ): Promise<void> => {
   const { nin, vin, phoneNumber } = req.body;
-  let voterId: string | undefined;
+  let _voterId: string | undefined;
   let sessionCode: string | undefined;
 
   try {
     // Authenticate voter
     const voter = await authService.authenticateVoterForUssd(nin, vin, phoneNumber);
-    voterId = voter.id;
+    _voterId = voter.id;
 
     // Generate a session code
     sessionCode = await ussdService.createUssdSession(voter.id, phoneNumber);
 
-    // Log the authentication success
-    await auditService.createAuditLog(
-      voter.id,
+    // Log the authentication success using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.USSD_SESSION,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ADMIN_USER_LOGIN,
+      ResourceType.VOTER,
+      sessionCode,
       {
         success: true,
         context: 'authentication',
@@ -54,23 +57,22 @@ export const authenticateViaUssd = async (
       },
     });
   } catch (error: any) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        voterId || 'unknown',
-        AuditActionType.USSD_SESSION,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          success: false,
-          context: 'authentication',
-          phoneNumber,
-          nin,
-          vin, // Log input identifiers
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log USSD auth error', logErr));
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.USSD_SESSION,
+      AdminAction.ADMIN_USER_LOGIN,
+      ResourceType.VOTER,
+      null,
+      {
+        success: false,
+        context: 'authentication',
+        phoneNumber,
+        nin,
+        vin, // Log input identifiers
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log USSD auth error', logErr));
     // Pass error to global handler
     next(
       error instanceof ApiError
@@ -91,7 +93,7 @@ export const verifyUssdSession = async (
   next: NextFunction,
 ): Promise<void> => {
   const { sessionCode, phoneNumber } = req.body;
-  let userIdFromSession: string | undefined;
+  let _userIdFromSession: string | undefined;
 
   try {
     if (!sessionCode || !phoneNumber) {
@@ -99,34 +101,34 @@ export const verifyUssdSession = async (
     }
     // Verify the session
     const session = await ussdService.verifyUssdSession(sessionCode, phoneNumber);
-    userIdFromSession = session?.userId; // Capture for potential failure log
+    _userIdFromSession = session?.userId; // Capture for potential failure log
 
     if (!session) {
-      // Log failure before throwing
-      await auditService
-        .createAuditLog(
-          userIdFromSession || 'unknown',
-          AuditActionType.USSD_SESSION,
-          req.ip || '',
-          req.headers['user-agent'] || '',
-          {
-            success: false,
-            context: 'verification',
-            phoneNumber,
-            sessionCode,
-            error: 'Invalid or expired session',
-          },
-        )
-        .catch(logErr => logger.error('Failed to log USSD session verification error', logErr));
+      // Log failure before throwing using contextual logging
+      await createContextualLog(
+        req,
+        AuditActionType.USSD_SESSION,
+        AdminAction.AUDIT_LOG_VIEW,
+        ResourceType.VOTER,
+        sessionCode,
+        {
+          success: false,
+          context: 'verification',
+          phoneNumber,
+          sessionCode,
+          error: 'Invalid or expired session',
+        },
+      ).catch(logErr => logger.error('Failed to log USSD session verification error', logErr));
       throw new ApiError(401, 'Invalid or expired session', 'INVALID_SESSION');
     }
 
-    // Log the verification success
-    await auditService.createAuditLog(
-      session.userId,
+    // Log the verification success using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.USSD_SESSION,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.AUDIT_LOG_VIEW,
+      ResourceType.VOTER,
+      sessionCode,
       {
         success: true,
         context: 'verification',
@@ -144,23 +146,22 @@ export const verifyUssdSession = async (
       },
     });
   } catch (error: any) {
-    // Log failure if not already logged
+    // Log failure if not already logged using contextual logging
     if (!(error instanceof ApiError && error.code === 'INVALID_SESSION')) {
-      await auditService
-        .createAuditLog(
-          userIdFromSession || 'unknown',
-          AuditActionType.USSD_SESSION,
-          req.ip || '',
-          req.headers['user-agent'] || '',
-          {
-            success: false,
-            context: 'verification',
-            phoneNumber,
-            sessionCode,
-            error: (error as Error).message,
-          },
-        )
-        .catch(logErr => logger.error('Failed to log USSD session verification error', logErr));
+      await createContextualLog(
+        req,
+        AuditActionType.USSD_SESSION,
+        AdminAction.AUDIT_LOG_VIEW,
+        ResourceType.VOTER,
+        sessionCode,
+        {
+          success: false,
+          context: 'verification',
+          phoneNumber,
+          sessionCode,
+          error: (error as Error).message,
+        },
+      ).catch(logErr => logger.error('Failed to log USSD session verification error', logErr));
     }
     // Pass error to global handler
     next(

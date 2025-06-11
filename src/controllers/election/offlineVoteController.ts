@@ -13,6 +13,8 @@ import { logger } from '../../config/logger';
 import { VoteSource } from '../../db/models/Vote';
 import { reconstructPrivateKey } from '../../services/electionKeyService';
 import { batchDecryptVotes, EncryptedVote } from '../../services/voteEncryptionService';
+import { createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Generate offline voting package
@@ -74,12 +76,13 @@ export const generateOfflinePackage = async (
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const keyId = `offline-${userId}-${electionId}-${Date.now()}`;
 
-    // Log the offline package generation
-    await auditService.createAuditLog(
-      userId,
+    // Log the offline package generation using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.OFFLINE_PACKAGE_GENERATE,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ELECTION_DETAIL_VIEW,
+      ResourceType.ELECTION,
+      keyId,
       {
         success: true,
         electionId,
@@ -120,16 +123,15 @@ export const generateOfflinePackage = async (
       },
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        userId || 'unknown',
-        AuditActionType.OFFLINE_PACKAGE_GENERATE,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, electionId, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log offline package generation error', logErr));
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.OFFLINE_PACKAGE_GENERATE,
+      AdminAction.ELECTION_DETAIL_VIEW,
+      ResourceType.ELECTION,
+      null,
+      { success: false, electionId, error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log offline package generation error', logErr));
     next(error);
   }
 };

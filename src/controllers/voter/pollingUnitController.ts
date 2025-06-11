@@ -1,6 +1,8 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import { pollingUnitService, auditService } from '../../services';
+import { pollingUnitService } from '../../services';
+import { createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 import { ApiError } from '../../middleware/errorHandler';
 
 /**
@@ -24,13 +26,14 @@ export const getPollingUnits = async (
       Number(limit),
     );
 
-    // Log the action
-    await auditService.createAuditLog(
-      (req.user?.id as string) || 'anonymous',
-      'polling_unit_list_view',
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { query: req.query },
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
+      'polling_unit_list_view', // For voters
+      AdminAction.POLLING_UNIT_LIST_VIEW, // For admins
+      ResourceType.POLLING_UNIT,
+      null,
+      { query: req.query, success: true },
     );
 
     res.status(200).json({
@@ -59,13 +62,14 @@ export const getPollingUnitById = async (
       // Get polling unit
       const pollingUnit = await pollingUnitService.getPollingUnitById(id);
 
-      // Log the action
-      await auditService.createAuditLog(
-        (req.user?.id as string) || 'anonymous',
-        'polling_unit_view',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { pollingUnitId: id },
+      // Log the action using contextual logging
+      await createContextualLog(
+        req,
+        'polling_unit_view', // For voters
+        AdminAction.POLLING_UNIT_LIST_VIEW, // For admins (closest available)
+        ResourceType.POLLING_UNIT,
+        id,
+        { success: true },
       );
 
       res.status(200).json({
@@ -105,17 +109,19 @@ export const getNearbyPollingUnits = async (
       Number(limit),
     );
 
-    // Log the action
-    await auditService.createAuditLog(
-      (req.user?.id as string) || 'anonymous',
-      'nearby_polling_units_view',
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
+      'nearby_polling_units_view', // For voters
+      AdminAction.POLLING_UNIT_LIST_VIEW, // For admins
+      ResourceType.POLLING_UNIT,
+      null,
       {
         latitude,
         longitude,
         radius,
         limit,
+        success: true,
       },
     );
 

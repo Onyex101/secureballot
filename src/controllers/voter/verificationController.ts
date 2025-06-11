@@ -1,6 +1,8 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import { verificationService, auditService } from '../../services';
+import { verificationService } from '../../services';
+import { createAdminLog, createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 
@@ -25,13 +27,14 @@ export const getVerificationStatus = async (
       // Get verification status
       const verificationStatus = await verificationService.getVerificationStatus(userId);
 
-      // Log the action
-      await auditService.createAuditLog(
-        userId,
-        'verification_status_check',
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {},
+      // Log the action using contextual logging (checks user type)
+      await createContextualLog(
+        req,
+        'verification_status_check', // For voters
+        AdminAction.VOTER_VERIFICATION_APPROVE, // For admins (closest available action)
+        ResourceType.VERIFICATION_REQUEST,
+        null,
+        { action: 'status_check', success: true },
       );
 
       res.status(200).json({
@@ -78,15 +81,18 @@ export const submitVerification = async (
         documentImageUrl,
       );
 
-      // Log the action
-      await auditService.createAuditLog(
-        userId,
-        AuditActionType.VERIFICATION,
-        req.ip || '',
-        req.headers['user-agent'] || '',
+      // Log the action using contextual logging (checks user type)
+      await createContextualLog(
+        req,
+        AuditActionType.VERIFICATION, // For voters
+        AdminAction.VOTER_VERIFICATION_APPROVE, // For admins (closest available action)
+        ResourceType.VERIFICATION_REQUEST,
+        result.id,
         {
           documentType,
           verificationId: result.id,
+          action: 'submit',
+          success: true,
         },
       );
 
@@ -123,13 +129,13 @@ export const getPendingVerifications = async (
     // Get pending verifications
     const result = await verificationService.getPendingVerifications(Number(page), Number(limit));
 
-    // Log the action
-    await auditService.createAuditLog(
-      req.user?.id as string,
-      'pending_verifications_view',
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { query: req.query },
+    // Log the action (admin route - use admin logs)
+    await createAdminLog(
+      req,
+      AdminAction.VOTER_VERIFICATION_APPROVE, // Using closest available action
+      ResourceType.VERIFICATION_REQUEST,
+      null,
+      { query: req.query, action: 'pending_verifications_view' },
     );
 
     res.status(200).json({
@@ -164,15 +170,16 @@ export const approveVerification = async (
       // Approve verification
       const result = await verificationService.approveVerification(id, adminId, notes);
 
-      // Log the action
-      await auditService.createAuditLog(
-        adminId,
-        'verification_approval',
-        req.ip || '',
-        req.headers['user-agent'] || '',
+      // Log the action (admin route - use admin logs)
+      await createAdminLog(
+        req,
+        AdminAction.VOTER_VERIFICATION_APPROVE,
+        ResourceType.VERIFICATION_REQUEST,
+        id,
         {
           verificationId: id,
           notes,
+          success: true,
         },
       );
 
@@ -220,15 +227,16 @@ export const rejectVerification = async (
       // Reject verification
       const result = await verificationService.rejectVerification(id, adminId, reason);
 
-      // Log the action
-      await auditService.createAuditLog(
-        adminId,
-        'verification_rejection',
-        req.ip || '',
-        req.headers['user-agent'] || '',
+      // Log the action (admin route - use admin logs)
+      await createAdminLog(
+        req,
+        AdminAction.VOTER_VERIFICATION_REJECT,
+        ResourceType.VERIFICATION_REQUEST,
+        id,
         {
           verificationId: id,
           reason,
+          success: true,
         },
       );
 

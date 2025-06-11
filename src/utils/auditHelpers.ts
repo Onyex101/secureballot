@@ -65,6 +65,37 @@ export const createVoterAuditLog = (
 };
 
 /**
+ * Universal audit logging function that checks user type and routes appropriately
+ * - Admin users: Use admin logs with appropriate admin action
+ * - Voter users: Use audit logs with provided audit action type
+ * @param req - Express request object with authentication info
+ * @param auditActionType - Audit action type for voters
+ * @param adminAction - Admin action for admin users
+ * @param resourceType - Resource type for admin logs
+ * @param resourceId - Resource ID for admin logs (optional)
+ * @param actionDetails - Additional details about the action
+ * @param isSuspicious - Whether this action is suspicious (optional, audit logs only)
+ * @returns Promise that resolves when log is created
+ */
+export const createContextualLog = (
+  req: AuthRequest,
+  auditActionType: string,
+  adminAction: string,
+  resourceType: string,
+  resourceId?: string | null,
+  actionDetails?: any,
+  isSuspicious?: boolean,
+): Promise<any> => {
+  if (req.userType === 'admin') {
+    // Admin users use admin logs
+    return createAdminLog(req, adminAction, resourceType, resourceId, actionDetails);
+  } else {
+    // Voters use audit logs
+    return createVoterAuditLog(req, auditActionType, actionDetails, isSuspicious);
+  }
+};
+
+/**
  * Create admin log entry for admin-specific actions
  * This should be used for all admin routes instead of audit logs
  * @param req - Express request object with authentication info

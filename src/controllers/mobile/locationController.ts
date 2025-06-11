@@ -1,8 +1,10 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import { auditService, voterService } from '../../services';
-import { ApiError } from '../../middleware/errorHandler';
+import { voterService } from '../../services';
+import { createContextualLog } from '../../utils/auditHelpers';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
+import { ApiError } from '../../middleware/errorHandler';
 import { logger } from '../../config/logger';
 import PollingUnit from '../../db/models/PollingUnit';
 
@@ -35,12 +37,13 @@ export const getUserPollingUnit = async (
       );
     }
 
-    // Log the action
-    await auditService.createAuditLog(
-      userId,
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.USER_ASSIGNED_PU_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.POLLING_UNIT_LIST_VIEW,
+      ResourceType.POLLING_UNIT,
+      pollingUnit.id,
       { success: true, pollingUnitId: pollingUnit.id },
     );
 
@@ -63,16 +66,15 @@ export const getUserPollingUnit = async (
       },
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        userId || 'unknown',
-        AuditActionType.USER_ASSIGNED_PU_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log user polling unit view error', logErr));
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.USER_ASSIGNED_PU_VIEW,
+      AdminAction.POLLING_UNIT_LIST_VIEW,
+      ResourceType.POLLING_UNIT,
+      null,
+      { success: false, error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log user polling unit view error', logErr));
     next(error);
   }
 };

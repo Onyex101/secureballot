@@ -1,8 +1,10 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import { pollingUnitService, auditService } from '../../services';
-import { ApiError } from '../../middleware/errorHandler';
+import { pollingUnitService } from '../../services';
+import { createContextualLog } from '../../utils/auditHelpers';
 import { AuditActionType } from '../../db/models/AuditLog';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
+import { ApiError } from '../../middleware/errorHandler';
 import { logger } from '../../config/logger';
 import PollingUnit from '../../db/models/PollingUnit';
 
@@ -36,12 +38,13 @@ export const getNearbyPollingUnits = async (
       Number(limit),
     );
 
-    // Log the action
-    await auditService.createAuditLog(
-      userId,
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.MOBILE_NEARBY_PU_SEARCH,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.POLLING_UNIT_LIST_VIEW,
+      ResourceType.POLLING_UNIT,
+      userId,
       {
         success: true,
         latitude: Number(latitude),
@@ -73,23 +76,22 @@ export const getNearbyPollingUnits = async (
       },
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        userId || 'unknown',
-        AuditActionType.MOBILE_NEARBY_PU_SEARCH,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          success: false,
-          latitude: latitude ? Number(latitude) : undefined,
-          longitude: longitude ? Number(longitude) : undefined,
-          radius: radius ? Number(radius) : undefined,
-          limit: limit ? Number(limit) : undefined,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log nearby PU search error', logErr));
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.MOBILE_NEARBY_PU_SEARCH,
+      AdminAction.POLLING_UNIT_LIST_VIEW,
+      ResourceType.POLLING_UNIT,
+      userId,
+      {
+        success: false,
+        latitude: latitude ? Number(latitude) : undefined,
+        longitude: longitude ? Number(longitude) : undefined,
+        radius: radius ? Number(radius) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log nearby PU search error', logErr));
     next(error);
   }
 };

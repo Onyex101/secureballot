@@ -8,6 +8,8 @@ import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { UssdSessionStatus } from '../../db/models/UssdSession';
 import { AuthRequest } from '../../middleware/auth';
+import { createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 // USSD Menu definitions
 const USSD_MENUS = {
@@ -75,12 +77,13 @@ export const getSessionStatus = async (
     // Get session status
     result = await ussdService.getSessionStatus(sessionCode);
 
-    // Log the action
-    await auditService.createAuditLog(
-      result.userId || 'unknown',
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.USSD_SESSION,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.AUDIT_LOG_VIEW,
+      ResourceType.VOTER,
+      sessionCode,
       {
         success: true,
         context: 'status_check',
@@ -98,16 +101,15 @@ export const getSessionStatus = async (
       },
     });
   } catch (error) {
-    // Log failure
-    await auditService
-      .createAuditLog(
-        result?.userId || 'unknown',
-        AuditActionType.USSD_SESSION,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, context: 'status_check', sessionCode, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log USSD session status check error', logErr));
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.USSD_SESSION,
+      AdminAction.SYSTEM_CONFIG_UPDATE,
+      ResourceType.VOTER,
+      sessionCode,
+      { success: false, context: 'status_check', sessionCode, error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log USSD session status check error', logErr));
 
     // Pass error to global handler
     next(error);
@@ -148,12 +150,13 @@ export const startSession = async (
     // Set initial menu state (placeholder - implement when updateSessionState is available)
     // await ussdService.updateSessionState(sessionId, { currentMenu: 'MAIN', menuHistory: [], userInput: {} });
 
-    // Log the action
-    await auditService.createAuditLog(
-      'system',
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.USSD_SESSION_START,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ADMIN_USER_CREATE,
+      ResourceType.VOTER,
+      sessionCode,
       { phoneNumber, sessionId, success: true },
     );
 
@@ -168,20 +171,20 @@ export const startSession = async (
       },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        'system',
-        AuditActionType.USSD_SESSION_START,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          phoneNumber: req.body.phoneNumber,
-          sessionId: req.body.sessionId,
-          success: false,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log USSD session start error', logErr));
+    // Log error using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.USSD_SESSION_START,
+      AdminAction.ADMIN_USER_CREATE,
+      ResourceType.VOTER,
+      null,
+      {
+        phoneNumber: req.body.phoneNumber,
+        sessionId: req.body.sessionId,
+        success: false,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log USSD session start error', logErr));
 
     next(error);
   }

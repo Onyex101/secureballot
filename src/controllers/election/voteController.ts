@@ -6,9 +6,10 @@ import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import { VoteSource } from '../../db/models/Vote';
 import { sequelize } from '../../server';
-import { voteService, auditService, voterService, electionService } from '../../services';
-import { getSafeUserIdForAudit, createVoterAuditLog } from '../../utils/auditHelpers';
+import { voteService, voterService, electionService } from '../../services';
+import { createContextualLog } from '../../utils/auditHelpers';
 import { logger } from '../../config/logger';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Cast a vote in an election
@@ -57,11 +58,13 @@ export const castVote = async (
       VoteSource.WEB,
     );
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.VOTE_CAST,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    // Log successful vote using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_CAST, // For voters
+      AdminAction.RESULTS_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
+      voteResult.id,
       {
         success: true,
         electionId,
@@ -91,22 +94,22 @@ export const castVote = async (
   } catch (error: any) {
     await transaction.rollback();
 
-    await auditService
-      .createAuditLog(
-        getSafeUserIdForAudit(userId),
-        AuditActionType.VOTE_CAST,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          success: false,
-          electionId,
-          electionName: electionName || 'Unknown',
-          candidateId,
-          voteSource: VoteSource.WEB,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log vote cast error', logErr));
+    // Log failed vote using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_CAST, // For voters
+      AdminAction.RESULTS_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
+      null,
+      {
+        success: false,
+        electionId,
+        electionName: electionName || 'Unknown',
+        candidateId,
+        voteSource: VoteSource.WEB,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log vote cast error', logErr));
 
     next(error);
   }
@@ -123,16 +126,18 @@ export const verifyVote = async (
   next: NextFunction,
 ): Promise<void> => {
   const { receiptCode } = req.params;
-  const userId = req.user?.id;
+  const _userId = req.user?.id;
 
   try {
     const result = await voteService.verifyVote(receiptCode);
 
-    await auditService.createAuditLog(
-      getSafeUserIdForAudit(userId), // Use null for anonymous verifiers
-      AuditActionType.VOTE_VERIFY,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    // Log vote verification using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_VERIFY, // For voters
+      AdminAction.RESULTS_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
+      receiptCode,
       {
         receiptCode,
         success: result.isValid,
@@ -156,15 +161,15 @@ export const verifyVote = async (
     });
   } catch (error) {
     if (!(error instanceof ApiError && error.code === 'VOTE_VERIFICATION_FAILED')) {
-      await auditService
-        .createAuditLog(
-          getSafeUserIdForAudit(userId), // Use null for anonymous verifiers
-          AuditActionType.VOTE_VERIFY,
-          req.ip || '',
-          req.headers['user-agent'] || '',
-          { receiptCode, success: false, error: (error as Error).message },
-        )
-        .catch(logErr => logger.error('Failed to log vote verification error', logErr));
+      // Log verification error using contextual logging
+      await createContextualLog(
+        req,
+        AuditActionType.VOTE_VERIFY, // For voters
+        AdminAction.RESULTS_VIEW, // For admins (closest available)
+        ResourceType.VOTE,
+        receiptCode,
+        { receiptCode, success: false, error: (error as Error).message },
+      ).catch(logErr => logger.error('Failed to log vote verification error', logErr));
     }
     next(error);
   }
@@ -189,11 +194,13 @@ export const getVoteHistory = async (
 
     const history = await voteService.getVoteHistory(userId);
 
-    await auditService.createAuditLog(
+    // Log vote history view using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_HISTORY_VIEW, // For voters
+      AdminAction.RESULTS_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
       userId,
-      AuditActionType.VOTE_HISTORY_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
       { success: true, recordCount: history.length },
     );
 
@@ -204,15 +211,15 @@ export const getVoteHistory = async (
       data: history,
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        getSafeUserIdForAudit(userId),
-        AuditActionType.VOTE_HISTORY_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log vote history view error', logErr));
+    // Log error using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_HISTORY_VIEW, // For voters
+      AdminAction.RESULTS_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
+      userId,
+      { success: false, error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log vote history view error', logErr));
     next(error);
   }
 };
@@ -250,45 +257,54 @@ export const reportVoteIssue = async (
       voteId,
       electionId,
       issueDescription,
-      contactInfo,
+      hasContactInfo: !!contactInfo,
     });
+
     const reportId = crypto.randomUUID();
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.VOTE_ISSUE_REPORT,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    // Log issue report using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_ISSUE_REPORT, // For voters
+      AdminAction.AUDIT_LOG_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
+      voteId || electionId,
       {
         success: true,
-        voteId: voteId || null,
-        electionId: electionId || null,
+        voteId,
+        electionId,
         reportId,
-        issueLength: issueDescription.length,
+        issueType: 'vote_issue',
+        description: issueDescription.substring(0, 100), // Truncate for logging
+        hasContactInfo: !!contactInfo,
       },
     );
 
     res.status(200).json({
       success: true,
-      code: 'VOTE_ISSUE_REPORTED',
-      message: 'Issue reported successfully. Thank you for your feedback.',
-      data: { reportId },
+      code: 'ISSUE_REPORTED',
+      message: 'Vote issue reported successfully. Our team will investigate and respond if needed.',
+      data: {
+        reportId,
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        getSafeUserIdForAudit(userId),
-        AuditActionType.VOTE_ISSUE_REPORT,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          success: false,
-          voteId: voteId || null,
-          electionId: electionId || null,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log vote issue report error', logErr));
+    // Log error using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_ISSUE_REPORT, // For voters
+      AdminAction.AUDIT_LOG_VIEW, // For admins (closest available)
+      ResourceType.VOTE,
+      voteId || electionId,
+      {
+        success: false,
+        voteId,
+        electionId,
+        issueType: 'vote_issue',
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log issue report error', logErr));
     next(error);
   }
 };
@@ -316,12 +332,19 @@ export const checkVotingStatus = async (
     const existingVote = await db.Vote.findOne({ where: { userId, electionId } });
     const hasVoted = !!existingVote;
 
-    await createVoterAuditLog(req, AuditActionType.VOTE_STATUS_CHECK, {
+    // Log based on user type
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_STATUS_CHECK, // For voters
+      AdminAction.ELECTION_DETAIL_VIEW, // For admins - checking vote status is part of election monitoring
+      ResourceType.ELECTION,
       electionId,
-      success: true,
-      isEligible: eligibility.isEligible,
-      hasVoted,
-    });
+      {
+        success: true,
+        isEligible: eligibility.isEligible,
+        hasVoted,
+      },
+    );
 
     res.status(200).json({
       success: true,
@@ -336,11 +359,17 @@ export const checkVotingStatus = async (
       },
     });
   } catch (error) {
-    await createVoterAuditLog(req, AuditActionType.VOTE_STATUS_CHECK, {
+    await createContextualLog(
+      req,
+      AuditActionType.VOTE_STATUS_CHECK, // For voters
+      AdminAction.ELECTION_DETAIL_VIEW, // For admins
+      ResourceType.ELECTION,
       electionId,
-      success: false,
-      error: (error as Error).message,
-    }).catch(logErr => logger.error('Failed to log voting status check error', logErr));
+      {
+        success: false,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log voting status check error', logErr));
     next(error);
   }
 };

@@ -1,8 +1,8 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { ApiError } from '../../middleware/errorHandler';
-import { AuditActionType } from '../../db/models/AuditLog';
-import { auditService } from '../../services';
+import { createAdminLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Verify election results
@@ -34,14 +34,11 @@ export const verifyElectionResults = async (
     // 3. Cross-referencing with physical records
     // 4. Updating election status
 
-    // Log the action
-    await auditService.createAuditLog(
-      adminId,
-      AuditActionType.RESULT_VERIFICATION,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { electionId, verificationNotes },
-    );
+    // Log the action using admin logs
+    await createAdminLog(req, AdminAction.RESULTS_VERIFY, ResourceType.ELECTION, electionId, {
+      verificationNotes,
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
@@ -80,14 +77,11 @@ export const getVerificationHistory = async (
     // 2. Including admin details and timestamps
     // 3. Including verification notes and status
 
-    // Log the action
-    await auditService.createAuditLog(
-      adminId,
-      AuditActionType.VERIFICATION_HISTORY_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { electionId },
-    );
+    // Log the action using admin logs
+    await createAdminLog(req, AdminAction.RESULTS_VIEW, ResourceType.ELECTION, electionId, {
+      action: 'verification_history_view',
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
@@ -128,14 +122,11 @@ export const verifyAndPublishResults = async (
     // 3. Publishing results at specified level
     // 4. Updating election status
 
-    // Log the action
-    await auditService.createAuditLog(
-      adminId,
-      AuditActionType.RESULT_PUBLISH,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { electionId, publishLevel },
-    );
+    // Log the action using admin logs
+    await createAdminLog(req, AdminAction.RESULTS_PUBLISH, ResourceType.ELECTION, electionId, {
+      publishLevel,
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
@@ -154,12 +145,9 @@ export const publishResults = async (req: AuthRequest, res: Response, next: Next
     }
 
     // TODO: Implement result publishing logic
-    await auditService.createAuditLog(
-      req.user?.id || 'unknown',
-      AuditActionType.RESULT_VERIFICATION,
-      JSON.stringify({ electionId }),
-      req.ip || 'unknown',
-    );
+    await createAdminLog(req, AdminAction.RESULTS_PUBLISH, ResourceType.ELECTION, electionId, {
+      success: true,
+    });
 
     res.status(200).json({ success: true, message: 'Results published successfully' });
   } catch (error) {
@@ -175,12 +163,11 @@ export const rejectResults = async (req: AuthRequest, res: Response, next: NextF
     }
 
     // TODO: Implement result rejection logic
-    await auditService.createAuditLog(
-      req.user?.id || 'unknown',
-      AuditActionType.RESULT_VERIFICATION,
-      JSON.stringify({ electionId, reason }),
-      req.ip || 'unknown',
-    );
+    await createAdminLog(req, AdminAction.RESULTS_VERIFY, ResourceType.ELECTION, electionId, {
+      reason,
+      action: 'reject',
+      success: true,
+    });
 
     res.status(200).json({ success: true, message: 'Results rejected successfully' });
   } catch (error) {

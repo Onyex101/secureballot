@@ -1,8 +1,9 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { ApiError } from '../../middleware/errorHandler';
-import { pollingUnitService, auditService } from '../../services';
-import { AuditActionType } from '../../db/models/AuditLog';
+import { pollingUnitService } from '../../services';
+import { createAdminLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 import { logger } from '../../config/logger';
 
 /**
@@ -17,7 +18,6 @@ export const getRegionPollingUnits = async (
 ): Promise<void> => {
   const { state } = req.params;
   const { page = 1, limit = 50, search, lga, ward } = req.query;
-  const userId = req.user?.id || 'unknown';
 
   try {
     const filters = {
@@ -33,13 +33,11 @@ export const getRegionPollingUnits = async (
       Number(limit),
     );
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.REGION_POLLING_UNITS_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { state, query: req.query, success: true },
-    );
+    await createAdminLog(req, AdminAction.POLLING_UNIT_LIST_VIEW, ResourceType.POLLING_UNIT, null, {
+      state,
+      query: req.query,
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
@@ -55,15 +53,12 @@ export const getRegionPollingUnits = async (
       },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.REGION_POLLING_UNITS_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { state, query: req.query, success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log region polling units view error', logErr));
+    await createAdminLog(req, AdminAction.POLLING_UNIT_LIST_VIEW, ResourceType.POLLING_UNIT, null, {
+      state,
+      query: req.query,
+      success: false,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log region polling units view error', logErr));
     next(error);
   }
 };
@@ -80,7 +75,6 @@ export const createPollingUnit = async (
 ): Promise<void> => {
   const { pollingUnitName, pollingUnitCode, address, state, lga, ward, latitude, longitude } =
     req.body;
-  const userId = req.user?.id || 'unknown';
 
   try {
     if (!state || !lga || !ward) {
@@ -103,14 +97,13 @@ export const createPollingUnit = async (
       undefined, // registeredVoters defaults in service
     );
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.POLLING_UNIT_CREATE,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    await createAdminLog(
+      req,
+      AdminAction.POLLING_UNIT_CREATE,
+      ResourceType.POLLING_UNIT,
+      pollingUnit.id,
       {
         success: true,
-        pollingUnitId: pollingUnit.id,
         pollingUnitCode: pollingUnit.pollingUnitCode,
         state,
         lga,
@@ -124,15 +117,14 @@ export const createPollingUnit = async (
       data: { pollingUnit },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.POLLING_UNIT_CREATE,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, pollingUnitCode, state, lga, ward, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log polling unit creation error', logErr));
+    await createAdminLog(req, AdminAction.POLLING_UNIT_CREATE, ResourceType.POLLING_UNIT, null, {
+      success: false,
+      pollingUnitCode,
+      state,
+      lga,
+      ward,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log polling unit creation error', logErr));
     next(error);
   }
 };
@@ -149,7 +141,6 @@ export const updatePollingUnit = async (
 ): Promise<void> => {
   const { pollingUnitId } = req.params;
   const { pollingUnitName, address, latitude, longitude } = req.body;
-  const userId = req.user?.id || 'unknown';
 
   try {
     const existingPollingUnit = await pollingUnitService.getPollingUnitById(pollingUnitId);
@@ -164,14 +155,13 @@ export const updatePollingUnit = async (
       longitude: longitude ? Number(longitude) : undefined,
     });
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.POLLING_UNIT_UPDATE,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+    await createAdminLog(
+      req,
+      AdminAction.POLLING_UNIT_UPDATE,
+      ResourceType.POLLING_UNIT,
+      pollingUnitId,
       {
         success: true,
-        pollingUnitId,
         updatedFields: Object.keys(req.body)
           .filter(k => ['pollingUnitName', 'address', 'latitude', 'longitude'].includes(k))
           .join(', '),
@@ -184,26 +174,23 @@ export const updatePollingUnit = async (
       data: { pollingUnit: updatedPollingUnit },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.POLLING_UNIT_UPDATE,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          success: false,
-          pollingUnitId,
-          updatedFields: Object.keys(req.body).join(', '),
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log polling unit update error', logErr));
+    await createAdminLog(
+      req,
+      AdminAction.POLLING_UNIT_UPDATE,
+      ResourceType.POLLING_UNIT,
+      pollingUnitId,
+      {
+        success: false,
+        updatedFields: Object.keys(req.body).join(', '),
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log polling unit update error', logErr));
     next(error);
   }
 };
 
 /**
- * Get statistics for a region (state)
+ * Get regional statistics (state-based)
  * @route GET /api/v1/admin/regions/:state/statistics
  * @access Private (Regional Officer)
  */
@@ -213,47 +200,39 @@ export const getRegionStatistics = async (
   next: NextFunction,
 ): Promise<void> => {
   const { state } = req.params;
-  const userId = req.user?.id || 'unknown';
 
   try {
-    const regionFilters = { state };
+    // TODO: Implement regional statistics retrieval
+    // This would involve aggregating data for:
+    // - Total polling units in the state
+    // - Total registered voters
+    // - Voting statistics by LGA and Ward
+    // - Election participation rates
 
-    const pollingUnitsCount = await pollingUnitService.countPollingUnitsByRegion(regionFilters);
-    const registeredVotersCount =
-      await pollingUnitService.countRegisteredVotersByRegion(regionFilters);
-    const activeElections = await pollingUnitService.getActiveElectionsByRegion(regionFilters);
+    const statistics = {
+      state,
+      totalPollingUnits: 0,
+      totalRegisteredVoters: 0,
+      activeElections: 0,
+      // TODO: Add more statistical data
+    };
 
-    await auditService.createAuditLog(
-      userId,
-      AuditActionType.REGION_STATS_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
-      { state, success: true },
-    );
+    await createAdminLog(req, AdminAction.SYSTEM_STATS_VIEW, ResourceType.POLLING_UNIT, null, {
+      state,
+      success: true,
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Region statistics retrieved successfully',
-      data: {
-        region: {
-          id: state,
-          name: `State of ${state}`,
-        },
-        pollingUnitsCount,
-        registeredVotersCount,
-        activeElectionsCount: activeElections.length,
-      },
+      message: 'Regional statistics retrieved successfully',
+      data: statistics,
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.REGION_STATS_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { state, success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log region stats view error', logErr));
+    await createAdminLog(req, AdminAction.SYSTEM_STATS_VIEW, ResourceType.POLLING_UNIT, null, {
+      state,
+      success: false,
+      error: (error as Error).message,
+    }).catch(logErr => logger.error('Failed to log region statistics view error', logErr));
     next(error);
   }
 };

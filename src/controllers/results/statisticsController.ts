@@ -5,6 +5,9 @@ import { AuditActionType } from '../../db/models/AuditLog';
 import { auditService, statisticsService, voteService } from '../../services';
 import { logger } from '../../config/logger';
 import { getSafeUserIdForAudit } from '../../utils/auditHelpers';
+import { Request } from 'express';
+import { createContextualLog } from '../../utils/auditHelpers';
+import { AdminAction, ResourceType } from '../../services/adminLogService';
 
 /**
  * Get election results (potentially with breakdown)
@@ -18,7 +21,6 @@ export const getElectionResults = async (
 ): Promise<void> => {
   const { electionId } = req.params;
   const { includePollingUnitBreakdown = false } = req.query;
-  const userId = getSafeUserIdForAudit(req.user?.id); // Safely get user ID for audit logging
   const context = { electionId, includePollingUnitBreakdown };
 
   try {
@@ -28,12 +30,13 @@ export const getElectionResults = async (
       includePollingUnitBreakdown === 'true',
     );
 
-    // Log the action
-    await auditService.createAuditLog(
-      userId,
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.ELECTION_RESULTS_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.RESULTS_VIEW,
+      ResourceType.ELECTION,
+      electionId,
       { success: true, ...context },
     );
 
@@ -42,15 +45,14 @@ export const getElectionResults = async (
       data: results,
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.ELECTION_RESULTS_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, ...context, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log election results view error', logErr));
+    await createContextualLog(
+      req,
+      AuditActionType.ELECTION_RESULTS_VIEW,
+      AdminAction.RESULTS_VIEW,
+      ResourceType.ELECTION,
+      electionId,
+      { success: false, ...context, error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log election results view error', logErr));
     next(error);
   }
 };
@@ -71,12 +73,13 @@ export const getRealTimeVotingStats = async (
     // Get real-time voting statistics
     const stats = await statisticsService.getRealTimeVotingStats();
 
-    // Log the action
-    await auditService.createAuditLog(
-      userId,
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.REAL_TIME_STATS_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.SYSTEM_STATS_VIEW,
+      ResourceType.SYSTEM,
+      userId,
       { success: true },
     );
 
@@ -85,15 +88,14 @@ export const getRealTimeVotingStats = async (
       data: stats,
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        userId,
-        AuditActionType.REAL_TIME_STATS_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        { success: false, error: (error as Error).message },
-      )
-      .catch(logErr => logger.error('Failed to log real-time stats view error', logErr));
+    await createContextualLog(
+      req,
+      AuditActionType.REAL_TIME_STATS_VIEW,
+      AdminAction.SYSTEM_STATS_VIEW,
+      ResourceType.SYSTEM,
+      userId,
+      { success: false, error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log real-time stats view error', logErr));
     next(error);
   }
 };
@@ -123,12 +125,13 @@ export const getElectionStatistics = async (
     // Get comprehensive election statistics from the simplified service
     const electionStats = await statisticsService.getElectionStatistics(electionId);
 
-    // Log the action
-    await auditService.createAuditLog(
-      userId,
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.ELECTION_STATISTICS_VIEW,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ELECTION_DETAIL_VIEW,
+      ResourceType.ELECTION,
+      electionId,
       { electionId, success: true },
     );
 
@@ -201,19 +204,18 @@ export const getElectionStatistics = async (
       },
     });
   } catch (error) {
-    await auditService
-      .createAuditLog(
-        getSafeUserIdForAudit(req.user?.id),
-        AuditActionType.ELECTION_STATISTICS_VIEW,
-        req.ip || '',
-        req.headers['user-agent'] || '',
-        {
-          electionId: req.params.electionId,
-          success: false,
-          error: (error as Error).message,
-        },
-      )
-      .catch(logErr => logger.error('Failed to log election statistics view error', logErr));
+    await createContextualLog(
+      req,
+      AuditActionType.ELECTION_STATISTICS_VIEW,
+      AdminAction.ELECTION_DETAIL_VIEW,
+      ResourceType.ELECTION,
+      req.params.electionId,
+      {
+        electionId: req.params.electionId,
+        success: false,
+        error: (error as Error).message,
+      },
+    ).catch(logErr => logger.error('Failed to log election statistics view error', logErr));
 
     next(error);
   }
@@ -326,6 +328,55 @@ export const getRealTimeUpdates = async (
       )
       .catch(logErr => logger.error('Failed to log real-time updates view error', logErr));
 
+    next(error);
+  }
+};
+
+/**
+ * Get general system statistics
+ * @route GET /api/v1/statistics/system
+ * @access Public/Private (depends on configuration)
+ */
+export const getSystemStatistics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    // Get system statistics (placeholder implementation)
+    const stats = {
+      totalElections: 0,
+      activeElections: 0,
+      totalVoters: 0,
+      totalVotesCast: 0,
+      systemUptime: '99.9%',
+      lastUpdate: new Date(),
+    };
+
+    // Log the action using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.SYSTEM_STATISTICS_VIEW,
+      AdminAction.SYSTEM_STATS_VIEW,
+      ResourceType.SYSTEM,
+      null,
+      { success: true, statsType: 'system' },
+    );
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    // Log failure using contextual logging
+    await createContextualLog(
+      req,
+      AuditActionType.SYSTEM_STATISTICS_VIEW,
+      AdminAction.SYSTEM_STATS_VIEW,
+      ResourceType.SYSTEM,
+      null,
+      { success: false, statsType: 'system', error: (error as Error).message },
+    ).catch(logErr => logger.error('Failed to log system statistics view error', logErr));
     next(error);
   }
 };

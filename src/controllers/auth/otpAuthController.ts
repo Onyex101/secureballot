@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../../services/authService';
 import * as otpService from '../../services/otpService';
-import * as auditService from '../../services/auditService';
+
 import { logger } from '../../config/logger';
 import { ApiError } from '../../middleware/errorHandler';
 import { AuditActionType } from '../../db/models/AuditLog';
 import Voter from '../../db/models/Voter';
 import { createAdminLog } from '../../utils/auditHelpers';
 import { AdminAction, ResourceType } from '../../services/adminLogService';
+import { createContextualLog } from '../../utils/auditHelpers';
 
 // Constant OTP for proof of concept
 const CONSTANT_OTP = '723111';
@@ -44,12 +45,13 @@ export const requestVoterLogin = async (
     const voter = await authService.findVoterByIdentity(nin, vin);
 
     if (!voter) {
-      // Log failed authentication attempt for audit
-      await auditService.createAuditLog(
-        'unknown', // No voter ID available
+      // Log failed authentication attempt using contextual logging
+      await createContextualLog(
+        req,
         AuditActionType.LOGIN,
-        req.ip || '',
-        req.headers['user-agent'] || '',
+        AdminAction.ADMIN_USER_LOGIN,
+        ResourceType.VOTER,
+        null,
         {
           success: false,
           reason: 'invalid_credentials',
@@ -68,11 +70,13 @@ export const requestVoterLogin = async (
     // POC Mode: Always return constant OTP information
     logger.info('POC: OTP request processed', { voterId: voter.get('id') });
 
-    await auditService.createAuditLog(
-      voter.id,
+    // Log OTP request using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.LOGIN,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ADMIN_USER_LOGIN,
+      ResourceType.VOTER,
+      voter.id,
       {
         step: 'otp_requested_poc',
         success: true,
@@ -174,12 +178,13 @@ export const verifyOtpAndLogin = async (
     // Update last login
     await voter.update({ lastLogin: new Date() });
 
-    // Log successful login
-    await auditService.createAuditLog(
-      voter.id,
+    // Log successful login using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.LOGIN,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ADMIN_USER_LOGIN,
+      ResourceType.VOTER,
+      voter.id,
       {
         success: true,
         login_method: loginMethod,
@@ -246,12 +251,13 @@ export const resendOtp = async (req: Request, res: Response, next: NextFunction)
       req.headers['user-agent'],
     );
 
-    // Log OTP resend
-    await auditService.createAuditLog(
-      voter.id,
+    // Log OTP resend using contextual logging
+    await createContextualLog(
+      req,
       AuditActionType.LOGIN,
-      req.ip || '',
-      req.headers['user-agent'] || '',
+      AdminAction.ADMIN_USER_LOGIN,
+      ResourceType.VOTER,
+      voter.id,
       {
         action: 'otp_resend',
         success: true,
