@@ -196,7 +196,7 @@ router.get(
  *                 minItems: 2
  *                 items:
  *                   type: object
- *                                      required:
+ *                   required:
  *                     - fullName
  *                     - partyCode
  *                     - partyName

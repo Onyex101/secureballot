@@ -3,6 +3,9 @@ import { AuthRequest } from '../../middleware/auth';
 import { ApiError } from '../../middleware/errorHandler';
 import { createAdminLog } from '../../utils/auditHelpers';
 import { AdminAction, ResourceType } from '../../services/adminLogService';
+import { electionService } from '../../services';
+import { ElectionStatus } from '../../db/models/Election';
+import { logger } from '../../config/logger';
 
 /**
  * Verify election results
@@ -105,7 +108,7 @@ export const verifyAndPublishResults = async (
   try {
     const adminId = req.user?.id;
     const { electionId } = req.params;
-    const { publishLevel } = req.body;
+    const { publishLevel, verificationNotes } = req.body;
 
     if (!adminId) {
       throw new ApiError(401, 'Admin ID not found in request', 'AUTHENTICATION_REQUIRED');
@@ -115,24 +118,80 @@ export const verifyAndPublishResults = async (
       throw new ApiError(400, 'Election ID is required', 'MISSING_ELECTION_ID');
     }
 
+    // Get the election to check its current status
+    const election = await electionService.getElectionById(electionId);
+    if (!election) {
+      throw new ApiError(404, 'Election not found', 'ELECTION_NOT_FOUND');
+    }
+
+    // Verify that the election is in a state that can be closed
+    if (election.status === ElectionStatus.COMPLETED) {
+      throw new ApiError(400, 'Election is already completed', 'ELECTION_ALREADY_COMPLETED');
+    }
+
+    if (election.status === ElectionStatus.CANCELLED) {
+      throw new ApiError(
+        400,
+        'Cannot verify results for a cancelled election',
+        'ELECTION_CANCELLED',
+      );
+    }
+
     // TODO: Implement result verification and publishing logic
     // This would involve:
     // 1. Verifying vote counts
     // 2. Checking vote integrity
     // 3. Publishing results at specified level
-    // 4. Updating election status
+
+    // Publish results if publishLevel is specified
+    if (publishLevel) {
+      await electionService.publishElectionResults(electionId, publishLevel);
+    }
+
+    // Close the election by updating its status to COMPLETED and mark results as published
+    await electionService.updateElectionStatus(electionId, ElectionStatus.COMPLETED);
+
+    // Update the election to mark results as published
+    await election.update({
+      resultsPublished: true,
+      resultsPublishedAt: new Date(),
+    });
 
     // Log the action using admin logs
     await createAdminLog(req, AdminAction.RESULTS_PUBLISH, ResourceType.ELECTION, electionId, {
       publishLevel,
+      verificationNotes,
+      previousStatus: election.status,
+      newStatus: ElectionStatus.COMPLETED,
       success: true,
     });
 
     res.status(200).json({
       success: true,
-      message: 'Election results verified and published successfully',
+      message: 'Election results verified, published, and election closed successfully',
+      data: {
+        electionId,
+        previousStatus: election.status,
+        newStatus: ElectionStatus.COMPLETED,
+        publishLevel,
+      },
     });
   } catch (error) {
+    // Log error if we have the electionId
+    if (req.params.electionId) {
+      await createAdminLog(
+        req,
+        AdminAction.RESULTS_PUBLISH,
+        ResourceType.ELECTION,
+        req.params.electionId,
+        {
+          publishLevel: req.body.publishLevel,
+          verificationNotes: req.body.verificationNotes,
+          success: false,
+          error: (error as Error).message,
+        },
+      ).catch(logErr => logger.error('Failed to log error:', logErr));
+    }
     next(error);
   }
 };

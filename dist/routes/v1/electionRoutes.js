@@ -198,7 +198,7 @@ router.get('/:electionId/candidates', rateLimiter_1.defaultLimiter, (0, validato
  *                 minItems: 2
  *                 items:
  *                   type: object
- *                                      required:
+ *                   required:
  *                     - fullName
  *                     - partyCode
  *                     - partyName
