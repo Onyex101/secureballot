@@ -15,7 +15,6 @@ const generateElectionKeys = () => {
         const { publicKey, privateKey } = (0, encryption_1.generateRsaKeyPair)();
         // Create a fingerprint of the public key for verification
         const publicKeyFingerprint = (0, encryption_1.hashData)(publicKey).substring(0, 16);
-        logger_1.logger.info('Generated new election keys', { publicKeyFingerprint });
         return {
             publicKey,
             privateKey,

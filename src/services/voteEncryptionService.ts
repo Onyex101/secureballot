@@ -46,8 +46,6 @@ export const generateElectionKeys = (): ElectionKeys => {
     // Create a fingerprint of the public key for verification
     const publicKeyFingerprint = hashData(publicKey).substring(0, 16);
 
-    logger.info('Generated new election keys', { publicKeyFingerprint });
-
     return {
       publicKey,
       privateKey,
