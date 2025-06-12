@@ -81,40 +81,50 @@ const getCandidateById = async (req, res, next) => {
 };
 exports.getCandidateById = getCandidateById;
 /**
- * Create a new candidate (admin only)
+ * Create multiple candidates (admin only)
  * @route POST /api/v1/elections/:electionId/candidates
  * @access Private (Admin)
  */
 const createCandidate = async (req, res, next) => {
     const { electionId } = req.params;
-    const { fullName, partyAffiliation, position, biography, photoUrl } = req.body;
+    const { candidates } = req.body;
     const userId = req.user?.id;
     try {
         if (!userId) {
             throw new errorHandler_1.ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
         }
-        if (!fullName || !partyAffiliation || !position) {
-            throw new errorHandler_1.ApiError(400, 'Missing required fields: fullName, partyAffiliation, position', 'MISSING_REQUIRED_FIELDS');
+        if (!candidates || !Array.isArray(candidates) || candidates.length < 2) {
+            throw new errorHandler_1.ApiError(400, 'At least 2 candidates must be provided', 'INSUFFICIENT_CANDIDATES');
         }
-        // Create candidate
-        const candidate = await services_1.candidateService.createCandidate(fullName, electionId, partyAffiliation, position, biography, photoUrl);
+        // Validate each candidate has required fields
+        for (const candidate of candidates) {
+            if (!candidate.fullName || !candidate.partyCode || !candidate.partyName) {
+                throw new errorHandler_1.ApiError(400, 'Missing required fields: fullName, partyCode, partyName for one or more candidates', 'MISSING_REQUIRED_FIELDS');
+            }
+        }
+        // Create candidates
+        const createdCandidates = await services_1.candidateService.createMultipleCandidates(electionId, candidates);
         // Log the action (admin-only route - use admin logs)
-        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_CREATE, adminLogService_1.ResourceType.CANDIDATE, candidate.id, {
+        await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_CREATE, adminLogService_1.ResourceType.CANDIDATE, null, {
             electionId,
-            candidateName: candidate.fullName,
+            candidateCount: createdCandidates.length,
+            candidateNames: createdCandidates.map((c) => c.fullName),
             success: true,
         });
         res.status(201).json({
             success: true,
-            message: 'Candidate created successfully',
-            data: candidate,
+            message: `${createdCandidates.length} candidates created successfully`,
+            data: {
+                candidates: createdCandidates,
+                count: createdCandidates.length,
+            },
         });
     }
     catch (error) {
         // Log error (admin-only route - use admin logs)
         await (0, auditHelpers_1.createAdminLog)(req, adminLogService_1.AdminAction.CANDIDATE_CREATE, adminLogService_1.ResourceType.CANDIDATE, null, {
             electionId,
-            candidateName: fullName,
+            candidateCount: candidates?.length || 0,
             success: false,
             error: error.message,
         }).catch(logErr => logger_1.logger.error('Failed to log candidate creation error', logErr));

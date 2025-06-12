@@ -20,14 +20,28 @@ export declare const getCandidateById: (id: string) => Promise<Candidate>;
  */
 export declare const createCandidate: (fullName: string, electionId: string, partyAffiliation: string, position: string, biography?: string, photoUrl?: string) => Promise<Candidate>;
 /**
+ * Create multiple candidates
+ */
+export declare const createMultipleCandidates: (electionId: string, candidatesData: Array<{
+    fullName: string;
+    partyCode: string;
+    partyName: string;
+    position?: string;
+    bio?: string;
+    photoUrl?: string;
+    manifesto?: string;
+}>) => Promise<Candidate[]>;
+/**
  * Update a candidate
  */
 export declare const updateCandidate: (id: string, updates: {
     fullName?: string;
-    partyAffiliation?: string;
+    partyCode?: string;
+    partyName?: string;
     position?: string;
-    biography?: string;
+    bio?: string;
     photoUrl?: string;
+    manifesto?: string;
 }) => Promise<Candidate>;
 /**
  * Delete a candidate

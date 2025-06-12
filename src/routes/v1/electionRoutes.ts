@@ -171,7 +171,7 @@ router.get(
  * @swagger
  * /api/v1/elections/{electionId}/candidates:
  *   post:
- *     summary: Create a new candidate for an election (admin only)
+ *     summary: Create multiple candidates for an election (admin only)
  *     tags: [Candidates]
  *     security:
  *       - BearerAuth: []
@@ -189,30 +189,60 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - fullName
- *               - partyAffiliation
- *               - position
+ *               - candidates
  *             properties:
- *               fullName:
- *                 type: string
- *                 example: "John Doe"
- *               partyAffiliation:
- *                 type: string
- *                 example: "Democratic Party"
- *               position:
- *                 type: string
- *                 example: "President"
- *               biography:
- *                 type: string
- *                 example: "John Doe is a seasoned politician..."
- *               photoUrl:
- *                 type: string
- *                 example: "https://example.com/photo.jpg"
+ *               candidates:
+ *                 type: array
+ *                 minItems: 2
+ *                 items:
+ *                   type: object
+ *                                      required:
+ *                     - fullName
+ *                     - partyCode
+ *                     - partyName
+ *                   properties:
+ *                     fullName:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     partyCode:
+ *                       type: string
+ *                       example: "DEM"
+ *                     partyName:
+ *                       type: string
+ *                       example: "Democratic Party"
+ *                     position:
+ *                       type: string
+ *                       example: "President"
+ *                     bio:
+ *                       type: string
+ *                       example: "John Doe is a seasoned politician..."
+ *                     photoUrl:
+ *                       type: string
+ *                       example: "https://example.com/photo.jpg"
+ *                     manifesto:
+ *                       type: string
+ *                       example: "Our vision for a better future..."
+ *           example:
+ *             candidates:
+ *               - fullName: "John Doe"
+ *                 partyCode: "DEM"
+ *                 partyName: "Democratic Party"
+ *                 position: "President"
+ *                 bio: "John Doe is a seasoned politician..."
+ *                 photoUrl: "https://example.com/john-doe.jpg"
+ *                 manifesto: "Our vision for economic growth and social justice..."
+ *               - fullName: "Jane Smith"
+ *                 partyCode: "REP"
+ *                 partyName: "Republican Party"
+ *                 position: "President"
+ *                 bio: "Jane Smith has extensive experience in governance..."
+ *                 photoUrl: "https://example.com/jane-smith.jpg"
+ *                 manifesto: "Strong leadership for a secure future..."
  *     responses:
  *       201:
- *         description: Candidate created successfully
+ *         description: Candidates created successfully
  *       400:
- *         description: Invalid input
+ *         description: Invalid input or only one candidate provided
  *       401:
  *         description: Unauthorized
  *       403:
@@ -227,17 +257,31 @@ router.post(
       .isUUID()
       .withMessage(validationMessages.uuid('Election ID')),
 
-    body('fullName').notEmpty().withMessage(validationMessages.required('Full name')),
-
-    body('partyAffiliation')
+    body('candidates')
       .notEmpty()
-      .withMessage(validationMessages.required('Party affiliation')),
+      .withMessage(validationMessages.required('Candidates'))
+      .isArray()
+      .withMessage('Candidates must be an array')
+      .isLength({ min: 2 })
+      .withMessage('At least 2 candidates must be provided'),
 
-    body('position').notEmpty().withMessage(validationMessages.required('Position')),
+    body('candidates.*.fullName').notEmpty().withMessage(validationMessages.required('Full name')),
 
-    body('biography').optional(),
+    body('candidates.*.partyCode')
+      .notEmpty()
+      .withMessage(validationMessages.required('Party code')),
 
-    body('photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
+    body('candidates.*.partyName')
+      .notEmpty()
+      .withMessage(validationMessages.required('Party name')),
+
+    body('candidates.*.position').optional(),
+
+    body('candidates.*.bio').optional(),
+
+    body('candidates.*.photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
+
+    body('candidates.*.manifesto').optional(),
   ]),
   candidateController.createCandidate,
 );

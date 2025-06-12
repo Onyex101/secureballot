@@ -173,7 +173,7 @@ router.get('/:electionId/candidates', rateLimiter_1.defaultLimiter, (0, validato
  * @swagger
  * /api/v1/elections/{electionId}/candidates:
  *   post:
- *     summary: Create a new candidate for an election (admin only)
+ *     summary: Create multiple candidates for an election (admin only)
  *     tags: [Candidates]
  *     security:
  *       - BearerAuth: []
@@ -191,30 +191,60 @@ router.get('/:electionId/candidates', rateLimiter_1.defaultLimiter, (0, validato
  *           schema:
  *             type: object
  *             required:
- *               - fullName
- *               - partyAffiliation
- *               - position
+ *               - candidates
  *             properties:
- *               fullName:
- *                 type: string
- *                 example: "John Doe"
- *               partyAffiliation:
- *                 type: string
- *                 example: "Democratic Party"
- *               position:
- *                 type: string
- *                 example: "President"
- *               biography:
- *                 type: string
- *                 example: "John Doe is a seasoned politician..."
- *               photoUrl:
- *                 type: string
- *                 example: "https://example.com/photo.jpg"
+ *               candidates:
+ *                 type: array
+ *                 minItems: 2
+ *                 items:
+ *                   type: object
+ *                                      required:
+ *                     - fullName
+ *                     - partyCode
+ *                     - partyName
+ *                   properties:
+ *                     fullName:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     partyCode:
+ *                       type: string
+ *                       example: "DEM"
+ *                     partyName:
+ *                       type: string
+ *                       example: "Democratic Party"
+ *                     position:
+ *                       type: string
+ *                       example: "President"
+ *                     bio:
+ *                       type: string
+ *                       example: "John Doe is a seasoned politician..."
+ *                     photoUrl:
+ *                       type: string
+ *                       example: "https://example.com/photo.jpg"
+ *                     manifesto:
+ *                       type: string
+ *                       example: "Our vision for a better future..."
+ *           example:
+ *             candidates:
+ *               - fullName: "John Doe"
+ *                 partyCode: "DEM"
+ *                 partyName: "Democratic Party"
+ *                 position: "President"
+ *                 bio: "John Doe is a seasoned politician..."
+ *                 photoUrl: "https://example.com/john-doe.jpg"
+ *                 manifesto: "Our vision for economic growth and social justice..."
+ *               - fullName: "Jane Smith"
+ *                 partyCode: "REP"
+ *                 partyName: "Republican Party"
+ *                 position: "President"
+ *                 bio: "Jane Smith has extensive experience in governance..."
+ *                 photoUrl: "https://example.com/jane-smith.jpg"
+ *                 manifesto: "Strong leadership for a secure future..."
  *     responses:
  *       201:
- *         description: Candidate created successfully
+ *         description: Candidates created successfully
  *       400:
- *         description: Invalid input
+ *         description: Invalid input or only one candidate provided
  *       401:
  *         description: Unauthorized
  *       403:
@@ -226,13 +256,24 @@ router.post('/:electionId/candidates', (0, validator_1.validate)([
         .withMessage(validator_1.validationMessages.required('Election ID'))
         .isUUID()
         .withMessage(validator_1.validationMessages.uuid('Election ID')),
-    (0, express_validator_1.body)('fullName').notEmpty().withMessage(validator_1.validationMessages.required('Full name')),
-    (0, express_validator_1.body)('partyAffiliation')
+    (0, express_validator_1.body)('candidates')
         .notEmpty()
-        .withMessage(validator_1.validationMessages.required('Party affiliation')),
-    (0, express_validator_1.body)('position').notEmpty().withMessage(validator_1.validationMessages.required('Position')),
-    (0, express_validator_1.body)('biography').optional(),
-    (0, express_validator_1.body)('photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
+        .withMessage(validator_1.validationMessages.required('Candidates'))
+        .isArray()
+        .withMessage('Candidates must be an array')
+        .isLength({ min: 2 })
+        .withMessage('At least 2 candidates must be provided'),
+    (0, express_validator_1.body)('candidates.*.fullName').notEmpty().withMessage(validator_1.validationMessages.required('Full name')),
+    (0, express_validator_1.body)('candidates.*.partyCode')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Party code')),
+    (0, express_validator_1.body)('candidates.*.partyName')
+        .notEmpty()
+        .withMessage(validator_1.validationMessages.required('Party name')),
+    (0, express_validator_1.body)('candidates.*.position').optional(),
+    (0, express_validator_1.body)('candidates.*.bio').optional(),
+    (0, express_validator_1.body)('candidates.*.photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
+    (0, express_validator_1.body)('candidates.*.manifesto').optional(),
 ]), candidateController.createCandidate);
 /**
  * @swagger

@@ -13,7 +13,7 @@ export declare const getCandidates: (req: AuthRequest, res: Response, next: Next
  */
 export declare const getCandidateById: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 /**
- * Create a new candidate (admin only)
+ * Create multiple candidates (admin only)
  * @route POST /api/v1/elections/:electionId/candidates
  * @access Private (Admin)
  */

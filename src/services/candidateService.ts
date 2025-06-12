@@ -28,7 +28,8 @@ export const getCandidates = async (
   if (search) {
     whereConditions[Op.or] = [
       { fullName: { [Op.like]: `%${search}%` } },
-      { partyAffiliation: { [Op.like]: `%${search}%` } },
+      { partyName: { [Op.like]: `%${search}%` } },
+      { partyCode: { [Op.like]: `%${search}%` } },
     ];
   }
 
@@ -111,16 +112,82 @@ export const createCandidate = async (
 };
 
 /**
+ * Create multiple candidates
+ */
+export const createMultipleCandidates = async (
+  electionId: string,
+  candidatesData: Array<{
+    fullName: string;
+    partyCode: string;
+    partyName: string;
+    position?: string;
+    bio?: string;
+    photoUrl?: string;
+    manifesto?: string;
+  }>,
+): Promise<Candidate[]> => {
+  // Check if election exists
+  const election = await Election.findByPk(electionId);
+  if (!election) {
+    throw new Error('Election not found');
+  }
+
+  // Check for duplicate party codes within the same election
+  const partyCodes = candidatesData.map(c => c.partyCode);
+  const uniquePartyCodes = [...new Set(partyCodes)];
+  if (partyCodes.length !== uniquePartyCodes.length) {
+    throw new Error('Duplicate party codes are not allowed in the same election');
+  }
+
+  // Check if any party codes already exist for this election
+  const existingCandidates = await Candidate.findAll({
+    where: {
+      electionId,
+      partyCode: { [Op.in]: partyCodes },
+    },
+  });
+
+  if (existingCandidates.length > 0) {
+    const existingPartyCodes = existingCandidates.map(c => c.partyCode);
+    throw new Error(
+      `Party codes already exist for this election: ${existingPartyCodes.join(', ')}`,
+    );
+  }
+
+  // Prepare candidates for creation
+  const candidatesToCreate = candidatesData.map(candidateData => ({
+    id: uuidv4(),
+    electionId,
+    fullName: candidateData.fullName,
+    partyCode: candidateData.partyCode,
+    partyName: candidateData.partyName,
+    position: candidateData.position || null,
+    bio: candidateData.bio || null,
+    photoUrl: candidateData.photoUrl || null,
+    manifesto: candidateData.manifesto || null,
+  }));
+
+  // Create all candidates
+  const createdCandidates = await Candidate.bulkCreate(candidatesToCreate, {
+    returning: true,
+  });
+
+  return createdCandidates;
+};
+
+/**
  * Update a candidate
  */
 export const updateCandidate = async (
   id: string,
   updates: {
     fullName?: string;
-    partyAffiliation?: string;
+    partyCode?: string;
+    partyName?: string;
     position?: string;
-    biography?: string;
+    bio?: string;
     photoUrl?: string;
+    manifesto?: string;
   },
 ): Promise<Candidate> => {
   const candidate = await Candidate.findByPk(id);
@@ -133,19 +200,12 @@ export const updateCandidate = async (
   const updateData: any = {};
 
   if (updates.fullName) updateData.fullName = updates.fullName;
-  if (updates.position) updateData.position = updates.position;
+  if (updates.partyCode) updateData.partyCode = updates.partyCode;
+  if (updates.partyName) updateData.partyName = updates.partyName;
+  if (updates.position !== undefined) updateData.position = updates.position;
+  if (updates.bio !== undefined) updateData.bio = updates.bio;
   if (updates.photoUrl !== undefined) updateData.photoUrl = updates.photoUrl;
-
-  // Handle party affiliation update
-  if (updates.partyAffiliation) {
-    updateData.partyCode = updates.partyAffiliation.substring(0, 10);
-    updateData.partyName = updates.partyAffiliation;
-  }
-
-  // Handle biography update
-  if (updates.biography !== undefined) {
-    updateData.bio = updates.biography;
-  }
+  if (updates.manifesto !== undefined) updateData.manifesto = updates.manifesto;
 
   // Update candidate
   await candidate.update(updateData);

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteCandidate = exports.updateCandidate = exports.createCandidate = exports.getCandidateById = exports.getCandidates = void 0;
+exports.deleteCandidate = exports.updateCandidate = exports.createMultipleCandidates = exports.createCandidate = exports.getCandidateById = exports.getCandidates = void 0;
 const uuid_1 = require("uuid");
 const sequelize_1 = require("sequelize");
 const Candidate_1 = __importDefault(require("../db/models/Candidate"));
@@ -19,7 +19,8 @@ const getCandidates = async (electionId, search, page = 1, limit = 50) => {
     if (search) {
         whereConditions[sequelize_1.Op.or] = [
             { fullName: { [sequelize_1.Op.like]: `%${search}%` } },
-            { partyAffiliation: { [sequelize_1.Op.like]: `%${search}%` } },
+            { partyName: { [sequelize_1.Op.like]: `%${search}%` } },
+            { partyCode: { [sequelize_1.Op.like]: `%${search}%` } },
         ];
     }
     // Calculate pagination
@@ -87,6 +88,51 @@ const createCandidate = async (fullName, electionId, partyAffiliation, position,
 };
 exports.createCandidate = createCandidate;
 /**
+ * Create multiple candidates
+ */
+const createMultipleCandidates = async (electionId, candidatesData) => {
+    // Check if election exists
+    const election = await Election_1.default.findByPk(electionId);
+    if (!election) {
+        throw new Error('Election not found');
+    }
+    // Check for duplicate party codes within the same election
+    const partyCodes = candidatesData.map(c => c.partyCode);
+    const uniquePartyCodes = [...new Set(partyCodes)];
+    if (partyCodes.length !== uniquePartyCodes.length) {
+        throw new Error('Duplicate party codes are not allowed in the same election');
+    }
+    // Check if any party codes already exist for this election
+    const existingCandidates = await Candidate_1.default.findAll({
+        where: {
+            electionId,
+            partyCode: { [sequelize_1.Op.in]: partyCodes },
+        },
+    });
+    if (existingCandidates.length > 0) {
+        const existingPartyCodes = existingCandidates.map(c => c.partyCode);
+        throw new Error(`Party codes already exist for this election: ${existingPartyCodes.join(', ')}`);
+    }
+    // Prepare candidates for creation
+    const candidatesToCreate = candidatesData.map(candidateData => ({
+        id: (0, uuid_1.v4)(),
+        electionId,
+        fullName: candidateData.fullName,
+        partyCode: candidateData.partyCode,
+        partyName: candidateData.partyName,
+        position: candidateData.position || null,
+        bio: candidateData.bio || null,
+        photoUrl: candidateData.photoUrl || null,
+        manifesto: candidateData.manifesto || null,
+    }));
+    // Create all candidates
+    const createdCandidates = await Candidate_1.default.bulkCreate(candidatesToCreate, {
+        returning: true,
+    });
+    return createdCandidates;
+};
+exports.createMultipleCandidates = createMultipleCandidates;
+/**
  * Update a candidate
  */
 const updateCandidate = async (id, updates) => {
@@ -98,19 +144,18 @@ const updateCandidate = async (id, updates) => {
     const updateData = {};
     if (updates.fullName)
         updateData.fullName = updates.fullName;
-    if (updates.position)
+    if (updates.partyCode)
+        updateData.partyCode = updates.partyCode;
+    if (updates.partyName)
+        updateData.partyName = updates.partyName;
+    if (updates.position !== undefined)
         updateData.position = updates.position;
+    if (updates.bio !== undefined)
+        updateData.bio = updates.bio;
     if (updates.photoUrl !== undefined)
         updateData.photoUrl = updates.photoUrl;
-    // Handle party affiliation update
-    if (updates.partyAffiliation) {
-        updateData.partyCode = updates.partyAffiliation.substring(0, 10);
-        updateData.partyName = updates.partyAffiliation;
-    }
-    // Handle biography update
-    if (updates.biography !== undefined) {
-        updateData.bio = updates.biography;
-    }
+    if (updates.manifesto !== undefined)
+        updateData.manifesto = updates.manifesto;
     // Update candidate
     await candidate.update(updateData);
     return candidate;
