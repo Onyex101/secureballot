@@ -95,8 +95,8 @@ export const createElection = async (
     startDate: new Date(startDate),
     endDate: new Date(endDate),
     description: description || null,
-    // isActive: false, // Default handled by model
-    // status: ElectionStatus.DRAFT, // Default handled by model
+    isActive: true,
+    status: ElectionStatus.ACTIVE,
     eligibilityRules: eligibilityRules || null,
     createdBy,
   });

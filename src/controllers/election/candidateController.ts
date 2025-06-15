@@ -123,7 +123,7 @@ export const getCandidateById = async (
  * @route POST /api/v1/elections/:electionId/candidates
  * @access Private (Admin)
  */
-export const createCandidate = async (
+export const createCandidates = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,

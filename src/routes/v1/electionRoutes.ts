@@ -279,11 +279,14 @@ router.post(
 
     body('candidates.*.bio').optional(),
 
-    body('candidates.*.photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
+    body('candidates.*.photoUrl')
+      .optional({ nullable: true, checkFalsy: true })
+      .isURL()
+      .withMessage('Photo URL must be a valid URL when provided'),
 
     body('candidates.*.manifesto').optional(),
   ]),
-  candidateController.createCandidate,
+  candidateController.createCandidates,
 );
 
 /**
