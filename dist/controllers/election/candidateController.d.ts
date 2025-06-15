@@ -17,7 +17,7 @@ export declare const getCandidateById: (req: AuthRequest, res: Response, next: N
  * @route POST /api/v1/elections/:electionId/candidates
  * @access Private (Admin)
  */
-export declare const createCandidate: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const createCandidates: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 /**
  * Update a candidate (admin only)
  * @route PUT /api/v1/candidates/:id

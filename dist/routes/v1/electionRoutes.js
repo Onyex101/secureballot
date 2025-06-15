@@ -272,9 +272,12 @@ router.post('/:electionId/candidates', (0, validator_1.validate)([
         .withMessage(validator_1.validationMessages.required('Party name')),
     (0, express_validator_1.body)('candidates.*.position').optional(),
     (0, express_validator_1.body)('candidates.*.bio').optional(),
-    (0, express_validator_1.body)('candidates.*.photoUrl').optional().isURL().withMessage('Photo URL must be a valid URL'),
+    (0, express_validator_1.body)('candidates.*.photoUrl')
+        .optional({ nullable: true, checkFalsy: true })
+        .isURL()
+        .withMessage('Photo URL must be a valid URL when provided'),
     (0, express_validator_1.body)('candidates.*.manifesto').optional(),
-]), candidateController.createCandidate);
+]), candidateController.createCandidates);
 /**
  * @swagger
  * /api/v1/elections/{id}/vote:

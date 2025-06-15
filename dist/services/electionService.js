@@ -83,8 +83,8 @@ const createElection = async (electionName, electionType, startDate, endDate, cr
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         description: description || null,
-        // isActive: false, // Default handled by model
-        // status: ElectionStatus.DRAFT, // Default handled by model
+        isActive: true,
+        status: Election_1.ElectionStatus.ACTIVE,
         eligibilityRules: eligibilityRules || null,
         createdBy,
     });

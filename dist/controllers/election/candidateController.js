@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteCandidate = exports.updateCandidate = exports.createCandidate = exports.getCandidateById = exports.getCandidates = void 0;
+exports.deleteCandidate = exports.updateCandidate = exports.createCandidates = exports.getCandidateById = exports.getCandidates = void 0;
 const services_1 = require("../../services");
 const AuditLog_1 = require("../../db/models/AuditLog");
 const auditHelpers_1 = require("../../utils/auditHelpers");
@@ -85,7 +85,7 @@ exports.getCandidateById = getCandidateById;
  * @route POST /api/v1/elections/:electionId/candidates
  * @access Private (Admin)
  */
-const createCandidate = async (req, res, next) => {
+const createCandidates = async (req, res, next) => {
     const { electionId } = req.params;
     const { candidates } = req.body;
     const userId = req.user?.id;
@@ -131,7 +131,7 @@ const createCandidate = async (req, res, next) => {
         next(error);
     }
 };
-exports.createCandidate = createCandidate;
+exports.createCandidates = createCandidates;
 /**
  * Update a candidate (admin only)
  * @route PUT /api/v1/candidates/:id
