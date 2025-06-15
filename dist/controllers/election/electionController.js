@@ -36,7 +36,7 @@ const getElections = async (req, res, next) => {
                 // Get candidates for this election (limit to first 50 candidates for list view)
                 const candidatesResult = await services_1.electionService.getElectionCandidates(election.id, 1, 50);
                 return {
-                    ...election.toJSON(),
+                    ...election,
                     candidates: candidatesResult.candidates,
                     candidateCount: candidatesResult.pagination.total,
                 };
@@ -45,7 +45,7 @@ const getElections = async (req, res, next) => {
                 // If there's an error fetching candidates, return election without candidates
                 logger_1.logger.warn(`Failed to fetch candidates for election ${election.id}:`, error);
                 return {
-                    ...election.toJSON(),
+                    ...election,
                     candidates: [],
                     candidateCount: 0,
                 };

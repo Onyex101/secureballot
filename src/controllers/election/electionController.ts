@@ -43,7 +43,7 @@ export const getElections = async (
           const candidatesResult = await electionService.getElectionCandidates(election.id, 1, 50);
 
           return {
-            ...election.toJSON(),
+            ...election, // election is already a plain object with counts from service
             candidates: candidatesResult.candidates,
             candidateCount: candidatesResult.pagination.total,
           };
@@ -51,7 +51,7 @@ export const getElections = async (
           // If there's an error fetching candidates, return election without candidates
           logger.warn(`Failed to fetch candidates for election ${election.id}:`, error);
           return {
-            ...election.toJSON(),
+            ...election, // election is already a plain object with counts from service
             candidates: [],
             candidateCount: 0,
           };

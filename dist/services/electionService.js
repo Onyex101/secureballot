@@ -162,8 +162,35 @@ const getElectionsWithPagination = async (options) => {
         limit: Number(limit),
         offset,
     });
+    // Add voter counts and votes cast for each election
+    const electionsWithCounts = await Promise.all(elections.map(async (election) => {
+        try {
+            // Count total registered voters (active voters)
+            const registeredVotersCount = await Voter_1.default.count({
+                where: { isActive: true },
+            });
+            // Count votes cast for this specific election
+            const votesCastCount = await Vote_1.default.count({
+                where: { electionId: election.id },
+            });
+            return {
+                ...election.toJSON(),
+                registeredVotersCount,
+                votesCastCount,
+            };
+        }
+        catch (error) {
+            // If there's an error getting counts, return election with zero counts
+            (0, logger_1.logError)(`Failed to get voter/vote counts for election ${election.id}`, error);
+            return {
+                ...election.toJSON(),
+                registeredVotersCount: 0,
+                votesCastCount: 0,
+            };
+        }
+    }));
     return {
-        elections,
+        elections: electionsWithCounts,
         pagination: {
             total: count,
             page: Number(page),

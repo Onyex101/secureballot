@@ -36,8 +36,20 @@ interface GetElectionsOptions {
   search?: string;
 }
 
+interface ElectionWithCounts {
+  id: string;
+  electionName: string;
+  electionType: string;
+  startDate: Date;
+  endDate: Date;
+  description: string | null;
+  status: string;
+  registeredVotersCount: number;
+  votesCastCount: number;
+}
+
 interface ElectionsPaginationResult {
-  elections: Election[];
+  elections: ElectionWithCounts[];
   pagination: {
     total: number;
     page: number;
@@ -180,8 +192,39 @@ export const getElectionsWithPagination = async (
     offset,
   });
 
+  // Add voter counts and votes cast for each election
+  const electionsWithCounts = await Promise.all(
+    elections.map(async election => {
+      try {
+        // Count total registered voters (active voters)
+        const registeredVotersCount = await Voter.count({
+          where: { isActive: true },
+        });
+
+        // Count votes cast for this specific election
+        const votesCastCount = await Vote.count({
+          where: { electionId: election.id },
+        });
+
+        return {
+          ...election.toJSON(),
+          registeredVotersCount,
+          votesCastCount,
+        };
+      } catch (error) {
+        // If there's an error getting counts, return election with zero counts
+        logError(`Failed to get voter/vote counts for election ${election.id}`, error as Error);
+        return {
+          ...election.toJSON(),
+          registeredVotersCount: 0,
+          votesCastCount: 0,
+        };
+      }
+    }),
+  );
+
   return {
-    elections,
+    elections: electionsWithCounts,
     pagination: {
       total: count,
       page: Number(page),

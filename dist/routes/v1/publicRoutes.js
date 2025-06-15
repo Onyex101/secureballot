@@ -118,6 +118,12 @@ const router = (0, express_1.Router)();
  *                           candidateCount:
  *                             type: integer
  *                             description: Total number of candidates
+ *                           registeredVotersCount:
+ *                             type: integer
+ *                             description: Total number of registered voters
+ *                           votesCastCount:
+ *                             type: integer
+ *                             description: Total number of votes cast for this election
  *                     pagination:
  *                       type: object
  *                       properties:

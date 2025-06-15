@@ -9,8 +9,19 @@ interface GetElectionsOptions {
     limit?: number;
     search?: string;
 }
+interface ElectionWithCounts {
+    id: string;
+    electionName: string;
+    electionType: string;
+    startDate: Date;
+    endDate: Date;
+    description: string | null;
+    status: string;
+    registeredVotersCount: number;
+    votesCastCount: number;
+}
 interface ElectionsPaginationResult {
-    elections: Election[];
+    elections: ElectionWithCounts[];
     pagination: {
         total: number;
         page: number;
